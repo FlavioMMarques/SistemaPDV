@@ -23,8 +23,17 @@ dotnet test --filter CatalogSync
 
 ```
 SistemaPDV/
+  Models/
+    ConfiguracaoSincronizacao.cs   # link/URL da API, client_id, client_secret protegido,
+                                    # nome do dispositivo, última sincronização por recurso
+                                    # (extensão pontual do data-layer — não fazia sentido
+                                    # existir antes de catalog-sync precisar dela)
+  Data/Configurations/
+    ConfiguracaoSincronizacaoConfiguration.cs
   Services/
     Sync/
+      SegredoProtector.cs          # DPAPI: protege/desprotege client_secret (e, futuramente,
+                                    # o certificado da empresa) em repouso
       SoftcomAuthService.cs        # troca client_id/client_secret por access_token
       CatalogSyncService.cs        # orquestra: autentica, busca cada recurso, faz upsert
       SoftcomApiClient.cs          # GET genérico paginado (segue next_page_url)
