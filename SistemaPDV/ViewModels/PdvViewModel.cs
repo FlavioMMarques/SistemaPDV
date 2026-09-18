@@ -47,6 +47,7 @@ public class PdvViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
             this.RaisePropertyChanged(nameof(Total));
         };
+        Pagamentos.CollectionChanged += (_, _) => this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
 
         var podeFinalizar = this.WhenAnyValue(vm => vm.PodeFinalizarVenda);
         FinalizarVendaCommand = ReactiveCommand.CreateFromTask(FinalizarVendaAsync, podeFinalizar);
@@ -133,7 +134,11 @@ public class PdvViewModel : ViewModelBase
 
     public decimal Total => Itens.Sum(item => item.Total);
 
-    public bool PodeFinalizarVenda => Itens.Count > 0;
+    // Achado numa revisão de código (2026-09-18): carrinho não vazio sozinho não
+    // bastava — dava pra finalizar com pagamento parcial ou nenhum. Pagar A MAIS
+    // do que o total é permitido (dinheiro com troco); a MENOS, não. Troco em si
+    // não é modelado ainda.
+    public bool PodeFinalizarVenda => Itens.Count > 0 && Pagamentos.Sum(p => p.Valor) >= Total;
 
     public ReactiveCommand<Unit, Venda?> FinalizarVendaCommand { get; }
     public ReactiveCommand<Unit, Unit> NovoCommand { get; }
@@ -163,7 +168,17 @@ public class PdvViewModel : ViewModelBase
 
     public void AdicionarPagamento(FormaPagamento forma)
     {
-        var valor = decimal.TryParse(ValorPagamentoAdicionar, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : 0m;
+        // Diferente de AdicionarItem (onde quantidade inválida cai num default
+        // sensato de 1): dinheiro não tem default sensato nenhum — um valor
+        // inválido/vazio tem que rejeitar a ação, não adicionar um pagamento de
+        // R$ 0,00 silencioso (achado numa revisão de código, 2026-09-18).
+        if (!decimal.TryParse(ValorPagamentoAdicionar, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor) || valor <= 0)
+        {
+            Mensagem = "Informe um valor válido pra adicionar o pagamento.";
+            return;
+        }
+
+        Mensagem = null;
         Pagamentos.Add(new PagamentoAlocado { FormaPagamento = forma, Valor = valor });
     }
 

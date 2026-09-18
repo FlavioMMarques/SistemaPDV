@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+             x:Class="SistemaPDV.Views.DashboardView"
+             x:DataType="vm:DashboardViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="F2" Command="{Binding NovaVendaCommand}" />
+  </UserControl.KeyBindings>
+
+  <Grid RowDefinitions="Auto,*" Margin="24">
+
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
+      <TextBlock Grid.Column="0" Text="📊 Painel Principal" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
+      <Button Grid.Column="1"
+              Content="🛒 Nova Venda (F2)"
+              Command="{Binding NovaVendaCommand}"
+              Background="{StaticResource BrandYellowBrush}"
+              Foreground="{StaticResource TextDarkBrush}"
+              FontWeight="Bold"
+              CornerRadius="{StaticResource RadiusMedium}"
+              Padding="20,10"
+              AutomationProperties.Name="Nova venda" />
+    </Grid>
+
+    <UniformGrid Grid.Row="1" Columns="4" Rows="1" Margin="0,0,0,0">
+
+      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20" Margin="0,0,12,0">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Faturamento hoje" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="{Binding FaturamentoHoje, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentGreenBrush}" />
+        </StackPanel>
+      </Border>
+
+      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20" Margin="0,0,12,0">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Estoque local" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="{Binding EstoqueTotal}" FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+        </StackPanel>
+      </Border>
+
+      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20" Margin="0,0,12,0">
+        <StackPanel Spacing="8">
+          <TextBlock Text="☁️ Fila outbox" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="{Binding PendentesOutbox, StringFormat='{}{0} pendentes'}" FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
+        </StackPanel>
+      </Border>
+
+      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Última sincronização" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="{Binding UltimaSincronizacao, StringFormat='{}{0:dd/MM HH:mm}', TargetNullValue='Nunca'}" FontFamily="{StaticResource FontMono}" FontSize="18" Foreground="{StaticResource TextMainBrush}" />
+        </StackPanel>
+      </Border>
+
+    </UniformGrid>
+
+  </Grid>
+
+</UserControl>

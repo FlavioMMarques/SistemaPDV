@@ -6,30 +6,42 @@ using ReactiveUI;
 using SistemaPDV.Models;
 using SistemaPDV.Services;
 using SistemaPDV.Services.Caixa;
+using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.ViewModels;
 
 // Casca de navegação: decide qual tela mostrar (Configurações -> Login ->
-// AbrirCaixa/Dashboard) e guarda o estado que o header precisa (operador logado,
-// caixa aberto). DashboardViewModel ainda não existe (Task 46) — a decisão de que
-// é hora de mostrá-lo já está completa e testável via TelaAtual, só a instância
-// real de CurrentViewModel fica pendente até lá.
+// AbrirCaixa/Dashboard/Pdv) e guarda o estado que o header precisa (operador
+// logado, caixa aberto).
 public class ShellViewModel : ViewModelBase
 {
     private readonly ConfiguracaoService configuracaoService;
     private readonly LoginOperadorService loginOperadorService;
     private readonly CaixaService caixaService;
+    private readonly DashboardService dashboardService;
+    private readonly VendaService vendaService;
+    private readonly CatalogoLocalService catalogoLocalService;
 
     private Tela telaAtual;
     private ViewModelBase? currentViewModel;
     private Funcionario? operadorLogado;
     private Models.Caixa? caixaAberto;
+    private string? mensagem;
 
-    public ShellViewModel(ConfiguracaoService configuracaoService, LoginOperadorService loginOperadorService, CaixaService caixaService)
+    public ShellViewModel(
+        ConfiguracaoService configuracaoService,
+        LoginOperadorService loginOperadorService,
+        CaixaService caixaService,
+        DashboardService dashboardService,
+        VendaService vendaService,
+        CatalogoLocalService catalogoLocalService)
     {
         this.configuracaoService = configuracaoService;
         this.loginOperadorService = loginOperadorService;
         this.caixaService = caixaService;
+        this.dashboardService = dashboardService;
+        this.vendaService = vendaService;
+        this.catalogoLocalService = catalogoLocalService;
     }
 
     public Tela TelaAtual
@@ -56,11 +68,20 @@ public class ShellViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref caixaAberto, value);
     }
 
+    // Sem infraestrutura de log ainda no projeto — pelo menos isso dá pra tela
+    // mostrar alguma coisa quando ExecutarComTratamentoDeErroAsync captura uma
+    // falha, em vez de travar em silêncio (ver o método).
+    public string? Mensagem
+    {
+        get => mensagem;
+        private set => this.RaiseAndSetIfChanged(ref mensagem, value);
+    }
+
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
     // pode chegar em IrParaConfiguracoes, que constrói ConfiguracoesViewModel
     // (Windows-only por causa do vínculo de dispositivo via DPAPI).
     [SupportedOSPlatform("windows")]
-    public async Task IniciarAsync()
+    public async Task IniciarAsync() => await ExecutarComTratamentoDeErroAsync(async () =>
     {
         var configuracao = await configuracaoService.ObterOuCriarAsync();
 
@@ -73,15 +94,19 @@ public class ShellViewModel : ViewModelBase
         }
 
         IrParaLogin();
-    }
+    });
 
     [SupportedOSPlatform("windows")]
     private void IrParaConfiguracoes()
     {
         var viewModel = new ConfiguracoesViewModel(configuracaoService);
-        TelaAtual = Tela.Configuracoes;
+        // CurrentViewModel antes de TelaAtual de propósito: quem observa TelaAtual
+        // (ex: um teste com WhenAnyValue) só deve acordar depois que o resto do
+        // estado da navegação já está pronto — inverter a ordem cria uma corrida
+        // onde TelaAtual muda mas CurrentViewModel ainda é o da tela anterior.
         CurrentViewModel = viewModel;
-        _ = viewModel.IniciarAsync();
+        TelaAtual = Tela.Configuracoes;
+        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
     private void IrParaLogin()
@@ -93,10 +118,10 @@ public class ShellViewModel : ViewModelBase
         // conhecer Shell.
         viewModel.EntrarCommand
             .Where(funcionario => funcionario is not null)
-            .Subscribe(funcionario => _ = AposLoginAsync(funcionario!));
+            .Subscribe(funcionario => _ = ExecutarComTratamentoDeErroAsync(() => AposLoginAsync(funcionario!)));
 
-        TelaAtual = Tela.Login;
         CurrentViewModel = viewModel;
+        TelaAtual = Tela.Login;
     }
 
     private async Task AposLoginAsync(Funcionario funcionario)
@@ -127,14 +152,47 @@ public class ShellViewModel : ViewModelBase
                 IrParaDashboard();
             });
 
-        TelaAtual = Tela.AbrirCaixa;
         CurrentViewModel = viewModel;
+        TelaAtual = Tela.AbrirCaixa;
     }
 
     private void IrParaDashboard()
     {
-        // TODO (Task 46): trocar por um DashboardViewModel real quando ele existir.
+        var viewModel = new DashboardViewModel(dashboardService, CaixaAberto?.Id);
+
+        // Nova Venda não navega sozinho — só emite (fica desabilitado sem caixa
+        // aberto, ver DashboardViewModel), o Shell decide o que fazer com isso.
+        viewModel.NovaVendaCommand.Subscribe(_ => IrParaPdv(CaixaAberto!.Id));
+
+        CurrentViewModel = viewModel;
         TelaAtual = Tela.Dashboard;
-        CurrentViewModel = null;
+        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
+    }
+
+    private void IrParaPdv(int caixaId)
+    {
+        var viewModel = new PdvViewModel(vendaService, catalogoLocalService, caixaId);
+        CurrentViewModel = viewModel;
+        TelaAtual = Tela.Pdv;
+        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
+    }
+
+    // "Fire-and-forget seguro": IrPara* dispara trabalho assíncrono (carregar
+    // dados, reagir a login) sem o chamador esperar — sem esse try/catch, qualquer
+    // exceção nesse trabalho vira uma task nunca observada e desaparece
+    // silenciosamente, travando a tela sem explicação nenhuma (achado numa revisão
+    // de código, 2026-09-18). Sem infraestrutura de log ainda no projeto, o mínimo
+    // é nunca deixar isso sumir em silêncio — Mensagem ao menos dá pra tela mostrar
+    // alguma coisa em vez de nada.
+    private async Task ExecutarComTratamentoDeErroAsync(Func<Task> operacao)
+    {
+        try
+        {
+            await operacao();
+        }
+        catch (Exception ex)
+        {
+            Mensagem = $"Ocorreu um erro inesperado: {ex.Message}";
+        }
     }
 }
