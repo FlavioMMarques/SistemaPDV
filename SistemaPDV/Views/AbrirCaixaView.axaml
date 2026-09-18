@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:conv="using:SistemaPDV.Converters"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SistemaPDV.Views.AbrirCaixaView"
+             x:DataType="vm:AbrirCaixaViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <UserControl.Resources>
+    <conv:TurnoParaIndiceConverter x:Key="TurnoParaIndiceConverter" />
+  </UserControl.Resources>
+
+  <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="360">
+    <Border Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusCard}"
+            Padding="32">
+      <StackPanel Spacing="16">
+        <TextBlock Text="Abrir caixa"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource TextMainBrush}"
+                   HorizontalAlignment="Center" />
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="Turno" Foreground="{StaticResource TextMutedBrush}" />
+          <ComboBox SelectedIndex="{Binding Turno, Mode=TwoWay, Converter={StaticResource TurnoParaIndiceConverter}}"
+                    HorizontalAlignment="Stretch"
+                    TabIndex="0"
+                    AutomationProperties.Name="Turno">
+            <ComboBoxItem Content="1 - Manhã" />
+            <ComboBoxItem Content="2 - Tarde" />
+            <ComboBoxItem Content="3 - Noite" />
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="Troco inicial (R$)" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBox Text="{Binding TrocoInicial, Mode=TwoWay}"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   FontFamily="{StaticResource FontMono}"
+                   CornerRadius="{StaticResource RadiusSmall}"
+                   AutomationProperties.Name="Troco inicial"
+                   TabIndex="1" />
+        </StackPanel>
+
+        <TextBlock Text="{Binding Mensagem}"
+                   Foreground="{StaticResource AccentRedBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Button Content="Abrir caixa (F2)"
+                Command="{Binding AbrirCommand}"
+                Background="{StaticResource BrandYellowBrush}"
+                Foreground="{StaticResource TextDarkBrush}"
+                FontWeight="Bold"
+                CornerRadius="{StaticResource RadiusMedium}"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Padding="0,10"
+                TabIndex="2"
+                AutomationProperties.Name="Abrir caixa" />
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>

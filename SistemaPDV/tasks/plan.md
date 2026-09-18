@@ -174,11 +174,11 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - [x] Task 40: `LoginViewModel`/`LoginView`
 - [x] Task 41: `ConfiguracoesViewModel`/`ConfiguracoesView` (provisionamento do dispositivo + toggles)
 - [x] Task 42: `ShellViewModel`/`ShellView` (navegação raiz + indicadores online/offline e pendências)
-- [ ] Task 43: `AbrirCaixaViewModel`/`AbrirCaixaView`
+- [x] Task 43: `AbrirCaixaViewModel`/`AbrirCaixaView`
 
 ### Checkpoint: Login → configuração → abrir caixa navegável
-- [ ] `dotnet test` verde
-- [ ] Manual check: `dotnet run`, fluxo login→config→caixa navegável nos dois estados de `ExigirAberturaCaixa`
+- [x] `dotnet test` verde
+- [x] Manual check: `dotnet run`, fluxo login→config→caixa navegável nos dois estados de `ExigirAberturaCaixa`
 
 **Venda (núcleo)**
 - [ ] Task 44: `PdvViewModel` — carrinho, `PodeFinalizarVenda`, atalhos de teclado

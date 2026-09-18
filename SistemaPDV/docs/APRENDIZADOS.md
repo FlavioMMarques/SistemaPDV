@@ -236,3 +236,11 @@ await telaMudou;
 ```
 
 Isso assina a mudança de propriedade **antes** de disparar o login, e só afirma o resultado depois que ela de fato aconteceu — determinístico, sem depender de quanto tempo a continuação leva pra rodar. É a mesma ideia de testar o resultado (o que mudou) em vez de como aconteceu (quais métodos foram chamados), só aplicada a um cenário assíncrono/reativo em vez de síncrono.
+
+## 32. `IValueConverter`: traduzir entre o formato do domínio e o formato do controle de UI
+
+**Onde:** `Converters/TurnoParaIndiceConverter.cs`, `Views/AbrirCaixaView.axaml` — Fase 5 (pdv-ui), Task 43
+
+`AbrirCaixaViewModel.Turno` é `1`/`2`/`3` (o valor que `CaixaService`/a API esperam) — mas o controle de UI escolhido pra selecionar o turno, `ComboBox.SelectedIndex`, é 0-based (`0`/`1`/`2`, a posição na lista). Ligar os dois direto (`SelectedIndex="{Binding Turno}"`) selecionaria sempre o item errado (turno 1 marcaria o índice 1 = "2 - Tarde").
+
+Um `IValueConverter` resolve isso sem o ViewModel precisar saber nada sobre `ComboBox` (ele continua expondo `Turno` no formato que faz sentido pro domínio) e sem a View precisar de lógica além do binding: `Convert` roda quando o valor vai do ViewModel pra tela (`turno - 1`), `ConvertBack` quando o usuário troca a seleção e o valor volta pro ViewModel (`índice + 1`). É o mesmo princípio dos DTOs de API (traduzir formato externo ↔ formato interno), só que aqui a "borda externa" é o próprio controle visual, não uma API HTTP.
