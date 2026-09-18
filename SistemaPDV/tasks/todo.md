@@ -1013,3 +1013,360 @@ Os 5 achados de limpeza/eficiência deixados de fora da passada acima, resolvido
 `CaixaSyncService` e `VendaSyncService` passaram a receber `SoftcomApiClient` no construtor em vez de `HttpClient` puro (pra poder usar `EnviarAsync`) — os 7 arquivos de teste que os construíam diretamente foram ajustados pra passar `new SoftcomApiClient(httpClient)`. Build limpo, 0 avisos.
 
 Skill `code-review-and-quality` (nível `high`) rodada sobre esse polimento antes do commit — achou 1 lacuna de cobertura: `ResultadoEnvioTipo.TokenExpirado` (código novo dessa passada) não tinha nenhum teste de regressão garantindo que um 401 realmente cai no tratamento de falha em `CaixaSyncService`/`VendaSyncService`. Corrigido na hora com 2 testes novos (`TokenExpiradoEhTratadoComoFalhaEMarcaFalhaSync` em `CaixaSyncServiceAberturaTests`, `TokenExpiradoEhTratadoComoFalhaEIncrementaTentativas` em `VendaSyncServiceTests`). Testes: 105 → 107.
+
+## Fase 5: pdv-ui
+
+Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`, `caixa`, `sales` — todos completos, revisados e publicados (commits `d6a389f`..`28db0af`). 4 novidades descobertas na revisão da spec, sem existir nos módulos anteriores: `AppServices` (composition root), `ConfiguracaoSincronizacao.ExigirAberturaCaixa`, `CatalogSyncService.SincronizarClienteNovoAsync` (push de cliente) e `SincronizacaoBackgroundService` (timer automático).
+
+## Task 37: ConfiguracaoSincronizacao.ExigirAberturaCaixa
+
+**Description:** Campo novo (`bool`, default `true`) em `ConfiguracaoSincronizacao` — decide se o fluxo pós-login exige caixa aberto antes de liberar Dashboard/PDV, ou se abrir caixa vira uma ação opcional pelo menu. Mesma filosofia já aplicada a `ClienteConsumidorFinalIdExterno`: regra de negócio configurável, não fixa no código.
+
+**Acceptance criteria:**
+- [x] `ConfiguracaoSincronizacao.ExigirAberturaCaixa` existe, default `true`
+- [x] Migration `AddExigirAberturaCaixa` aplicada, `AppDbContextModelSnapshot.cs` atualizado
+
+**Verification:**
+- [x] Tests pass: `dotnet test --filter ConfiguracaoSincronizacao` — 108 testes no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+
+**Dependencies:** None
+
+**Files likely touched:**
+- `SistemaPDV/Models/ConfiguracaoSincronizacao.cs`
+- `SistemaPDV/Data/Configurations/ConfiguracaoSincronizacaoConfiguration.cs`
+- `SistemaPDV/Data/Migrations/*_AddExigirAberturaCaixa.cs` (+ Designer + snapshot)
+
+**Estimated scope:** S (3-4 arquivos, mecânico)
+
+---
+
+## Task 38: AppServices — composition root
+
+**Description:** Classe simples com propriedades públicas pros serviços já prontos de `catalog-sync`/`caixa`/`sales` (`CatalogSyncService`, `LoginOperadorService`, `CaixaService`, `CaixaSyncService`, `VendaService`, `VendaSyncService`). Montada uma vez em `App.axaml.cs`. Sem container de DI — wiring manual, decisão do usuário (2026-09-18).
+
+**Acceptance criteria:**
+- [x] `AppServices` expõe só os serviços prontos (nunca `HttpClient`/`SegredoProtector`/`Func<AppDbContext>` soltos) — ViewModel nunca fala com infraestrutura direto, decisão confirmada com o usuário (2026-09-18)
+- [x] `App.axaml.cs` cria uma única instância e a torna acessível pros ViewModels (via construtor, não singleton estático global) — guardada como `App.Services`, pronta pra Task 42 passar pro `ShellViewModel`
+- [x] `HttpClient` é uma única instância compartilhada internamente (não um novo por chamada) — mas fica privado dentro de `AppServices`, nunca exposto
+
+**Verification:**
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` abre e fica rodando sem exceção; `pdv.db` criado com a migration completa aplicada (confirmado via WAL de ~346KB)
+
+**Dependencies:** None
+
+**Files likely touched:**
+- `SistemaPDV/AppServices.cs`
+- `SistemaPDV/App.axaml.cs`
+
+**Estimated scope:** S (2 arquivos)
+
+---
+
+## Task 39: Tema visual (design tokens do protótipo)
+
+**Description:** `ResourceDictionary` (`Themes/PdvTheme.axaml`, incluído em `App.axaml`) com os tokens de cor/tipografia extraídos direto do CSS real do protótipo mockado do curso (ver tabela em `specs/SPEC-pdv-ui.md`, seção "Convenções de UI") — tema escuro, fonte Inter (texto) + Fira Code (números/valores). Toda View da Fase 5 usa esses `StaticResource`, nunca hex cravado ou o tema Fluent padrão do Avalonia sem ajuste.
+
+**Acceptance criteria:**
+- [x] `SolidColorBrush` nomeados pra cada token da tabela (`BgMainBrush`, `BgCardBrush`, `AccentGreenBrush`, `AccentRedBrush`, `BrandYellowBrush`, etc.) com os valores hex exatos do protótipo
+- [x] `FontFamily` resources pra `Inter` (texto, já embutida via `Avalonia.Fonts.Inter`) — `Fira Code` substituída por `monospace` genérico: não existe pacote confiável do Fira Code pro Avalonia, e `monospace` é literalmente o fallback que o próprio CSS do protótipo já declara pro token `font-mono` (decisão registrada no comentário do arquivo e em `docs/APRENDIZADOS.md`)
+- [x] `App.axaml` aplica o `ResourceDictionary` globalmente (`Application.Resources` → `MergedDictionaries`) — qualquer View novo já nasce com acesso aos tokens sem import extra
+
+**Verification:**
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` abre e roda sem exceção de binding (`StaticResource` resolveram) — **confirmação visual da cor exata fica pendente pro usuário conferir**, o ambiente onde rodo não tira screenshot da janela
+
+**Dependencies:** None
+
+**Files likely touched:**
+- `SistemaPDV/Themes/PdvTheme.axaml`
+- `SistemaPDV/App.axaml`
+- `SistemaPDV/SistemaPDV.csproj` (fonte Fira Code, se não vier embutida)
+
+**Estimated scope:** S (2-3 arquivos, sem lógica)
+
+---
+
+### Checkpoint: Foundation (pdv-ui)
+- [ ] `dotnet build` sem erros
+- [ ] `dotnet test` verde
+
+## Task 40: LoginViewModel / LoginView
+
+**Description:** Tela de login: um campo (`pdv_key` digitada), chama `LoginOperadorService.AutenticarAsync`. Sucesso guarda o `Funcionario` autenticado e navega adiante (config se necessário, senão caixa/dashboard); falha mostra mensagem sem detalhar o motivo (não revela se a chave existe ou não, por segurança).
+
+**Acceptance criteria:**
+- [x] Comando de login só habilitado com o campo preenchido
+- [x] Sucesso e falha refletidos no ViewModel sem travar a UI (chamada assíncrona)
+- [x] Funcionário desativado (`Desativado = true`) não loga — mesma checagem que `LoginOperadorService` já faz (coberto indiretamente: ViewModel só repassa o `null` que o serviço já devolve pra esse caso)
+
+**Verification:**
+- [x] Tests pass: `dotnet test --filter LoginViewModel` — 5 testes novos, 113 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+
+**Dependencies:** Task 38
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/LoginViewModel.cs`
+- `SistemaPDV/Views/LoginView.axaml` (+ `.cs`)
+- `SistemaPDV.Tests/LoginViewModelTests.cs`
+
+**Estimated scope:** M (3 arquivos)
+
+---
+
+## Task 41: ConfiguracoesViewModel / ConfiguracoesView
+
+**Description:** Provisionamento do dispositivo (link de cadastro → `SoftcomAuthService.ObterClienteSecretAsync` → grava `ApiClienteSecretProtegido`) e edição dos campos de `ConfiguracaoSincronizacao` (`UrlApi`, `NomeDispositivo`, `ClienteConsumidorFinalIdExterno`, `ExigirAberturaCaixa`). Acessível quando a configuração ainda não existe (fluxo inicial) e depois pelo menu.
+
+**Acceptance criteria:**
+- [x] Formulário de vínculo grava `client_secret` protegido (nunca em texto puro na tela nem no banco) — confirmado em teste comparando o valor salvo com o original via `Desproteger`
+- [x] Toggle `ExigirAberturaCaixa` persiste e é lido de volta corretamente
+- [ ] Sem `ConfiguracaoSincronizacao` preenchida, o app direciona pra essa tela antes de qualquer outra — **adiado pra Task 42**: essa é uma decisão de navegação do `ShellViewModel`, que ainda não existe; `ConfiguracoesViewModel`/`View` já estão prontos pra serem exibidos quando o Shell decidir
+
+**Verification:**
+- [x] Tests pass: `dotnet test --filter Configuracoes` — 9 testes novos (5 `ConfiguracaoServiceTests` + 4 `ConfiguracoesViewModelTests`), 122 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+
+**Dependencies:** Task 37, Task 38
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/ConfiguracoesViewModel.cs`
+- `SistemaPDV/Views/ConfiguracoesView.axaml` (+ `.cs`)
+- `SistemaPDV.Tests/ConfiguracoesViewModelTests.cs`
+
+**Estimated scope:** M (3 arquivos)
+
+---
+
+## Task 42: ShellViewModel / ShellView
+
+**Description:** Casca de navegação: troca entre as telas (Login/Configurações/AbrirCaixa/Dashboard/Pdv/ListaPedidos/Cadastros), mostra operador+caixa logado, indicador online/offline e contador de pendências (outbox). É quem decide, com base em `ExigirAberturaCaixa` e no estado local, se navega pra `AbrirCaixaView` ou direto pro Dashboard depois do login.
+
+**Acceptance criteria:**
+- [ ] Navegação entre as telas funciona sem recriar estado perdido — **não aplicável ainda**: não existe menu de navegação livre nessa task (só o fluxo linear login→config→[AbrirCaixa/Dashboard]); revisitar quando `CadastrosView`/`DashboardView` (com menu de verdade) existirem
+- [x] Sem `ConfiguracaoSincronizacao.UrlApi` preenchida (dispositivo nunca vinculado), o Shell abre direto em `ConfiguracoesView`, antes até da `LoginView` — critério que ficou pendente da Task 41
+- [x] Header mostra operador + caixa (quando aberto) — igual ao protótipo mockado
+- [ ] Indicador de pendências e de conexão existem (ligados de verdade só na Task 50)
+
+**Verification:**
+- [x] Tests pass: `dotnet test --filter Shell` — 9 testes novos (4 `CaixaServiceObterCaixaAbertoTests` + 5 `ShellViewModelTests`), 131 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` abre e fica rodando sem exceção, direcionando pra `ConfiguracoesView` (banco novo, sem config ainda)
+
+**Dependencies:** Task 40, Task 41
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/ShellViewModel.cs`
+- `SistemaPDV/Views/ShellView.axaml` (+ `.cs`)
+- `SistemaPDV/App.axaml.cs` (troca `MainWindow.DataContext` pro `ShellViewModel`)
+- `SistemaPDV.Tests/ShellViewModelTests.cs`
+
+**Estimated scope:** M (4 arquivos)
+
+---
+
+## Task 43: AbrirCaixaViewModel / AbrirCaixaView
+
+**Description:** Tela de abertura de caixa: troco inicial, chama `CaixaService.AbrirCaixaLocalAsync`. Navegável direto (menu) quando `ExigirAberturaCaixa = false`, ou obrigatória pós-login quando `true` e não há caixa aberto hoje.
+
+**Acceptance criteria:**
+- [ ] `ExigirAberturaCaixa = true` sem caixa aberto → Shell força essa tela antes de liberar Dashboard/PDV
+- [ ] `ExigirAberturaCaixa = false` → Shell libera Dashboard direto, essa tela vira opcional no menu
+- [ ] Sucesso navega pro Dashboard; falha (ex: já existe caixa aberto pra hoje) mostra a mensagem de `ResultadoOperacaoCaixa`
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter AbrirCaixa`
+- [ ] Build: `dotnet build`
+
+**Dependencies:** Task 37, Task 38, Task 42
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/AbrirCaixaViewModel.cs`
+- `SistemaPDV/Views/AbrirCaixaView.axaml` (+ `.cs`)
+- `SistemaPDV.Tests/AbrirCaixaViewModelTests.cs`
+
+**Estimated scope:** M (3 arquivos)
+
+---
+
+### Checkpoint: Login → configuração → abrir caixa navegável
+- [ ] `dotnet test` verde
+- [ ] Manual check: `dotnet run`, fluxo login→config→caixa navegável nos dois estados de `ExigirAberturaCaixa`
+
+## Task 44: PdvViewModel — venda
+
+**Description:** O núcleo do módulo: carrinho local (itens + quantidade + preço), seleção de cliente (default Consumidor Final), seleção de forma(s) de pagamento (suporta pagamento misto, já suportado por `VendaService`), `PodeFinalizarVenda` (só habilitado com caixa aberto e ao menos um item), atalhos de teclado (F2 novo, F4 buscar produto/cliente, F10 pagar, Esc cancelar). Finalizar chama `VendaService.RegistrarVendaLocalAsync` — nunca `VendaSyncService` diretamente (isso é papel do background service, Task 50).
+
+**Acceptance criteria:**
+- [ ] `PodeFinalizarVenda` reflete caixa aberto + carrinho não vazio, reativo (ReactiveUI)
+- [ ] Cliente não selecionado não trava a venda — fica implícito Consumidor Final (resolvido só na hora de sincronizar, não aqui)
+- [ ] Cliente pode ser selecionado mesmo sem `IdExterno` ainda (recém-criado na Task 49) — decisão confirmada com o usuário (2026-09-18): `VendaSyncService` já resolve `cliente_id` no momento de sincronizar e trata "cliente ainda não sincronizado" como pendência silenciosa (não erro), então a venda só fica retida até o cliente sincronizar, sem precisar de nenhuma mudança no `VendaSyncService` já existente
+- [ ] Produto e forma de pagamento continuam exigindo `IdExterno != null` pra aparecer selecionável — não existe cadastro local pra eles nessa fase, só pra cliente
+- [ ] Finalizar venda não faz nenhuma chamada de rede — grava local e devolve na hora
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter PdvViewModel`
+- [ ] Build: `dotnet build`
+
+**Dependencies:** Task 38, Task 42
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/PdvViewModel.cs`
+- `SistemaPDV.Tests/PdvViewModelTests.cs`
+
+**Estimated scope:** M (2 arquivos, lógica densa)
+
+---
+
+## Task 45: PdvView.axaml
+
+**Description:** Layout da tela de venda e ligação dos atalhos de teclado do protótipo (F2/F4/F10/Esc) aos comandos do `PdvViewModel`.
+
+**Acceptance criteria:**
+- [ ] F2 novo, F4 buscar, F10 pagar, Esc cancelar funcionam de verdade na janela (não só existem no ViewModel)
+- [ ] Indicador de `SyncStatus` visível pros itens/cliente selecionados (🟢/🟡/🔴)
+
+**Verification:**
+- [ ] Build: `dotnet build`
+- [ ] Manual check: `dotnet run`, testar os 4 atalhos manualmente
+
+**Dependencies:** Task 44
+
+**Files likely touched:**
+- `SistemaPDV/Views/PdvView.axaml` (+ `.cs`)
+
+**Estimated scope:** S (1-2 arquivos, sem lógica nova)
+
+---
+
+### Checkpoint: Vender offline funciona ponta a ponta
+- [ ] Manual check: desligar a rede, vender, venda aparece `PendenteSync` na lista de pedidos
+
+## Task 46: DashboardViewModel / DashboardView
+
+**Description:** Faturamento do dia (soma de vendas do caixa aberto), contagem de estoque local, tamanho da fila outbox (caixa+venda+cliente pendentes), última sincronização — todas consultas de leitura simples sobre o banco local, sem chamada de rede própria.
+
+**Acceptance criteria:**
+- [ ] Números batem com o estado real do banco local (verificável manualmente)
+- [ ] Não dispara sincronização nenhuma sozinho (isso é só `SincronizacaoBackgroundService`, Task 50)
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter Dashboard`
+- [ ] Build: `dotnet build`
+
+**Dependencies:** Task 38, Task 42
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/DashboardViewModel.cs`
+- `SistemaPDV/Views/DashboardView.axaml` (+ `.cs`)
+- `SistemaPDV.Tests/DashboardViewModelTests.cs`
+
+**Estimated scope:** S (3 arquivos, sem lógica densa)
+
+---
+
+## Task 47: ListaPedidosViewModel / ListaPedidosView
+
+**Description:** Lista as vendas do caixa atual (ou período, a definir na implementação) com número, data/hora, cliente, operador, total, forma de pagamento e `SyncStatus`.
+
+**Acceptance criteria:**
+- [ ] Reflete o `SyncStatus` real de cada venda com indicador visual
+- [ ] Atualiza sozinha quando uma venda muda de status (ex: depois que o background service sincroniza) — via binding reativo, sem precisar de F5 manual
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter ListaPedidos`
+- [ ] Build: `dotnet build`
+
+**Dependencies:** Task 38, Task 42
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/ListaPedidosViewModel.cs`
+- `SistemaPDV/Views/ListaPedidosView.axaml` (+ `.cs`)
+- `SistemaPDV.Tests/ListaPedidosViewModelTests.cs`
+
+**Estimated scope:** M (3 arquivos)
+
+---
+
+## Task 48: CatalogSyncService.SincronizarClienteNovoAsync
+
+**Description:** Nova ponta de outbox, simétrica à de `Caixa`/`Venda`: busca clientes locais com `IdExterno == null && SyncStatus == PendenteSync`, envia via `POST {dominio}/softauth/api/v2/clientes/clientes` (`apiClient.EnviarAsync`), grava o `IdExterno` retornado em sucesso. Reaproveita `OutboxHelper.MarcarFalhaAsync`, `SoftcomJson`, `ErroApiExtractor`.
+
+**Acceptance criteria:**
+- [ ] `200` → grava `IdExterno`, `SyncStatus = Sincronizado`
+- [ ] `409`/`422`/erro de rede → `SyncStatus = FalhaSync` (via `ErroApiExtractor`), cliente continua elegível pra nova tentativa
+- [ ] Payload mapeia `Pessoa`→`pessoa` (`"FISICA"`/`"JURIDICA"`), `CpfCnpj`→`cpf_cnpj`, e usa os defaults decididos na spec (`contribuinte_icms=9`, `indicador_finalidade=0`) pros campos obrigatórios que o formulário simples não pergunta
+- [ ] Um cliente com erro não impede outros de serem tentados (mesmo princípio já usado em `catalog-sync`/`sales`)
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter SincronizarClienteNovo`
+- [ ] Build: `dotnet build`
+
+**Dependencies:** None (extensão do `CatalogSyncService` já existente)
+
+**Files likely touched:**
+- `SistemaPDV/Services/Sync/CatalogSyncService.cs`
+- `SistemaPDV/Services/Sync/Dtos/ClienteApiDto.cs` (novo DTO de request, se o formato de escrita divergir do de leitura)
+- `SistemaPDV.Tests/CatalogSyncServiceClienteNovoTests.cs`
+
+**Estimated scope:** M (3 arquivos)
+
+---
+
+## Task 49: CadastrosViewModel / CadastrosView
+
+**Description:** Lista clientes e produtos já sincronizados (leitura), com busca. Formulário simples de criar cliente (Nome + CPF/CNPJ) — grava local na hora (`SyncStatus = PendenteSync`), sem chamada de rede própria (quem sincroniza é o `SincronizacaoBackgroundService`, Task 50, via Task 48).
+
+**Acceptance criteria:**
+- [ ] Busca/listagem de clientes e produtos funciona sobre o banco local
+- [ ] Criar cliente grava local instantaneamente, sem travar a UI esperando rede
+- [ ] Cliente recém-criado aparece na lista com indicador `🟡 Pendente`, e não some nem duplica quando o `IdExterno` chegar depois
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter Cadastros`
+- [ ] Build: `dotnet build`
+
+**Dependencies:** Task 38, Task 42, Task 48
+
+**Files likely touched:**
+- `SistemaPDV/ViewModels/CadastrosViewModel.cs`
+- `SistemaPDV/Views/CadastrosView.axaml` (+ `.cs`)
+- `SistemaPDV.Tests/CadastrosViewModelTests.cs`
+
+**Estimated scope:** M (3 arquivos)
+
+---
+
+## Task 50: SincronizacaoBackgroundService
+
+**Description:** Timer em background com dois ritmos, usando `DispatcherTimer` do Avalonia (decisão do usuário, 2026-09-18 — integrado ao loop de UI, dispara na thread certa sem precisar de `Dispatcher.UIThread.Post` manual): a cada 30s tenta `CaixaSyncService.SincronizarCaixaPendenteAsync`, `VendaSyncService.SincronizarVendasPendentesAsync` e `CatalogSyncService.SincronizarClienteNovoAsync` (outbox); a cada 5min tenta `CatalogSyncService.SincronizarTudoAsync` (catálogo completo). Cada ciclo isolado em try/catch próprio — falha nunca vira exceção não tratada nem crash, só atualiza o indicador de conexão do Shell pra "offline" e tenta de novo no próximo ciclo. Pausado enquanto `ConfiguracaoSincronizacao` não estiver preenchida.
+
+**Acceptance criteria:**
+- [ ] Usa `DispatcherTimer` (não `System.Threading.Timer`/`Task.Delay` cru) — decisão confirmada com o usuário (2026-09-18)
+- [ ] Roda os dois ritmos (30s/5min) de forma independente, sem bloquear a UI
+- [ ] Uma falha de rede num ciclo não derruba o app nem os ciclos seguintes
+- [ ] Atualiza o indicador online/offline do `ShellViewModel` conforme sucesso/falha do ciclo mais recente
+- [ ] Não faz nada enquanto não há `ConfiguracaoSincronizacao` preenchida (sem URL/credenciais)
+
+**Verification:**
+- [ ] Tests pass: `dotnet test --filter SincronizacaoBackground`
+- [ ] Build: `dotnet build`
+- [ ] Manual check: `dotnet run`, observar o indicador de sync mudando sozinho com a rede ligada/desligada
+
+**Dependencies:** Task 38, Task 42, Task 48
+
+**Files likely touched:**
+- `SistemaPDV/Services/Sync/SincronizacaoBackgroundService.cs`
+- `SistemaPDV/App.axaml.cs` (inicia/para o timer junto do ciclo de vida do app)
+- `SistemaPDV/ViewModels/ShellViewModel.cs` (recebe o indicador)
+- `SistemaPDV.Tests/SincronizacaoBackgroundServiceTests.cs`
+
+**Estimated scope:** M (4 arquivos)
+
+---
+
+### Checkpoint: pdv-ui completo
+- [ ] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
+- [ ] Revisão com o usuário

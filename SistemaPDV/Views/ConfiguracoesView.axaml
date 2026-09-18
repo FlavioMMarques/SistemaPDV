@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="SistemaPDV.Views.ConfiguracoesView"
+             x:DataType="vm:ConfiguracoesViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <ScrollViewer Padding="32">
+    <StackPanel Spacing="24" MaxWidth="520" HorizontalAlignment="Left">
+
+      <TextBlock Text="Configurações"
+                 FontSize="22" FontWeight="Bold"
+                 Foreground="{StaticResource TextMainBrush}" />
+
+      <Border Background="{StaticResource BgCardBrush}"
+              BorderBrush="{StaticResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource RadiusCard}"
+              Padding="24">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Vincular dispositivo" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+          <TextBlock Text="Cole o link de cadastro fornecido pela Softcom." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Link de cadastro" Foreground="{StaticResource TextMutedBrush}" />
+            <TextBox Text="{Binding LinkCadastro, Mode=TwoWay}"
+                     Background="{StaticResource BgInputBrush}"
+                     BorderBrush="{StaticResource BorderColorBrush}"
+                     Foreground="{StaticResource TextMainBrush}"
+                     CornerRadius="{StaticResource RadiusSmall}"
+                     AutomationProperties.Name="Link de cadastro"
+                     TabIndex="0" />
+          </StackPanel>
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Nome deste dispositivo" Foreground="{StaticResource TextMutedBrush}" />
+            <TextBox Text="{Binding NomeDispositivo, Mode=TwoWay}"
+                     Background="{StaticResource BgInputBrush}"
+                     BorderBrush="{StaticResource BorderColorBrush}"
+                     Foreground="{StaticResource TextMainBrush}"
+                     CornerRadius="{StaticResource RadiusSmall}"
+                     AutomationProperties.Name="Nome deste dispositivo"
+                     TabIndex="1" />
+          </StackPanel>
+
+          <Button Content="Vincular"
+                  Command="{Binding VincularCommand}"
+                  Background="{StaticResource BrandYellowBrush}"
+                  Foreground="{StaticResource TextDarkBrush}"
+                  FontWeight="Bold"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  Padding="16,8"
+                  TabIndex="2"
+                  AutomationProperties.Name="Vincular dispositivo" />
+        </StackPanel>
+      </Border>
+
+      <Border Background="{StaticResource BgCardBrush}"
+              BorderBrush="{StaticResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource RadiusCard}"
+              Padding="24">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Regras do PDV" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+
+          <CheckBox IsChecked="{Binding ExigirAberturaCaixa, Mode=TwoWay}"
+                    Content="Exigir abertura de caixa antes de vender"
+                    Foreground="{StaticResource TextMainBrush}"
+                    TabIndex="3" />
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Id do cliente &quot;Consumidor Final&quot;" Foreground="{StaticResource TextMutedBrush}" />
+            <TextBox Text="{Binding ClienteConsumidorFinalIdExterno, Mode=TwoWay}"
+                     Background="{StaticResource BgInputBrush}"
+                     BorderBrush="{StaticResource BorderColorBrush}"
+                     Foreground="{StaticResource TextMainBrush}"
+                     CornerRadius="{StaticResource RadiusSmall}"
+                     AutomationProperties.Name="Id do cliente Consumidor Final"
+                     TabIndex="4" />
+          </StackPanel>
+
+          <Button Content="Salvar"
+                  Command="{Binding SalvarCommand}"
+                  Background="{StaticResource AccentGreenBrush}"
+                  Foreground="{StaticResource TextDarkBrush}"
+                  FontWeight="Bold"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  Padding="16,8"
+                  TabIndex="5"
+                  AutomationProperties.Name="Salvar configurações" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding Mensagem}"
+                 Foreground="{StaticResource TextMutedBrush}"
+                 TextWrapping="Wrap"
+                 IsVisible="{Binding Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

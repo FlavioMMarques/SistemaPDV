@@ -23,6 +23,17 @@ public class CaixaService
         this.contextFactory = contextFactory;
     }
 
+    // Leitura pura, sem alterar nada — usada pelo ShellViewModel pra decidir a
+    // navegação pós-login (tem caixa aberto? vai direto pro Dashboard; senão, olha
+    // ExigirAberturaCaixa). Ignora data/turno de propósito: um caixa aberto continua
+    // "aberto" até ser fechado, mesmo que isso atravesse a meia-noite.
+    public async Task<Models.Caixa?> ObterCaixaAbertoAsync(int funcionarioId, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        return await context.Caixas.FirstOrDefaultAsync(
+            c => c.FuncionarioId == funcionarioId && c.Status == StatusCaixa.Aberto, ct);
+    }
+
     public async Task<ResultadoOperacaoCaixa<Models.Caixa>> AbrirCaixaLocalAsync(
         int funcionarioId, DateOnly dataCaixa, int turno, decimal trocoInicial, CancellationToken ct = default)
     {

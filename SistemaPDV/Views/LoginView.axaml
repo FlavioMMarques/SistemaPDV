@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SistemaPDV.Views.LoginView"
+             x:DataType="vm:LoginViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <Design.DataContext>
+    <vm:LoginViewModel />
+  </Design.DataContext>
+
+  <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="360">
+    <Border Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusCard}"
+            Padding="32">
+      <StackPanel Spacing="16">
+        <TextBlock Text="SoftcomPDV"
+                   FontFamily="{StaticResource FontSans}"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource TextMainBrush}"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="Identificação do operador"
+                   FontFamily="{StaticResource FontSans}"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   HorizontalAlignment="Center" />
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="Chave do operador" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBox x:Name="ChaveTextBox"
+                   Text="{Binding PdvKeyDigitada, Mode=TwoWay}"
+                   PasswordChar="•"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   CornerRadius="{StaticResource RadiusSmall}"
+                   AutomationProperties.Name="Chave do operador"
+                   TabIndex="0">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding EntrarCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+        </StackPanel>
+
+        <TextBlock Text="{Binding MensagemErro}"
+                   Foreground="{StaticResource AccentRedBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding MensagemErro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Button Content="Entrar"
+                Command="{Binding EntrarCommand}"
+                Background="{StaticResource BrandYellowBrush}"
+                Foreground="{StaticResource TextDarkBrush}"
+                FontWeight="Bold"
+                CornerRadius="{StaticResource RadiusMedium}"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Padding="0,10"
+                TabIndex="1"
+                AutomationProperties.Name="Entrar" />
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>

@@ -3,20 +3,16 @@
         xmlns:vm="using:SistemaPDV.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="650"
         x:Class="SistemaPDV.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
+        x:DataType="vm:ShellViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="SistemaPDV">
+        Title="SistemaPDV"
+        Background="{StaticResource BgMainBrush}">
+        <!-- Window nativo é só a casca do SO — todo o conteúdo real mora em
+             ShellView/ShellViewModel, resolvido automaticamente pelo ViewLocator
+             (mesmo padrão usado por qualquer outro ViewModel do app). -->
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainViewModel />
-    </Design.DataContext>
-
-    <TextBox Text="{Binding Greeting}"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center" />
+    <ContentControl Content="{Binding}" />
 
 </Window>

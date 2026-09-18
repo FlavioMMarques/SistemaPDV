@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="650"
+             x:Class="SistemaPDV.Views.ShellView"
+             x:DataType="vm:ShellViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <DockPanel>
+
+    <!-- Header: operador + caixa (protótipo mockado) — indicador de conexão/pendências
+         só fica ligado de verdade na Task 50 (SincronizacaoBackgroundService). -->
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0"
+                   Text="SoftcomPDV"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource TextMainBrush}"
+                   VerticalAlignment="Center" />
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+          <TextBlock Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center">
+            <TextBlock.Text>
+              <MultiBinding StringFormat="{}{0} • Cx {1}">
+                <Binding Path="OperadorLogado.Nome" FallbackValue="" />
+                <Binding Path="CaixaAberto.Id" FallbackValue="—" />
+              </MultiBinding>
+            </TextBlock.Text>
+          </TextBlock>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ContentControl Content="{Binding CurrentViewModel}" />
+
+  </DockPanel>
+
+</UserControl>
