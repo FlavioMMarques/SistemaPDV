@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="120" d:DesignHeight="24"
+             x:Class="SistemaPDV.Views.Controls.SyncStatusIndicator"
+             x:Name="Root">
+
+  <!--
+    Reaproveitado em Pdv/Cadastros/ListaPedidos (ver specs/SPEC-pdv-ui.md, seção
+    "Convenções de UI") — um lugar só decide o texto+ícone de cada SyncStatus, em
+    vez de repetir a mesma lógica de exibição em cada tela. Nunca só cor: cada
+    estado sempre combina ícone + texto.
+  -->
+  <TextBlock FontFamily="{StaticResource FontSans}"
+             Text="{Binding #Root.Status, Converter={StaticResource SyncStatusParaTextoConverter}}"
+             Foreground="{Binding #Root.Status, Converter={StaticResource SyncStatusParaCorConverter}}" />
+
+</UserControl>

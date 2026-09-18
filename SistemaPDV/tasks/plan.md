@@ -181,8 +181,8 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - [x] Manual check: `dotnet run`, fluxo login→config→caixa navegável nos dois estados de `ExigirAberturaCaixa`
 
 **Venda (núcleo)**
-- [ ] Task 44: `PdvViewModel` — carrinho, `PodeFinalizarVenda`, atalhos de teclado
-- [ ] Task 45: `PdvView.axaml` — layout + atalhos F2/F4/F10/Esc
+- [x] Task 44: `PdvViewModel` — carrinho, `PodeFinalizarVenda`, atalhos de teclado
+- [x] Task 45: `PdvView.axaml` — layout + atalhos F2/F4/F10/Esc
 
 ### Checkpoint: Vender offline funciona ponta a ponta
 - [ ] Manual check: vender com rede desligada, venda aparece `PendenteSync`
