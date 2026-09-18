@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SistemaPDV.Data;
 
@@ -10,9 +11,11 @@ using SistemaPDV.Data;
 namespace SistemaPDV.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260918112443_AddCaixaUltimoErroSync")]
+    partial class AddCaixaUltimoErroSync
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.10");
@@ -21,9 +24,6 @@ namespace SistemaPDV.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("AberturaSincronizada")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("DataAbertura")
@@ -202,9 +202,6 @@ namespace SistemaPDV.Data.Migrations
                     b.Property<string>("ApiClienteSecretProtegido")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ClienteConsumidorFinalIdExterno")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("NomeDispositivo")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
@@ -231,56 +228,6 @@ namespace SistemaPDV.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ConfiguracoesSincronizacao");
-                });
-
-            modelBuilder.Entity("SistemaPDV.Models.DigitacaoBandeiraCaixa", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Bandeira")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("CaixaId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Valor")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaixaId");
-
-                    b.ToTable("DigitacoesBandeiraCaixa");
-                });
-
-            modelBuilder.Entity("SistemaPDV.Models.DigitacaoCaixa", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("CaixaId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("FormaPagamentoId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Valor")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CaixaId");
-
-                    b.HasIndex("FormaPagamentoId");
-
-                    b.ToTable("DigitacoesCaixa");
                 });
 
             modelBuilder.Entity("SistemaPDV.Models.Empresa", b =>
@@ -703,30 +650,6 @@ namespace SistemaPDV.Data.Migrations
                     b.Navigation("TabelaPreco");
                 });
 
-            modelBuilder.Entity("SistemaPDV.Models.DigitacaoBandeiraCaixa", b =>
-                {
-                    b.HasOne("SistemaPDV.Models.Caixa", null)
-                        .WithMany("DigitacoesBandeiras")
-                        .HasForeignKey("CaixaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("SistemaPDV.Models.DigitacaoCaixa", b =>
-                {
-                    b.HasOne("SistemaPDV.Models.Caixa", null)
-                        .WithMany("Digitacoes")
-                        .HasForeignKey("CaixaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SistemaPDV.Models.FormaPagamento", null)
-                        .WithMany()
-                        .HasForeignKey("FormaPagamentoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("SistemaPDV.Models.ItemVenda", b =>
                 {
                     b.HasOne("SistemaPDV.Models.Produto", null)
@@ -806,13 +729,6 @@ namespace SistemaPDV.Data.Migrations
                         .WithMany()
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("SistemaPDV.Models.Caixa", b =>
-                {
-                    b.Navigation("Digitacoes");
-
-                    b.Navigation("DigitacoesBandeiras");
                 });
 
             modelBuilder.Entity("SistemaPDV.Models.Venda", b =>

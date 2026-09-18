@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SistemaPDV.Models;
 
@@ -22,4 +23,21 @@ public class Caixa : ISincronizavel<int>
     public decimal TrocoInicial { get; set; }
     public decimal? TrocoFinal { get; set; }
     public StatusCaixa Status { get; set; } = StatusCaixa.Aberto;
+
+    // Mesmo padrão de Venda.UltimoErroSync: guarda o motivo de uma sincronização de
+    // abertura/fechamento que falhou (409 tratado à parte, 422 cai aqui), sem travar
+    // o operador nem perder o porquê.
+    public string? UltimoErroSync { get; set; }
+
+    // Sinaliza especificamente que a ABERTURA já foi confirmada com o servidor (200
+    // ou 409 — os dois significam "o servidor já sabe desse caixa"), independente do
+    // SyncStatus atual. Existe porque um único SyncStatus não dá conta de representar
+    // duas ações que acontecem em momentos diferentes (abrir, depois fechar): sem
+    // esse campo separado, fechar o caixa reseta SyncStatus pra PendenteSync e o
+    // sistema não tem mais como saber se isso quer dizer "abertura pendente" ou
+    // "fechamento pendente" — ver docs/APRENDIZADOS.md.
+    public bool AberturaSincronizada { get; set; }
+
+    public ICollection<DigitacaoCaixa> Digitacoes { get; set; } = new List<DigitacaoCaixa>();
+    public ICollection<DigitacaoBandeiraCaixa> DigitacoesBandeiras { get; set; } = new List<DigitacaoBandeiraCaixa>();
 }

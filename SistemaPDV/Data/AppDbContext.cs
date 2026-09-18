@@ -11,9 +11,12 @@ public class AppDbContext : DbContext
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<Funcionario> Funcionarios => Set<Funcionario>();
     public DbSet<Caixa> Caixas => Set<Caixa>();
+    public DbSet<DigitacaoCaixa> DigitacoesCaixa => Set<DigitacaoCaixa>();
+    public DbSet<DigitacaoBandeiraCaixa> DigitacoesBandeiraCaixa => Set<DigitacaoBandeiraCaixa>();
     public DbSet<ItemVenda> ItensVenda => Set<ItemVenda>();
     public DbSet<PagamentoVenda> PagamentosVenda => Set<PagamentoVenda>();
     public DbSet<Venda> Vendas => Set<Venda>();
+    public DbSet<ConfiguracaoSincronizacao> ConfiguracoesSincronizacao => Set<ConfiguracaoSincronizacao>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
