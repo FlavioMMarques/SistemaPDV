@@ -22,10 +22,17 @@ dotnet test --filter Sales
 ```
 SistemaPDV/
   Services/
+    ErroApiExtractor.cs      # extrai mensagem de { "errors": {...} } — já duplicado
+                              # em CaixaSyncService; terceiro uso (aqui) é o motivo
+                              # de virar compartilhado
     Sales/
       VendaService.cs        # cria venda local (sempre offline-safe)
       VendaSyncService.cs    # outbox: tenta enviar pendentes, atualiza status
+      Dtos/
+        VendaApiDto.cs       # request (subconjunto essencial) + response
 ```
+
+`ConfiguracaoSincronizacao` ganha `ClienteConsumidorFinalIdExterno` (int?) — em vez de cravar o id `1` (evidência forte, mas não 100% confirmada — ver Open Questions) como número mágico no código, fica configurável. Se a suposição estiver errada, é um valor pra corrigir, não uma busca pelo código.
 
 ## Code Style
 
@@ -102,10 +109,10 @@ private VendaApiPayload MontarPayloadApi(Venda venda) => new()
 
 ## Success Criteria
 
-- [ ] Fechar uma venda funciona sem rede e não bloqueia a UI
-- [ ] Venda pendente é reenviada automaticamente quando a sincronização roda com rede disponível
-- [ ] Status da venda (`Pendente`/`Sincronizado`/`Falha`) é consultável pela UI (pra alimentar os indicadores 🟢/🟡 do protótipo)
-- [ ] Reenviar uma venda já aceita (409) não duplica nem gera erro visível pro operador
+- [x] Fechar uma venda funciona sem rede e não bloqueia a UI
+- [x] Venda pendente é reenviada automaticamente quando a sincronização roda com rede disponível
+- [x] Status da venda (`Pendente`/`Sincronizado`/`Falha`) é consultável pela UI (pra alimentar os indicadores 🟢/🟡 do protótipo)
+- [x] Reenviar uma venda já aceita (409) não duplica nem gera erro visível pro operador
 
 ## Contrato confirmado (schema completo de `POST /api/v2/vendas`)
 
@@ -124,13 +131,12 @@ ASSUMPTIONS I'M MAKING:
    quando já conhecido), produtos[], pagamentos[]. Os campos claramente
    servidor-gerados (xml, numero_nfe, numero_documento, codigo_status) vão omitidos
    ou com valor vazio/default na primeira tentativa; ajusto conforme a resposta 422
-   real informar o que falta.
+   real informar o que falta. CONFIRMADO (2026-09-18 pelo usuário): usuario_id e
+   funcionario_id recebem o mesmo valor (Funcionario.IdExterno), por enquanto.
 2. cliente_id É obrigatório (não nullable) — "venda avulsa" (Consumidor Final do
-   protótipo) provavelmente usa um id fixo/reservado de cliente genérico, não null.
-   ATUALIZAÇÃO (2026-09-18): o primeiro registro real de `GET /clientes/clientes` é
-   `{ "id": 1, "nome": "CONSUMIDOR", "tipo_cliente_nome": "CONSUMIDOR" }` — forte
-   candidato a esse id fixo. Ainda vale confirmar que é estável (sempre id=1, não só
-   "o que vier primeiro na paginação") antes de fixar isso no código do `sales`.
+   protótipo) usa um id fixo/reservado de cliente genérico, não null.
+   CONFIRMADO (2026-09-18 pelo usuário): é `id = 1` — configurável via
+   `ConfiguracaoSincronizacao.ClienteConsumidorFinalIdExterno`, não mais uma suposição.
 3. "Enviar automaticamente ao reconectar" significa: o app detecta rede voltando (ou
    um sync manual/periódico) e tenta as vendas pendentes — não é um serviço de
    background contínuo rodando fora do processo do PDV.

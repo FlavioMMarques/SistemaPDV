@@ -1,0 +1,206 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using SistemaPDV.Data;
+using SistemaPDV.Models;
+using SistemaPDV.Services.Sales.Dtos;
+using SistemaPDV.Services.Sync;
+using SistemaPDV.Services;
+
+namespace SistemaPDV.Services.Sales;
+
+// Outbox da venda: VendaService grava local e instantâneo; esta classe, quando há
+// rede, tenta confirmar isso com a API. Diferente de caixa (que só depende do
+// Funcionario), a venda referencia várias entidades sincronizáveis — se qualquer
+// uma delas ainda não tem IdExterno, a venda fica PendenteSync esperando (não vira
+// FalhaSync: falta de sincronização de uma dependência não é a mesma coisa que um
+// erro real da API, mesmo raciocínio já usado em CaixaSyncService).
+public class VendaSyncService
+{
+    private readonly Func<AppDbContext> contextFactory;
+    private readonly SoftcomApiClient apiClient;
+
+    public VendaSyncService(Func<AppDbContext> contextFactory, SoftcomApiClient apiClient)
+    {
+        this.contextFactory = contextFactory;
+        this.apiClient = apiClient;
+    }
+
+    public async Task<ResultadoSincronizacaoRecurso> SincronizarVendaAsync(Guid vendaId, string accessToken, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var venda = await context.Vendas
+            .Include(v => v.Itens)
+            .Include(v => v.Pagamentos)
+            .FirstOrDefaultAsync(v => v.Id == vendaId, ct);
+
+        if (venda is null)
+            return ResultadoSincronizacaoRecurso.ComFalha("Venda não encontrada.");
+
+        var caixa = await context.Caixas.FindAsync(new object[] { venda.CaixaId }, ct)
+            ?? throw new InvalidOperationException("Caixa da venda não encontrado.");
+
+        var funcionario = await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct);
+        if (funcionario?.IdExterno is not { } operadorId)
+            return ResultadoSincronizacaoRecurso.ComFalha("Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.");
+
+        var empresa = await context.Empresas.FirstOrDefaultAsync(ct);
+        if (empresa?.IdExterno is not { } empresaId)
+            return ResultadoSincronizacaoRecurso.ComFalha("Empresa ainda não sincronizou — sincronize empresa antes.");
+
+        var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Configuração de sincronização não encontrada.");
+
+        int clienteIdExterno;
+        if (venda.ClienteId is { } clienteIdLocal)
+        {
+            var cliente = await context.Clientes.FindAsync(new object[] { clienteIdLocal }, ct);
+            if (cliente?.IdExterno is not { } idExterno)
+                return ResultadoSincronizacaoRecurso.ComFalha("Cliente da venda ainda não sincronizou.");
+
+            clienteIdExterno = idExterno;
+        }
+        else if (configuracao.ClienteConsumidorFinalIdExterno is { } consumidorFinalId)
+        {
+            clienteIdExterno = consumidorFinalId;
+        }
+        else
+        {
+            return ResultadoSincronizacaoRecurso.ComFalha("Id do cliente \"Consumidor Final\" não configurado — configure antes de sincronizar vendas avulsas.");
+        }
+
+        var produtoIdsLocais = venda.Itens.Select(i => i.ProdutoId).Distinct().ToList();
+        var produtos = await context.Produtos.Where(p => produtoIdsLocais.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+
+        var formaPagamentoIdsLocais = venda.Pagamentos.Select(p => p.FormaPagamentoId).Distinct().ToList();
+        var formasPagamento = await context.FormasPagamento.Where(f => formaPagamentoIdsLocais.Contains(f.Id)).ToDictionaryAsync(f => f.Id, ct);
+
+        var produtosDto = new List<VendaProdutoRequestDto>();
+        foreach (var item in venda.Itens)
+        {
+            if (!produtos.TryGetValue(item.ProdutoId, out var produto) || produto.IdExterno is not { } produtoIdExterno)
+                return ResultadoSincronizacaoRecurso.ComFalha("Um dos produtos da venda ainda não sincronizou.");
+
+            produtosDto.Add(new VendaProdutoRequestDto
+            {
+                ProdutoId = produtoIdExterno,
+                Preco = item.PrecoUnitario,
+                Quantidade = item.Quantidade,
+                DescontoValorItem = item.DescontoItem,
+                AcrescimoValorItem = item.AcrescimoItem,
+            });
+        }
+
+        var pagamentosDto = new List<VendaPagamentoRequestDto>();
+        foreach (var pagamento in venda.Pagamentos)
+        {
+            if (!formasPagamento.TryGetValue(pagamento.FormaPagamentoId, out var forma) || forma.IdExterno is not { } formaIdExterno)
+                return ResultadoSincronizacaoRecurso.ComFalha("Uma das formas de pagamento da venda ainda não sincronizou.");
+
+            pagamentosDto.Add(new VendaPagamentoRequestDto { FormaPagamentoId = formaIdExterno, ValorPagamento = pagamento.Valor });
+        }
+
+        var payload = new VendaRequestDto
+        {
+            Guid = venda.Id.ToString(),
+            DataHora = new DateTimeOffset(venda.DataHora).ToUnixTimeSeconds(),
+            EmpresaId = empresaId,
+            // usuario_id e funcionario_id recebem o mesmo Funcionario.IdExterno —
+            // confirmado com o usuário (2026-09-18), consistente com o padrão já
+            // observado em caixa-funcoes/abrir (operador_id e usuario_abertura_id
+            // idênticos no exemplo real da API).
+            UsuarioId = operadorId,
+            FuncionarioId = operadorId,
+            ClienteId = clienteIdExterno,
+            CaixaData = caixa.DataCaixa.ToString("yyyy-MM-dd"),
+            CaixaTurno = caixa.Turno,
+            CaixaFuncoesId = caixa.IdExterno,
+            Produtos = produtosDto,
+            Pagamentos = pagamentosDto,
+        };
+
+        var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
+
+        var resultado = await apiClient.EnviarAsync(HttpMethod.Post, $"{dominio}/api/v2/vendas", payload, accessToken, ct);
+
+        // 409: guid já existe do lado do servidor — já foi recebida antes (ex:
+        // confirmação anterior se perdeu antes de chegar no PDV). Trata como
+        // sucesso, não reenvia nem duplica.
+        if (resultado.Tipo == ResultadoEnvioTipo.Conflito)
+        {
+            venda.SyncStatus = SyncStatus.Sincronizado;
+            venda.UltimoErroSync = null;
+            await context.SaveChangesAsync(ct);
+            return ResultadoSincronizacaoRecurso.ComSucesso(1);
+        }
+
+        if (resultado.Tipo is ResultadoEnvioTipo.Falha or ResultadoEnvioTipo.TokenExpirado)
+            return await MarcarFalhaAsync(context, venda, ErroApiExtractor.Extrair(resultado.Conteudo), ct);
+
+        var respostaDto = JsonSerializer.Deserialize<VendaRespostaDto>(resultado.Conteudo, SoftcomJson.Opcoes);
+        if (respostaDto?.Data is not { } dados)
+            return await MarcarFalhaAsync(context, venda, $"A resposta não trouxe o id da venda: {resultado.Conteudo}", ct);
+
+        venda.VendaIdExterno = dados.Id;
+        venda.SyncStatus = SyncStatus.Sincronizado;
+        venda.UltimoErroSync = null;
+        await context.SaveChangesAsync(ct);
+        return ResultadoSincronizacaoRecurso.ComSucesso(1);
+    }
+
+    // Percorre todas as vendas ainda não confirmadas — PendenteSync (nunca tentada)
+    // e também FalhaSync (já tentou e não deu certo antes; fica elegível pra retry
+    // automático, decisão confirmada com o usuário em 2026-09-18). Uma venda com
+    // erro não impede as outras de serem tentadas — mesmo princípio de
+    // CatalogSyncService: não é tudo-ou-nada.
+    public async Task<ResultadoSincronizacaoRecurso> SincronizarVendasPendentesAsync(string accessToken, CancellationToken ct = default)
+    {
+        List<Guid> vendaIds;
+        await using (var context = contextFactory())
+        {
+            vendaIds = await context.Vendas
+                .Where(v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync)
+                .Select(v => v.Id)
+                .ToListAsync(ct);
+        }
+
+        var totalSincronizadas = 0;
+        foreach (var vendaId in vendaIds)
+        {
+            try
+            {
+                var resultado = await SincronizarVendaAsync(vendaId, accessToken, ct);
+                if (resultado.Sucesso)
+                    totalSincronizadas++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // SincronizarVendaAsync lança (não devolve ComFalha) em situações que
+                // "não deveriam acontecer" (ex: caixa da venda sumiu) — mas mesmo assim
+                // uma venda não pode travar o lote inteiro; o comentário acima desse
+                // método promete isso, e antes da revisão de código o try/catch não
+                // existia, então uma exceção numa venda abortava todas as seguintes.
+                // OperationCanceledException passa direto: cancelamento é intencional,
+                // não deve ser engolido. Sem infraestrutura de log ainda no projeto —
+                // essa venda simplesmente permanece PendenteSync/FalhaSync (o estado
+                // que já tinha) e será tentada de novo na próxima sincronização.
+            }
+        }
+
+        return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizadas);
+    }
+
+    private static Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(AppDbContext context, Venda venda, string mensagem, CancellationToken ct) =>
+        OutboxHelper.MarcarFalhaAsync(context, venda, mensagem, (v, m) =>
+        {
+            v.SyncStatus = SyncStatus.FalhaSync;
+            v.UltimoErroSync = m;
+            v.TentativasEnvio += 1;
+        }, ct);
+}
