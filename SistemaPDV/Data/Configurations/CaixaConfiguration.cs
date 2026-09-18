@@ -21,5 +21,18 @@ public class CaixaConfiguration : IEntityTypeConfiguration<Caixa>
             .WithMany()
             .HasForeignKey(c => c.FuncionarioId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Cascade (diferente da FK de Funcionario acima): a digitação só existe em
+        // função do caixa — apagar o caixa apaga a digitação junto, mesmo padrão de
+        // Venda -> Itens/Pagamentos.
+        builder.HasMany(c => c.Digitacoes)
+            .WithOne()
+            .HasForeignKey(d => d.CaixaId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(c => c.DigitacoesBandeiras)
+            .WithOne()
+            .HasForeignKey(d => d.CaixaId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

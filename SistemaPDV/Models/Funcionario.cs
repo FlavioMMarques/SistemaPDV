@@ -12,6 +12,8 @@ public class Funcionario : ISincronizavel<int>
     public bool Desativado { get; set; }
 
     // Hash (SHA-256) do pdv_key sincronizado da API — nunca o valor em claro.
-    // Login local compara hash contra hash, nunca recupera o original.
-    public required string PdvKeyHash { get; set; }
+    // Login local compara hash contra hash, nunca recupera o original. Opcional:
+    // nem todo funcionário sincronizado necessariamente opera o PDV (ex: só alguns
+    // cargos têm pdv_key do lado da API).
+    public string? PdvKeyHash { get; set; }
 }

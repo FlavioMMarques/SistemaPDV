@@ -11,7 +11,7 @@ public class FuncionarioConfiguration : IEntityTypeConfiguration<Funcionario>
         builder.HasKey(f => f.Id);
         builder.Property(f => f.Nome).IsRequired().HasMaxLength(150);
         builder.Property(f => f.Cpf).HasMaxLength(11);
-        builder.Property(f => f.PdvKeyHash).IsRequired().HasMaxLength(64); // SHA-256 em hex = 64 caracteres
+        builder.Property(f => f.PdvKeyHash).HasMaxLength(64); // SHA-256 em hex = 64 caracteres
         builder.Property(f => f.SyncStatus).HasConversion<string>();
         builder.HasIndex(f => f.IdExterno).IsUnique();
     }
