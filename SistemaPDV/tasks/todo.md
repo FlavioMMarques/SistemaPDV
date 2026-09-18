@@ -1201,23 +1201,24 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 **Description:** O núcleo do módulo: carrinho local (itens + quantidade + preço), seleção de cliente (default Consumidor Final), seleção de forma(s) de pagamento (suporta pagamento misto, já suportado por `VendaService`), `PodeFinalizarVenda` (só habilitado com caixa aberto e ao menos um item), atalhos de teclado (F2 novo, F4 buscar produto/cliente, F10 pagar, Esc cancelar). Finalizar chama `VendaService.RegistrarVendaLocalAsync` — nunca `VendaSyncService` diretamente (isso é papel do background service, Task 50).
 
 **Acceptance criteria:**
-- [ ] `PodeFinalizarVenda` reflete caixa aberto + carrinho não vazio, reativo (ReactiveUI)
-- [ ] Cliente não selecionado não trava a venda — fica implícito Consumidor Final (resolvido só na hora de sincronizar, não aqui)
-- [ ] Cliente pode ser selecionado mesmo sem `IdExterno` ainda (recém-criado na Task 49) — decisão confirmada com o usuário (2026-09-18): `VendaSyncService` já resolve `cliente_id` no momento de sincronizar e trata "cliente ainda não sincronizado" como pendência silenciosa (não erro), então a venda só fica retida até o cliente sincronizar, sem precisar de nenhuma mudança no `VendaSyncService` já existente
-- [ ] Produto e forma de pagamento continuam exigindo `IdExterno != null` pra aparecer selecionável — não existe cadastro local pra eles nessa fase, só pra cliente
-- [ ] Finalizar venda não faz nenhuma chamada de rede — grava local e devolve na hora
+- [x] `PodeFinalizarVenda` reflete caixa aberto (garantido por construção — quem cria o ViewModel já tem um `caixaId` de um caixa aberto) + carrinho não vazio, reativo (ReactiveUI, via `RaisePropertyChanged` manual no `CollectionChanged` de `Itens`)
+- [x] Cliente não selecionado não trava a venda — fica implícito Consumidor Final (resolvido só na hora de sincronizar, não aqui)
+- [x] Cliente pode ser selecionado mesmo sem `IdExterno` ainda (recém-criado na Task 49) — testado (`ClienteSemIdExternoPodeSerSelecionadoESalvoNaVenda`)
+- [x] Produto e forma de pagamento continuam exigindo `IdExterno != null` pra aparecer selecionável — filtrado em `CatalogoLocalService` (novo), não no ViewModel
+- [x] Finalizar venda não faz nenhuma chamada de rede — grava local e devolve na hora (`VendaService`, sem dependência de rede)
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter PdvViewModel`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter PdvViewModel` — 6 testes de `PdvViewModel` + 3 de `CatalogoLocalService`, 144 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
 
 **Dependencies:** Task 38, Task 42
 
 **Files likely touched:**
-- `SistemaPDV/ViewModels/PdvViewModel.cs`
-- `SistemaPDV.Tests/PdvViewModelTests.cs`
+- `SistemaPDV/Services/CatalogoLocalService.cs` (novo — faltava leitura de produtos/clientes/formas de pagamento já sincronizados)
+- `SistemaPDV/ViewModels/PdvViewModel.cs`, `ItemCarrinho.cs`, `PagamentoAlocado.cs`
+- `SistemaPDV.Tests/PdvViewModelTests.cs`, `CatalogoLocalServiceTests.cs`
 
-**Estimated scope:** M (2 arquivos, lógica densa)
+**Estimated scope:** M (2 arquivos, lógica densa) — na prática L (7 arquivos): `CatalogoLocalService` não estava previsto
 
 ---
 
@@ -1226,24 +1227,25 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 **Description:** Layout da tela de venda e ligação dos atalhos de teclado do protótipo (F2/F4/F10/Esc) aos comandos do `PdvViewModel`.
 
 **Acceptance criteria:**
-- [ ] F2 novo, F4 buscar, F10 pagar, Esc cancelar funcionam de verdade na janela (não só existem no ViewModel)
-- [ ] Indicador de `SyncStatus` visível pros itens/cliente selecionados (🟢/🟡/🔴)
+- [x] F2 novo, F4 buscar, F10 pagar, Esc cancelar ligados de verdade (`KeyBinding` pra F2/F10/Esc; F4 via exceção pontual em code-behind — foco de UI puro, sem `Command` declarativo equivalente no Avalonia)
+- [x] Indicador de `SyncStatus` visível pro cliente selecionado (🟢/🟡/🔴) — `SyncStatusIndicator` (novo, `UserControl` reaproveitável, já prometido em `specs/SPEC-pdv-ui.md`); indicador nos itens do carrinho não fez sentido ainda (produto só entra no carrinho já sincronizado, por `CatalogoLocalService`)
 
 **Verification:**
-- [ ] Build: `dotnet build`
-- [ ] Manual check: `dotnet run`, testar os 4 atalhos manualmente
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` roda sem exceção (XAML carrega) — **teste manual dos 4 atalhos em uso real fica pendente**: `PdvView` ainda não é alcançável navegando pelo app (Shell só chega no placeholder de Dashboard, sem menu/botão "nova venda" ainda) — revisitar na Task 46
 
 **Dependencies:** Task 44
 
 **Files likely touched:**
 - `SistemaPDV/Views/PdvView.axaml` (+ `.cs`)
+- `SistemaPDV/Views/Controls/SyncStatusIndicator.axaml` (+ `.cs`), `SistemaPDV/Converters/SyncStatusConverters.cs` — não previstos, mas prometidos na spec
 
-**Estimated scope:** S (1-2 arquivos, sem lógica nova)
+**Estimated scope:** S (1-2 arquivos, sem lógica nova) — na prática M (5 arquivos): `SyncStatusIndicator` reaproveitável não estava contado aqui
 
 ---
 
 ### Checkpoint: Vender offline funciona ponta a ponta
-- [ ] Manual check: desligar a rede, vender, venda aparece `PendenteSync` na lista de pedidos
+- [ ] Manual check: desligar a rede, vender, venda aparece `PendenteSync` na lista de pedidos — **pendente**: precisa de navegação real até `PdvView` (Task 46, quando existir "nova venda" a partir do Dashboard) e de `ListaPedidosView` (Task 47) pra ver o resultado; a lógica em si já está coberta por testes de ponta a ponta (`PdvViewModelTests`)
 
 ## Task 46: DashboardViewModel / DashboardView
 

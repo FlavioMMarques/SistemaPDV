@@ -20,6 +20,7 @@ public class AppServices
     private readonly HttpClient httpClient = new();
 
     public ConfiguracaoService ConfiguracaoService { get; }
+    public CatalogoLocalService CatalogoLocalService { get; }
     public CatalogSyncService CatalogSyncService { get; }
     public LoginOperadorService LoginOperadorService { get; }
     public CaixaService CaixaService { get; }
@@ -50,6 +51,7 @@ public class AppServices
         var authService = new SoftcomAuthService(httpClient, segredoProtector);
 
         ConfiguracaoService = new ConfiguracaoService(contextFactory, authService, segredoProtector);
+        CatalogoLocalService = new CatalogoLocalService(contextFactory);
         CatalogSyncService = new CatalogSyncService(contextFactory, apiClient, segredoProtector, authService);
         LoginOperadorService = new LoginOperadorService(contextFactory);
         CaixaService = new CaixaService(contextFactory);
