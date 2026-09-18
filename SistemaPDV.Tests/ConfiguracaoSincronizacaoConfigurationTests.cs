@@ -30,4 +30,19 @@ public class ConfiguracaoSincronizacaoConfigurationTests
         Assert.Equal(agora, configuracao.UltimaSincronizacaoProdutos);
         Assert.Null(configuracao.UltimaSincronizacaoClientes);
     }
+
+    [Fact]
+    public void ExigirAberturaCaixaComecaTrueQuandoNaoInformado()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+
+        using (var escrita = fixture.CriarContexto())
+        {
+            escrita.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao());
+            escrita.SaveChanges();
+        }
+
+        using var leitura = fixture.CriarContexto();
+        Assert.True(leitura.ConfiguracoesSincronizacao.Single().ExigirAberturaCaixa);
+    }
 }

@@ -25,4 +25,11 @@ public class ConfiguracaoSincronizacao
     // selecionado) — configurável em vez de um número cravado no código, porque a
     // evidência de que é id=1 é forte mas não 100% confirmada (ver SPEC-sales.md).
     public int? ClienteConsumidorFinalIdExterno { get; set; }
+
+    // Regra de negócio configurável (não fixa no código), decidida com o usuário
+    // (2026-09-18): quando true, o pdv-ui exige caixa aberto antes de liberar
+    // Dashboard/PDV pós-login; quando false, abrir caixa vira uma ação opcional
+    // pelo menu. Default true porque é o comportamento mais seguro pra um PDV real
+    // (evita vender sem controle de caixa por engano).
+    public bool ExigirAberturaCaixa { get; set; } = true;
 }
