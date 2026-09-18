@@ -23,11 +23,27 @@ dotnet test --filter Caixa
 
 ```
 SistemaPDV/
+  Models/
+    DigitacaoCaixa.cs             # conferência de fechamento por forma de pagamento
+    DigitacaoBandeiraCaixa.cs     # conferência de fechamento por bandeira de cartão
+                                    # (ambos precisam existir localmente porque o
+                                    # fechamento é offline-first — os valores digitados
+                                    # ficam guardados até a sincronização conseguir
+                                    # enviar pro POST .../caixa-funcoes/fechar)
+  Data/Configurations/
+    DigitacaoCaixaConfiguration.cs
+    DigitacaoBandeiraCaixaConfiguration.cs
   Services/
+    PdvKeyHasher.cs                # extraído de CatalogSyncService — login e sync
+                                    # de funcionário precisam do mesmo hash, não faz
+                                    # sentido duplicar lógica de segurança
     Caixa/
       LoginOperadorService.cs      # valida pdv_key contra Funcionario local
-      CaixaService.cs              # abrir/fechar, local + chamada à API
+      CaixaService.cs              # abrir/fechar local (offline, instantâneo)
+      CaixaSyncService.cs          # outbox: sincroniza abertura/fechamento pendentes
 ```
+
+`Caixa` (já existente no `data-layer`) ganha um campo `UltimoErroSync` (string?) — mesmo padrão de `Venda`, pra guardar a mensagem de erro de uma sincronização de abertura/fechamento que falhou (409 tratado/422), sem travar o operador nem perder o motivo.
 
 ## Code Style
 
@@ -57,11 +73,11 @@ public async Task<Funcionario?> AutenticarAsync(string pdvKeyDigitado)
 
 ## Success Criteria
 
-- [ ] Login local funciona sem chamada de rede, usando dados já sincronizados
-- [ ] Abrir caixa funciona offline: grava local com `SyncStatus.PendenteSync`; venda pode ser criada imediatamente depois, sem esperar sync
-- [ ] Quando a abertura sincroniza, o `id` retornado é salvo como `IdExterno` do caixa local (fica disponível pra enriquecer vendas já enviadas ou pendentes, mas não é bloqueante)
-- [ ] Fechar caixa registra a digitação por forma de pagamento e por bandeira, também via outbox
-- [ ] Erros da API (409/422) na sincronização da abertura/fechamento chegam de forma rastreável (mesmo `SyncStatus.FalhaSync` + mensagem usado em `sales`), sem travar o operador
+- [x] Login local funciona sem chamada de rede, usando dados já sincronizados
+- [x] Abrir caixa funciona offline: grava local com `SyncStatus.PendenteSync`; venda pode ser criada imediatamente depois, sem esperar sync
+- [x] Quando a abertura sincroniza, o `id` retornado é salvo como `IdExterno` do caixa local (fica disponível pra enriquecer vendas já enviadas ou pendentes, mas não é bloqueante)
+- [x] Fechar caixa registra a digitação por forma de pagamento e por bandeira, também via outbox
+- [x] Erros da API (409/422) na sincronização da abertura/fechamento chegam de forma rastreável (mesmo `SyncStatus.FalhaSync` + mensagem usado em `sales`), sem travar o operador
 
 ## Open Questions
 
