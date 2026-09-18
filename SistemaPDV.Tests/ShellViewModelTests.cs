@@ -100,8 +100,42 @@ public class ShellViewModelTests
         await telaMudou;
 
         Assert.Equal(Tela.AbrirCaixa, shell.TelaAtual);
+        Assert.IsType<AbrirCaixaViewModel>(shell.CurrentViewModel);
         Assert.NotNull(shell.OperadorLogado);
         Assert.Null(shell.CaixaAberto);
+    }
+
+    [Fact]
+    public async Task AbrirCaixaComSucessoLevaPraDashboard()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao
+            {
+                UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1",
+                ExigirAberturaCaixa = true,
+            });
+            await context.SaveChangesAsync();
+        }
+        await SemearFuncionarioAsync(fixture, "1234");
+        var (configuracao, login, caixa) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa);
+        await shell.IniciarAsync();
+        var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.PdvKeyDigitada = "1234";
+        var chegouEmAbrirCaixa = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
+        await loginViewModel.EntrarCommand.Execute();
+        await chegouEmAbrirCaixa;
+        var abrirCaixaViewModel = (AbrirCaixaViewModel)shell.CurrentViewModel!;
+        abrirCaixaViewModel.TrocoInicial = "10.00";
+
+        var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.AbrirCaixa).FirstAsync().ToTask();
+        await abrirCaixaViewModel.AbrirCommand.Execute();
+        await chegouNoDashboard;
+
+        Assert.Equal(Tela.Dashboard, shell.TelaAtual);
+        Assert.NotNull(shell.CaixaAberto);
     }
 
     [Fact]

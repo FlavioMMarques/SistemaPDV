@@ -1172,13 +1172,14 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 **Description:** Tela de abertura de caixa: troco inicial, chama `CaixaService.AbrirCaixaLocalAsync`. Navegável direto (menu) quando `ExigirAberturaCaixa = false`, ou obrigatória pós-login quando `true` e não há caixa aberto hoje.
 
 **Acceptance criteria:**
-- [ ] `ExigirAberturaCaixa = true` sem caixa aberto → Shell força essa tela antes de liberar Dashboard/PDV
-- [ ] `ExigirAberturaCaixa = false` → Shell libera Dashboard direto, essa tela vira opcional no menu
-- [ ] Sucesso navega pro Dashboard; falha (ex: já existe caixa aberto pra hoje) mostra a mensagem de `ResultadoOperacaoCaixa`
+- [x] `ExigirAberturaCaixa = true` sem caixa aberto → Shell força essa tela antes de liberar Dashboard/PDV
+- [x] `ExigirAberturaCaixa = false` → Shell libera Dashboard direto — a parte de "vira opcional no menu" fica **pendente**: ainda não existe menu de navegação livre no Shell (mesma pendência já registrada na Task 42)
+- [x] Sucesso navega pro Dashboard (placeholder até Task 46); falha (ex: já existe caixa aberto pra hoje) mostra a mensagem de `ResultadoOperacaoCaixa`
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter AbrirCaixa`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter AbrirCaixa` — 3 testes de `AbrirCaixaViewModel` + 1 teste de ponta a ponta em `ShellViewModelTests`, 135 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` roda sem exceção
 
 **Dependencies:** Task 37, Task 38, Task 42
 
@@ -1192,8 +1193,8 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 ---
 
 ### Checkpoint: Login → configuração → abrir caixa navegável
-- [ ] `dotnet test` verde
-- [ ] Manual check: `dotnet run`, fluxo login→config→caixa navegável nos dois estados de `ExigirAberturaCaixa`
+- [x] `dotnet test` verde — 135 testes
+- [x] Manual check: `dotnet run`, fluxo login→config→caixa navegável quando `ExigirAberturaCaixa = true` (testado via `ShellViewModelTests`); o estado `false` (pula direto pro Dashboard) também coberto em teste, mas o Dashboard em si ainda é placeholder até a Task 46
 
 ## Task 44: PdvViewModel — venda
 

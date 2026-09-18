@@ -11,9 +11,9 @@ namespace SistemaPDV.ViewModels;
 
 // Casca de navegação: decide qual tela mostrar (Configurações -> Login ->
 // AbrirCaixa/Dashboard) e guarda o estado que o header precisa (operador logado,
-// caixa aberto). AbrirCaixaViewModel/DashboardViewModel ainda não existem (Tasks 43
-// e 46) — a decisão de qual delas é a certa já está completa e testável via
-// TelaAtual, só a instância real de CurrentViewModel fica pendente até lá.
+// caixa aberto). DashboardViewModel ainda não existe (Task 46) — a decisão de que
+// é hora de mostrá-lo já está completa e testável via TelaAtual, só a instância
+// real de CurrentViewModel fica pendente até lá.
 public class ShellViewModel : ViewModelBase
 {
     private readonly ConfiguracaoService configuracaoService;
@@ -108,14 +108,33 @@ public class ShellViewModel : ViewModelBase
 
         if (CaixaAberto is not null || !configuracao.ExigirAberturaCaixa)
         {
-            // TODO (Task 46): trocar por um DashboardViewModel real quando ele existir.
-            TelaAtual = Tela.Dashboard;
-            CurrentViewModel = null;
+            IrParaDashboard();
             return;
         }
 
-        // TODO (Task 43): trocar por um AbrirCaixaViewModel real quando ele existir.
+        IrParaAbrirCaixa(funcionario.Id);
+    }
+
+    private void IrParaAbrirCaixa(int funcionarioId)
+    {
+        var viewModel = new AbrirCaixaViewModel(caixaService, funcionarioId);
+
+        viewModel.AbrirCommand
+            .Where(caixa => caixa is not null)
+            .Subscribe(caixa =>
+            {
+                CaixaAberto = caixa;
+                IrParaDashboard();
+            });
+
         TelaAtual = Tela.AbrirCaixa;
+        CurrentViewModel = viewModel;
+    }
+
+    private void IrParaDashboard()
+    {
+        // TODO (Task 46): trocar por um DashboardViewModel real quando ele existir.
+        TelaAtual = Tela.Dashboard;
         CurrentViewModel = null;
     }
 }
