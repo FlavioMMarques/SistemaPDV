@@ -1,0 +1,66 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Tokens extraídos direto do CSS real do protótipo mockado do curso
+    (treinamento-dotnet-softcom-tecnologia.jhonycosmo.workers.dev/pdv-prototype, 2026-09-19)
+    — nomes espelham as custom properties CSS originais (bg-main, accent-green, etc.),
+    ver a tabela completa em specs/SPEC-pdv-ui.md. Toda View da Fase 5 usa esses
+    StaticResource em vez de hex cravado ou o tema Fluent claro padrão do Avalonia.
+  -->
+
+  <Color x:Key="BgMainColor">#0B0F17</Color>
+  <Color x:Key="BgCardColor">#111722</Color>
+  <Color x:Key="BgCardHoverColor">#161F2E</Color>
+  <Color x:Key="BgInputColor">#0E141F</Color>
+  <Color x:Key="BorderColorColor">#232D3F</Color>
+  <Color x:Key="BorderFocusColor">#FED400</Color>
+  <Color x:Key="TextMainColor">#E2E8F0</Color>
+  <Color x:Key="TextMutedColor">#94A3B8</Color>
+  <Color x:Key="TextDarkColor">#0F172A</Color>
+  <Color x:Key="BrandYellowColor">#FED400</Color>
+  <Color x:Key="AccentGreenColor">#10B981</Color>
+  <Color x:Key="AccentBlueColor">#38BDF8</Color>
+  <Color x:Key="AccentRedColor">#F43F5E</Color>
+
+  <SolidColorBrush x:Key="BgMainBrush" Color="{StaticResource BgMainColor}" />
+  <SolidColorBrush x:Key="BgCardBrush" Color="{StaticResource BgCardColor}" />
+  <SolidColorBrush x:Key="BgCardHoverBrush" Color="{StaticResource BgCardHoverColor}" />
+  <SolidColorBrush x:Key="BgInputBrush" Color="{StaticResource BgInputColor}" />
+  <SolidColorBrush x:Key="BorderColorBrush" Color="{StaticResource BorderColorColor}" />
+  <SolidColorBrush x:Key="BorderFocusBrush" Color="{StaticResource BorderFocusColor}" />
+  <SolidColorBrush x:Key="TextMainBrush" Color="{StaticResource TextMainColor}" />
+  <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+  <SolidColorBrush x:Key="TextDarkBrush" Color="{StaticResource TextDarkColor}" />
+  <SolidColorBrush x:Key="BrandYellowBrush" Color="{StaticResource BrandYellowColor}" />
+  <SolidColorBrush x:Key="AccentGreenBrush" Color="{StaticResource AccentGreenColor}" />
+  <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlueColor}" />
+  <SolidColorBrush x:Key="AccentRedBrush" Color="{StaticResource AccentRedColor}" />
+
+  <!-- Versões "dim" (fundo translúcido de badge/alerta), mesmos valores rgba do protótipo -->
+  <SolidColorBrush x:Key="AccentGreenDimBrush" Color="{StaticResource AccentGreenColor}" Opacity="0.15" />
+  <SolidColorBrush x:Key="AccentBlueDimBrush" Color="{StaticResource AccentBlueColor}" Opacity="0.15" />
+  <SolidColorBrush x:Key="AccentRedDimBrush" Color="{StaticResource AccentRedColor}" Opacity="0.15" />
+  <SolidColorBrush x:Key="BrandYellowDimBrush" Color="{StaticResource BrandYellowColor}" Opacity="0.12" />
+
+  <!--
+    Fonte sans: Inter já vem embutida (Avalonia.Fonts.Inter, já registrada como
+    fonte padrão do app via .WithInterFont() em Program.cs) — este resource só
+    nomeia explicitamente, pra ficar claro no XAML de cada View.
+    Fonte mono: o protótipo usa 'Fira Code' pra números/valores em R$, mas não
+    existe pacote confiável do Fira Code pro Avalonia (só um pacote de terceiros
+    com poucos downloads — decidi não adicionar essa dependência). "monospace" é
+    literalmente o fallback que o próprio CSS do protótipo já declara pro token
+    font-mono ('Fira Code', monospace), então usar a família genérica do sistema
+    operacional é fiel à intenção original sem precisar de um pacote novo.
+  -->
+  <FontFamily x:Key="FontSans">Inter</FontFamily>
+  <FontFamily x:Key="FontMono">monospace</FontFamily>
+
+  <!-- Raio de borda por escala de elemento, não um valor único pra tudo (protótipo varia 4-14px) -->
+  <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
+  <CornerRadius x:Key="RadiusMedium">8</CornerRadius>
+  <CornerRadius x:Key="RadiusCard">12</CornerRadius>
+  <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+
+</ResourceDictionary>
