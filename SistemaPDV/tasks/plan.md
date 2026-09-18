@@ -21,6 +21,12 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - `PdvKeyHasher` é extraído do `CatalogSyncService` assim que aparece um segundo consumidor (`LoginOperadorService`) — duplicar lógica de hash de segurança é mais arriscado que duplicar lógica comum (se um dia o algoritmo mudar num lugar só, login e sync ficam dessincronizados silenciosamente).
 - `ErroApiExtractor` (Fase 4) extrai o parsing de `{"errors": {...}}` que já existia duplicado em `CaixaSyncService` — dessa vez é pura extração de string (sem risco de tradução de LINQ como no caso do upsert genérico do `catalog-sync`), então três usos justificam compartilhar.
 - `ClienteConsumidorFinalIdExterno` fica configurável em `ConfiguracaoSincronizacao`, não hardcoded — a evidência de que é `id=1` é forte mas não 100% confirmada (ver Open Questions de `SPEC-sales.md`); se estiver errada, é um valor de configuração pra corrigir, não uma busca pelo código.
+- `AppServices` (Fase 5, Task 38) é wiring manual, não um container de DI — os serviços dos módulos anteriores já são classes concretas com construtor explícito; um container adicionaria um conceito novo (ciclo de vida de serviço) sem necessidade real nesse tamanho de app.
+- `ExigirAberturaCaixa` (Fase 5, Task 37) vira campo configurável em `ConfiguracaoSincronizacao`, não uma regra fixa no código — decisão do usuário (2026-09-18), mesma filosofia já aplicada a `ClienteConsumidorFinalIdExterno`.
+- Criar cliente pela UI (Fase 5, Task 48/49) ganhou uma ponta de sincronização nova — `CatalogSyncService.SincronizarClienteNovoAsync` — simétrica ao outbox que já existe pra `Caixa`/`Venda`, depois que o usuário confirmou que `POST .../clientes/clientes` existe de verdade. Reaproveita `OutboxHelper`/`SoftcomJson`/`ErroApiExtractor` já prontos.
+- `SincronizacaoBackgroundService` (Fase 5, Task 50) roda em dois ritmos (30s outbox, 5min catálogo) — outbox é o que o operador está esperando confirmar (mais urgente), catálogo é referência que pode ficar alguns minutos desatualizada sem problema prático.
+- Revisão do plano da Fase 5 com o usuário (2026-09-18) confirmou 4 decisões antes de começar a implementar: (1) `AppServices` expõe só serviços prontos, nunca infraestrutura solta (`HttpClient`/`SegredoProtector`/`Func<AppDbContext>`); (2) o fluxo pós-login (config → caixa se exigido → dashboard) é decidido centralizado no `ShellViewModel`, não espalhado pelos ViewModels de cada tela; (3) cliente recém-criado localmente (Task 49) pode ser usado numa venda imediatamente — não precisou mudar `VendaSyncService`, que já trata "cliente sem IdExterno" como pendência silenciosa, mesmo padrão já usado pro Consumidor Final; (4) `SincronizacaoBackgroundService` usa `DispatcherTimer` do Avalonia, não `System.Threading.Timer`, pra não precisar despachar manualmente de volta pra UI thread.
+- Tema visual (Fase 5, Task 39) — aplicando a skill `frontend-ui-engineering` (adaptada de web pra Avalonia/XAML, ver `specs/SPEC-pdv-ui.md`), os valores de cor/tipografia foram extraídos direto do CSS real do protótipo mockado do curso (não são suposição nem tema Fluent padrão do Avalonia) — um `ResourceDictionary` próprio replica os tokens (`--bg-main`, `--accent-green`, etc.) como `SolidColorBrush` nomeados, usados em toda View a partir da Task 41.
 
 ## Task List
 
@@ -151,8 +157,50 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 
 ### Checkpoint: sales completo — ✅ completa (2026-09-18)
 - [x] Todos os Success Criteria de `specs/SPEC-sales.md` atendidos
-- [ ] Revisão com o usuário antes de planejar a Fase 5 (`pdv-ui`)
-### Fase 5: pdv-ui — a planejar após Fase 4
+- [x] Revisão com o usuário antes de planejar a Fase 5 (`pdv-ui`)
+
+### Fase 5: pdv-ui (detalhada — ver `tasks/todo.md`)
+
+**Foundation**
+- [x] Task 37: `ConfiguracaoSincronizacao.ExigirAberturaCaixa` (campo novo + migration)
+- [x] Task 38: `AppServices` (composition root manual, sem DI container)
+- [x] Task 39: Tema visual (`ResourceDictionary` com os design tokens extraídos do protótipo real)
+
+### Checkpoint: Foundation (pdv-ui)
+- [ ] `dotnet build` sem erros
+- [ ] `dotnet test` verde
+
+**Entrar no app (login → configuração → caixa → shell)**
+- [x] Task 40: `LoginViewModel`/`LoginView`
+- [x] Task 41: `ConfiguracoesViewModel`/`ConfiguracoesView` (provisionamento do dispositivo + toggles)
+- [x] Task 42: `ShellViewModel`/`ShellView` (navegação raiz + indicadores online/offline e pendências)
+- [ ] Task 43: `AbrirCaixaViewModel`/`AbrirCaixaView`
+
+### Checkpoint: Login → configuração → abrir caixa navegável
+- [ ] `dotnet test` verde
+- [ ] Manual check: `dotnet run`, fluxo login→config→caixa navegável nos dois estados de `ExigirAberturaCaixa`
+
+**Venda (núcleo)**
+- [ ] Task 44: `PdvViewModel` — carrinho, `PodeFinalizarVenda`, atalhos de teclado
+- [ ] Task 45: `PdvView.axaml` — layout + atalhos F2/F4/F10/Esc
+
+### Checkpoint: Vender offline funciona ponta a ponta
+- [ ] Manual check: vender com rede desligada, venda aparece `PendenteSync`
+
+**Dashboard e pedidos**
+- [ ] Task 46: `DashboardViewModel`
+- [ ] Task 47: `ListaPedidosViewModel`/`ListaPedidosView`
+
+**Cadastros e push de cliente**
+- [ ] Task 48: `CatalogSyncService.SincronizarClienteNovoAsync` (outbox de cliente novo)
+- [ ] Task 49: `CadastrosViewModel`/`CadastrosView` (leitura + criar cliente simples)
+
+**Sincronização automática**
+- [ ] Task 50: `SincronizacaoBackgroundService` (timer 30s outbox / 5min catálogo)
+
+### Checkpoint: pdv-ui completo
+- [ ] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
+- [ ] Revisão com o usuário
 
 ## Risks and Mitigations
 
@@ -164,7 +212,11 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 | `SegredoProtector` (Task 13) usa DPAPI, específico do Windows | Baixo | Aceitável pro escopo do curso (app roda em Windows); documentado como limitação conhecida caso surja necessidade multiplataforma depois |
 | `next_page_url` da API aponta pra domínios diferentes conforme o cliente (visto nos exemplos: `localhost:73`, `qualidade.softcomshop.com.br`) — validação de domínio rígida demais pode rejeitar paginação legítima | Médio | `SoftcomApiClient` (Task 14) valida contra o domínio da própria `UrlApi` configurada (não um domínio fixo hardcoded), então funciona em qualquer ambiente (dev/homologação/produção) igual |
 | Nenhum teste real contra a API SoftcomShop de verdade (tudo com `HttpMessageHandler` fake) — DTOs podem estar sutilmente errados em relação à API real | Médio | Formato dos DTOs segue exatamente os schemas confirmados via Swagger real (não suposição); ajuste fica pra quando houver acesso a um ambiente de teste real da API |
+| `SincronizacaoBackgroundService` (Fase 5) roda um timer em background dentro de um app desktop de UI única — uma exceção não tratada nesse timer não pode derrubar o app | Médio | `SPEC-pdv-ui.md` define como Boundary "Nunca": falha de sync é sempre silenciosa + indicador visual, timer envolve cada ciclo em try/catch próprio |
+| ViewModels do Avalonia/ReactiveUI não têm cobertura automatizada de fim-a-fim (só lógica de comando testada isoladamente) | Médio | Aceito conscientemente pro escopo do curso — `SPEC-pdv-ui.md` já documenta verificação manual (`dotnet run`) como parte da Definition of Done de cada tela |
+| Endpoint `POST .../clientes/clientes` (Task 48) nunca foi testado contra a API real, e o prefixo (`softauth/` ou não) é suposição por analogia | Médio | Mesma mitigação já usada nos outros endpoints: formato do payload segue o schema real do Swagger fornecido pelo usuário; ajuste de prefixo/campo fica pra quando houver teste contra ambiente real |
 
 ## Open Questions
 
 - Nenhuma bloqueante para a Fase 2 — a pendência real (id fixo de "Consumidor Final" pra venda avulsa) só afeta `sales`, fase futura; já há forte evidência de que é `id: 1` (ver `softcomshop-api-contract` na memória).
+- **Fase 5 (pdv-ui)** — 4 assunções registradas em `specs/SPEC-pdv-ui.md` (Open Questions), aceitas pelo usuário em 2026-09-18 antes do planejamento: prefixo do endpoint de criar cliente, defaults do formulário simples de cliente, ritmo do timer de sync (30s/5min), formato do `AppServices`. Nenhuma bloqueia o início da implementação — ajustar se algum teste contra API real contradizer.
