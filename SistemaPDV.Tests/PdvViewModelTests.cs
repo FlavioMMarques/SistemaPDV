@@ -46,7 +46,7 @@ public class PdvViewModelTests
     }
 
     [Fact]
-    public async Task AdicionarItemHabilitaFinalizarECalculaTotal()
+    public async Task AdicionarItemCalculaTotalMasNaoBastaSemPagamentoSuficiente()
     {
         using var fixture = new SqliteInMemoryFixture();
         var (caixaId, produto, _) = await SemearCenarioAsync(fixture);
@@ -55,8 +55,59 @@ public class PdvViewModelTests
         viewModel.QuantidadeAdicionar = "2";
         viewModel.AdicionarItem(produto);
 
-        Assert.True(viewModel.PodeFinalizarVenda);
         Assert.Equal(19.80m, viewModel.Total);
+        // Carrinho não vazio já não basta mais — falta pagamento cobrindo o total
+        // (achado numa revisão de código, 2026-09-18): venda com pagamento parcial
+        // ou zero não pode finalizar.
+        Assert.False(viewModel.PodeFinalizarVenda);
+    }
+
+    [Fact]
+    public async Task PagamentoCobrindoOTotalHabilitaFinalizar()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.QuantidadeAdicionar = "2";
+        viewModel.AdicionarItem(produto);
+        Assert.False(viewModel.PodeFinalizarVenda);
+
+        viewModel.ValorPagamentoAdicionar = "19.80";
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.True(viewModel.PodeFinalizarVenda);
+    }
+
+    [Fact]
+    public async Task PagamentoAMenosDoQueOTotalNaoHabilitaFinalizar()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.QuantidadeAdicionar = "2";
+        viewModel.AdicionarItem(produto);
+
+        viewModel.ValorPagamentoAdicionar = "10.00";
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.False(viewModel.PodeFinalizarVenda);
+    }
+
+    [Fact]
+    public async Task PagamentoAMaisDoQueOTotalHabilitaFinalizar()
+    {
+        // Cobre "dinheiro com troco": pagar mais do que o total é válido, o troco
+        // não é modelado aqui (fora de escopo por enquanto).
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.QuantidadeAdicionar = "1";
+        viewModel.AdicionarItem(produto);
+
+        viewModel.ValorPagamentoAdicionar = "50.00";
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.True(viewModel.PodeFinalizarVenda);
     }
 
     [Fact]
@@ -94,6 +145,33 @@ public class PdvViewModelTests
         Assert.Empty(viewModel.Itens);
         Assert.Empty(viewModel.Pagamentos);
         Assert.False(viewModel.PodeFinalizarVenda);
+    }
+
+    [Fact]
+    public async Task AdicionarPagamentoComValorInvalidoNaoAdicionaNada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, _, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.ValorPagamentoAdicionar = "";
+
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.Empty(viewModel.Pagamentos);
+        Assert.False(string.IsNullOrEmpty(viewModel.Mensagem));
+    }
+
+    [Fact]
+    public async Task AdicionarPagamentoComValorZeroOuNegativoNaoAdicionaNada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, _, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.ValorPagamentoAdicionar = "0";
+
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.Empty(viewModel.Pagamentos);
     }
 
     [Fact]

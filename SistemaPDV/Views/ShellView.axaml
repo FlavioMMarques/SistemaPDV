@@ -37,6 +37,18 @@
       </Grid>
     </Border>
 
+    <!-- Falha inesperada de navegação (fire-and-forget capturado, ver
+         docs/APRENDIZADOS.md e ShellViewModel.ExecutarComTratamentoDeErroAsync) —
+         sem isso a tela travava sem nenhum aviso quando algo dava errado. -->
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource AccentRedDimBrush}"
+            BorderBrush="{StaticResource AccentRedBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,8"
+            IsVisible="{Binding Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <TextBlock Text="{Binding Mensagem}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap" />
+    </Border>
+
     <ContentControl Content="{Binding CurrentViewModel}" />
 
   </DockPanel>

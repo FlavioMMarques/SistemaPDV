@@ -1232,7 +1232,7 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 
 **Verification:**
 - [x] Build: `dotnet build` — 0 avisos, 0 erros
-- [x] Manual check: `dotnet run` roda sem exceção (XAML carrega) — **teste manual dos 4 atalhos em uso real fica pendente**: `PdvView` ainda não é alcançável navegando pelo app (Shell só chega no placeholder de Dashboard, sem menu/botão "nova venda" ainda) — revisitar na Task 46
+- [x] Manual check: `dotnet run` roda sem exceção (XAML carrega) — `PdvView` **agora é alcançável de verdade** (login → abrir caixa → Dashboard → "Nova Venda (F2)"), resolvido na Task 46; teste manual dos 4 atalhos em uso real ainda fica a cargo do usuário rodar (não tenho como capturar tecla numa sessão headless)
 
 **Dependencies:** Task 44
 
@@ -1245,28 +1245,43 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 ---
 
 ### Checkpoint: Vender offline funciona ponta a ponta
-- [ ] Manual check: desligar a rede, vender, venda aparece `PendenteSync` na lista de pedidos — **pendente**: precisa de navegação real até `PdvView` (Task 46, quando existir "nova venda" a partir do Dashboard) e de `ListaPedidosView` (Task 47) pra ver o resultado; a lógica em si já está coberta por testes de ponta a ponta (`PdvViewModelTests`)
+- [ ] Manual check: desligar a rede, vender, venda aparece `PendenteSync` na lista de pedidos — a navegação real até `PdvView` já existe (Task 46: login → abrir caixa → Dashboard → "Nova Venda"); falta só `ListaPedidosView` (Task 47) pra ver o resultado — a lógica em si já está coberta por testes de ponta a ponta (`PdvViewModelTests`, `ShellViewModelTests`)
 
 ## Task 46: DashboardViewModel / DashboardView
 
 **Description:** Faturamento do dia (soma de vendas do caixa aberto), contagem de estoque local, tamanho da fila outbox (caixa+venda+cliente pendentes), última sincronização — todas consultas de leitura simples sobre o banco local, sem chamada de rede própria.
 
 **Acceptance criteria:**
-- [ ] Números batem com o estado real do banco local (verificável manualmente)
-- [ ] Não dispara sincronização nenhuma sozinho (isso é só `SincronizacaoBackgroundService`, Task 50)
+- [x] Números batem com o estado real do banco local — testado (`DashboardServiceTests`, incl. filtro por caixa e caso sem caixa aberto)
+- [x] Não dispara sincronização nenhuma sozinho (isso é só `SincronizacaoBackgroundService`, Task 50) — `DashboardService` só lê, nunca chama `SoftcomApiClient`/serviço de sync nenhum
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter Dashboard`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter Dashboard` — 3 testes de `DashboardService` + 4 de `DashboardViewModel`, 153 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` roda sem exceção
 
 **Dependencies:** Task 38, Task 42
 
 **Files likely touched:**
+- `SistemaPDV/Services/DashboardService.cs`, `ResumoDashboard.cs` (novos — não previstos, mas necessários pra leitura sem tocar `Func<AppDbContext>` direto)
 - `SistemaPDV/ViewModels/DashboardViewModel.cs`
 - `SistemaPDV/Views/DashboardView.axaml` (+ `.cs`)
-- `SistemaPDV.Tests/DashboardViewModelTests.cs`
+- `SistemaPDV/ViewModels/ShellViewModel.cs` (navegação real pro Dashboard + Dashboard→Pdv via `NovaVendaCommand`; corrigido também um bug de ordem de atribuição — `TelaAtual` mudava antes de `CurrentViewModel`, criando uma corrida)
+- `SistemaPDV.Tests/DashboardServiceTests.cs`, `DashboardViewModelTests.cs`
 
-**Estimated scope:** S (3 arquivos, sem lógica densa)
+**Estimated scope:** S (3 arquivos, sem lógica densa) — na prática M (8 arquivos)
+
+---
+
+### Revisão de código pós-Task 46 (2026-09-18)
+
+Skill `code-review-and-quality` (nível `high`) rodada sobre o fluxo completo "venda ponta a ponta" (Tasks 37-46) — 153 testes verdes na hora, mas a revisão achou 3 problemas reais que nenhum teste cobria (ver `docs/APRENDIZADOS.md` #37 pro "porquê" de cada um), todos corrigidos na hora:
+
+- [x] `PdvViewModel.AdicionarPagamento` criava pagamento de R$ 0,00 silencioso com valor inválido/vazio — agora rejeita a ação e mostra mensagem
+- [x] `PdvViewModel.PodeFinalizarVenda` não validava pagamento contra o total — agora exige soma dos pagamentos ≥ total (pagar a mais, com troco, continua permitido)
+- [x] `ShellViewModel`: chamadas fire-and-forget (`_ = viewModel.IniciarAsync()`, `_ = AposLoginAsync(...)`) sem tratamento de exceção podiam travar a tela em silêncio — agora envolvidas em `ExecutarComTratamentoDeErroAsync`, que captura e expõe via `Mensagem` (mostrada na `ShellView` como um banner vermelho)
+
+Testes: 153 → 159. Build limpo, 0 avisos.
 
 ---
 

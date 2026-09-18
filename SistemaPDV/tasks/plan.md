@@ -188,7 +188,7 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - [ ] Manual check: vender com rede desligada, venda aparece `PendenteSync`
 
 **Dashboard e pedidos**
-- [ ] Task 46: `DashboardViewModel`
+- [x] Task 46: `DashboardViewModel`
 - [ ] Task 47: `ListaPedidosViewModel`/`ListaPedidosView`
 
 **Cadastros e push de cliente**

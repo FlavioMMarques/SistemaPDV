@@ -30,7 +30,13 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var shellViewModel = new ShellViewModel(Services.ConfiguracaoService, Services.LoginOperadorService, Services.CaixaService);
+            var shellViewModel = new ShellViewModel(
+                Services.ConfiguracaoService,
+                Services.LoginOperadorService,
+                Services.CaixaService,
+                Services.DashboardService,
+                Services.VendaService,
+                Services.CatalogoLocalService);
             desktop.MainWindow = new MainWindow
             {
                 DataContext = shellViewModel,
