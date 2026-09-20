@@ -19,6 +19,7 @@ public static class OutboxHelper
     {
         aplicarErro(entidade, mensagem);
         await context.SaveChangesAsync(ct);
+        Registro.Aviso("Envio", $"{typeof(T).Name} não foi aceita pela API: {mensagem}");
         return ResultadoSincronizacaoRecurso.ComFalha(mensagem);
     }
 }

@@ -421,6 +421,7 @@ public class CatalogSyncService
                 // Mesmo raciocínio de VendaSyncService.SincronizarVendasPendentesAsync: um
                 // cliente com falha inesperada (ex: UrlApi malformada) não trava o lote;
                 // ele simplesmente segue pendente e é tentado de novo no próximo ciclo.
+                Registro.Erro("Envio", $"Exceção ao enviar o cliente {clienteId}", ex);
             }
         }
 

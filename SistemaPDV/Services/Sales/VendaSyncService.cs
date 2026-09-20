@@ -240,9 +240,10 @@ public class VendaSyncService
                 // método promete isso, e antes da revisão de código o try/catch não
                 // existia, então uma exceção numa venda abortava todas as seguintes.
                 // OperationCanceledException passa direto: cancelamento é intencional,
-                // não deve ser engolido. Sem infraestrutura de log ainda no projeto —
-                // essa venda simplesmente permanece PendenteSync/FalhaSync (o estado
-                // que já tinha) e será tentada de novo na próxima sincronização.
+                // não deve ser engolido. A exceção vai pro log (Registro) e essa venda
+                // simplesmente permanece PendenteSync/FalhaSync (o estado que já tinha)
+                // e será tentada de novo na próxima sincronização.
+                Registro.Erro("Envio", $"Exceção ao enviar a venda {vendaId}", ex);
             }
         }
 

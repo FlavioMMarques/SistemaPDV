@@ -18,13 +18,16 @@ public static class TratamentoDeErros
 
     public static IObserver<Exception> Observador { get; } = Observer.Create<Exception>(excecao =>
     {
+        // Registra ANTES de avisar a tela: se o aviso falhar, o motivo original já está no arquivo.
+        Registro.Erro("Interface", "Exceção em comando (virou banner, app segue aberto)", excecao);
+
         try
         {
             Destino?.Invoke(excecao);
         }
         catch (Exception)
         {
-            // Sem infraestrutura de log ainda: engolir é melhor que derrubar o app por causa do aviso do erro.
+            // Engolir é melhor que derrubar o app por causa do aviso do erro (o erro em si já foi ao log acima).
         }
     });
 }
