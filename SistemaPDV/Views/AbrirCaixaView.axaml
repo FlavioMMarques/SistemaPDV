@@ -1,17 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SistemaPDV.ViewModels"
-             xmlns:conv="using:SistemaPDV.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="SistemaPDV.Views.AbrirCaixaView"
              x:DataType="vm:AbrirCaixaViewModel"
              Background="{StaticResource BgMainBrush}">
-
-  <UserControl.Resources>
-    <conv:TurnoParaIndiceConverter x:Key="TurnoParaIndiceConverter" />
-  </UserControl.Resources>
 
   <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="360">
     <Border Background="{StaticResource BgCardBrush}"
@@ -27,13 +22,17 @@
 
         <StackPanel Spacing="4">
           <TextBlock Text="Turno" Foreground="{StaticResource TextMutedBrush}" />
-          <ComboBox SelectedIndex="{Binding Turno, Mode=TwoWay, Converter={StaticResource TurnoParaIndiceConverter}}"
+          <!-- Lista vinda do ViewModel (1 a 6, os turnos do SoftcomShop). -->
+          <ComboBox ItemsSource="{Binding Turnos}"
+                    SelectedItem="{Binding Turno, Mode=TwoWay}"
                     HorizontalAlignment="Stretch"
                     TabIndex="0"
                     AutomationProperties.Name="Turno">
-            <ComboBoxItem Content="1 - Manhã" />
-            <ComboBoxItem Content="2 - Tarde" />
-            <ComboBoxItem Content="3 - Noite" />
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="x:Int32">
+                <TextBlock Text="{Binding StringFormat='Turno {0}'}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
           </ComboBox>
         </StackPanel>
 

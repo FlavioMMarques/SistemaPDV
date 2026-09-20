@@ -67,4 +67,30 @@ public class AbrirCaixaViewModelTests
         Assert.Null(caixa);
         Assert.False(string.IsNullOrEmpty(viewModel2.Mensagem));
     }
+
+    [Fact]
+    public async Task OferecePeloMenosOsSeisTurnosDoSoftcomShop()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var viewModel = new AbrirCaixaViewModel(new CaixaService(fixture.CriarContexto), funcionarioId);
+
+        Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, viewModel.Turnos);
+    }
+
+    [Fact]
+    public async Task AbrirNoTurnoSeisGravaTurnoSeis()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var viewModel = new AbrirCaixaViewModel(new CaixaService(fixture.CriarContexto), funcionarioId)
+        {
+            TrocoInicial = "10.00",
+            Turno = 6,
+        };
+
+        var caixa = await viewModel.AbrirCommand.Execute();
+
+        Assert.Equal(6, caixa!.Turno);
+    }
 }
