@@ -555,3 +555,18 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 - **Um teste garante a fiação:** sem ele, esquecer de repassar o interruptor a um serviço faria religar virar "trocar a constante e torcer". `ComposicaoDoAppUsaOInterruptorUnico` constrói o `AppServices` de verdade e confere os dois serviços.
 
 **Para religar:** trocar `ExigirChave` para `true` em `Services/PoliticaSupervisor.cs` — e, se quiser o aviso no botão da barra, voltar o `ToolTip.Tip="Exige a chave de um supervisor"` do "⚙ Configurações" em `ShellView.axaml` (retirado porque ficaria falso). O que ainda falta é a fonte da chave: hoje ela vem do `pdv_key` (hash bcrypt) que a API manda por funcionário com `supervisor = true`; se o SoftcomShop tiver outro mecanismo de autorização de supervisor, é isso que precisa ser descoberto.
+
+
+## 70. Os dois últimos itens do backlog de robustez: atraso progressivo no login e retry do número do pedido
+
+**Onde:** `LimitadorDeTentativas`, `LoginOperadorService`, `LoginViewModel`; `VendaService.RegistrarVendaLocalAsync`
+
+**Atraso progressivo no login.** O bcrypt torna cada tentativa lenta, mas nada impedia alguém de ficar testando chaves sem parar num PDV exposto. Regra: as **3 primeiras falhas seguidas são livres** (erro de digitação é normal) e a partir da 4ª o app exige uma espera que dobra — 5 s, 10, 20, 40… até o **teto de 5 min**. Decisões e porquês:
+- **Durante a espera nem a chave certa é conferida.** Não gasta bcrypt e não dá pista de acerto a quem tenta adivinhar (se a certa "passasse" durante a espera, o atacante saberia que acertou). O operador legítimo só espera.
+- **Tentativa feita na espera não conta nem estende a espera.** Senão um operador que aperta Enter várias vezes se puniria sozinho, e o teto viraria "5 min para sempre".
+- **Acertar zera tudo**, inclusive as 3 livres.
+- **A mensagem é honesta sem ser pista:** "Chave inválida" continua genérica; a partir da 4ª acrescenta "aguarde N s". Arredonda **para cima** (dizer "0 s" com a espera valendo confunde) e 60 s vira "1 min".
+- **Estado em memória:** fechar e reabrir o app zera o contador. Limite assumido: é proteção contra tentativa na frente do balcão, não contra quem já tem acesso ao computador (esse abre o banco direto). O `LimitadorDeTentativas` é genérico e testado isolado — quando a chave de supervisor for religada (#69), o mesmo limitador se aplica a ela.
+- Testado com relógio falso (`RelogioFalso`), sem `Thread.Sleep`.
+
+**Retry do número do pedido.** `NumeroPedido = MAX + 1` só colide com **dois processos no mesmo banco**; o índice único recusa o segundo e, antes, isso derrubava o registro da venda que o operador **acabou de finalizar**. Agora tenta o próximo número (até 5 vezes). Cuidados: (1) **só repete se foi mesmo colisão** — depois da falha confere num contexto novo se o número já existe; qualquer outra falha (chave estrangeira, disco, banco travado) sobe na hora, porque repetir não a resolveria (teste: violação de FK = 1 tentativa só); (2) **uma venda nova por tentativa**, porque depois de um `SaveChanges` que falha o contexto e o que ele rastreava não servem mais; (3) **teto de 5**: o 5º erro seguido já não é azar de corrida, sobe para o log/operador em vez de insistir para sempre. A corrida é simulada gravando a venda "do outro processo" dentro do evento `SavingChanges` do primeiro contexto — e **conferi que o teste prova o retry**: com o teto trocado para 1, dois testes falham.
