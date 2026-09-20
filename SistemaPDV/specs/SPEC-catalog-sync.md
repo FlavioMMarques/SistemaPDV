@@ -83,10 +83,10 @@ DTOs mapeiam o **schema completo** que a API retorna (não só os campos que o P
 
 ## Success Criteria
 
-- [ ] `SoftcomAuthService` obtém token válido a partir de `client_id`/`client_secret` salvos
-- [ ] Sincronizar produtos, clientes, formas de pagamento, empresa e funcionários popula as tabelas locais correspondentes
-- [ ] Rodar duas vezes seguidas não duplica registros (casamento por `IdExterno`)
-- [ ] `ultima_sincronizacao`/`date_sync` é persistido e usado na sincronização seguinte
+- [x] `SoftcomAuthService` obtém token válido a partir de `client_id`/`client_secret` salvos
+- [x] Sincronizar produtos, clientes, formas de pagamento, empresa e funcionários popula as tabelas locais correspondentes
+- [x] Rodar duas vezes seguidas não duplica registros (casamento por `IdExterno`)
+- [x] `ultima_sincronizacao`/`date_sync` é persistido e usado na sincronização seguinte
 
 ## Open Questions
 
