@@ -88,4 +88,30 @@ public class ErroApiExtractorTests
 
         Assert.True(mensagem.Length <= ErroApiExtractor.TamanhoMaximo);
     }
+
+    [Fact]
+    public void IncluiONomeDoCampoParaQuemLeSaberOQueFalta()
+    {
+        // Resposta REAL da API de vendas (422): sem o nome do campo, a tela mostrava
+        // "É obrigatório. É obrigatório. É obrigatório. É obrigatório." — indiagnosticável.
+        var conteudo = """
+            {"errors":{"numero_documento":["É obrigatório."],"cancelada":["É obrigatório."],
+            "bloqueada":["É obrigatório."],"produtos.0.produto_empresa_grade_id":["É obrigatório."]}}
+            """;
+
+        var mensagem = ErroApiExtractor.Extrair(conteudo);
+
+        Assert.Contains("numero_documento: É obrigatório.", mensagem);
+        Assert.Contains("cancelada: É obrigatório.", mensagem);
+        Assert.Contains("bloqueada: É obrigatório.", mensagem);
+        Assert.Contains("produtos.0.produto_empresa_grade_id: É obrigatório.", mensagem);
+    }
+
+    [Fact]
+    public void MensagemGeralSemCampoNaoLevaPrefixo()
+    {
+        var mensagem = ErroApiExtractor.Extrair("""{ "errors": { "message": ["Já existe caixa aberto."] } }""");
+
+        Assert.Equal("Já existe caixa aberto.", mensagem);
+    }
 }
