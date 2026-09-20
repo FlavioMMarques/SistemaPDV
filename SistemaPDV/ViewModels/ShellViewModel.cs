@@ -37,7 +37,7 @@ public class ShellViewModel : ViewModelBase
     private string? detalheConexao;
     private readonly Subject<Unit> dispositivoVinculado = new();
 
-    // Marcado (como o de ConfiguracoesViewModel) porque IrParaConfiguracoesCommand referencia IrParaConfiguracoes, que
+    // Marcado (como o de ConfiguracoesViewModel) porque IrParaConfiguracoesCommand referencia IrParaConfiguracoesAsync, que
     // constrói o ViewModel de Configurações (Windows-only por causa do vínculo de dispositivo via DPAPI).
     [SupportedOSPlatform("windows")]
     public ShellViewModel(
@@ -88,7 +88,7 @@ public class ShellViewModel : ViewModelBase
         // própria tela (ConfiguracoesViewModel), não aqui.
         var podeAbrirConfiguracoes = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null)
             .CombineLatest(semVendaEmAndamento, (logado, semVenda) => logado && semVenda);
-        IrParaConfiguracoesCommand = ReactiveCommand.Create(() => IrParaConfiguracoes(exigirSupervisor: true), podeAbrirConfiguracoes);
+        IrParaConfiguracoesCommand = ReactiveCommand.CreateFromTask(() => IrParaConfiguracoesAsync(exigirSupervisor: true), podeAbrirConfiguracoes);
     }
 
     public Tela TelaAtual
@@ -175,7 +175,7 @@ public class ShellViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> IrParaConfiguracoesCommand { get; }
 
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
-    // pode chegar em IrParaConfiguracoes, que constrói ConfiguracoesViewModel
+    // pode chegar em IrParaConfiguracoesAsync, que constrói ConfiguracoesViewModel
     // (Windows-only por causa do vínculo de dispositivo via DPAPI).
     [SupportedOSPlatform("windows")]
     public async Task IniciarAsync() => await ExecutarComTratamentoDeErroAsync(async () =>
@@ -186,7 +186,7 @@ public class ShellViewModel : ViewModelBase
         // sincronizar nada ainda, então Configurações vem antes até do Login.
         if (string.IsNullOrWhiteSpace(configuracao.UrlApi))
         {
-            IrParaConfiguracoes();
+            await IrParaConfiguracoesAsync();
             return;
         }
 
@@ -194,7 +194,7 @@ public class ShellViewModel : ViewModelBase
     });
 
     [SupportedOSPlatform("windows")]
-    private void IrParaConfiguracoes(bool exigirSupervisor = false)
+    private async Task IrParaConfiguracoesAsync(bool exigirSupervisor = false)
     {
         var viewModel = new ConfiguracoesViewModel(configuracaoService, exigirSupervisor);
 
@@ -217,13 +217,17 @@ public class ShellViewModel : ViewModelBase
 
         // "Voltar" (só existe quando aberta pelo botão): de volta ao ponto em que o operador estava.
         viewModel.VoltarCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(IrParaTelaInicialAsync));
+
+        // Carrega ANTES de mostrar (ver APRENDIZADOS #61): com o formulário vazio, um "Salvar" precoce gravaria os
+        // valores padrão por cima da configuração de verdade.
+        await viewModel.IniciarAsync();
+
         // CurrentViewModel antes de TelaAtual de propósito: quem observa TelaAtual
         // (ex: um teste com WhenAnyValue) só deve acordar depois que o resto do
         // estado da navegação já está pronto — inverter a ordem cria uma corrida
         // onde TelaAtual muda mas CurrentViewModel ainda é o da tela anterior.
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Configuracoes;
-        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
     private void IrParaLogin()

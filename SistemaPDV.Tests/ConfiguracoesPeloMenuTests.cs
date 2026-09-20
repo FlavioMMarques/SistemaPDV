@@ -321,4 +321,79 @@ public class ConfiguracoesPeloMenuTests
         Assert.Null(shell.CaixaAberto);
         Assert.False(await shell.IrParaConfiguracoesCommand.CanExecute.FirstAsync());   // sem login de novo, sem o botão
     }
+
+    // ---- re-vincular a OUTRA empresa com dados locais ----
+
+    private const string LinkEmpresaA = "https://exemplo.softcomshop.com.br/registrar?client_id=1&empresa_cnpj=12345678000199";
+    private const string LinkEmpresaB = "https://exemplo.softcomshop.com.br/registrar?client_id=2&empresa_cnpj=06220266000126";
+
+    private static async Task<(ConfiguracaoService Servico, Func<int> Chamadas)> PrepararReVinculoAsync(SqliteInMemoryFixture fixture, bool comCaixaLocal)
+    {
+        await using (var context = fixture.CriarContexto())
+        {
+            context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao { UrlApi = LinkEmpresaA });
+            var operador = new Funcionario { Nome = "Carlos", IdExterno = 2 };
+            context.Funcionarios.Add(operador);
+            await context.SaveChangesAsync();
+            if (comCaixaLocal)
+                await new CaixaService(fixture.CriarContexto).AbrirCaixaLocalAsync(operador.Id, new DateOnly(2026, 9, 20), 1, 10m);
+        }
+
+        var chamadas = 0;
+        var segredoProtector = new SegredoProtector();
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{ "data": { "client_secret": "abc" } }""") };
+        });
+        return (new ConfiguracaoService(fixture.CriarContexto, new SoftcomAuthService(httpClient, segredoProtector), segredoProtector), () => chamadas);
+    }
+
+    [Fact]
+    public async Task ReVincularAOutraEmpresaComCaixaLocalEhRecusadoSemChamarARede()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (servico, chamadas) = await PrepararReVinculoAsync(fixture, comCaixaLocal: true);
+
+        var (sucesso, mensagem) = await servico.VincularDispositivoAsync(LinkEmpresaB, "PDV-01");
+
+        Assert.False(sucesso);
+        Assert.Contains("outra empresa", mensagem);
+        Assert.Equal(0, chamadas());
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal(LinkEmpresaA, leitura.ConfiguracoesSincronizacao.Single().UrlApi);   // nada mudou
+    }
+
+    [Fact]
+    public async Task ReVincularAOutraEmpresaSemNenhumDadoLocalEhPermitido()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (servico, _) = await PrepararReVinculoAsync(fixture, comCaixaLocal: false);
+
+        var (sucesso, mensagem) = await servico.VincularDispositivoAsync(LinkEmpresaB, "PDV-01");
+
+        Assert.True(sucesso, mensagem);
+    }
+
+    [Fact]
+    public async Task ReVincularAMesmaEmpresaComCaixaLocalContinuaLivre()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (servico, _) = await PrepararReVinculoAsync(fixture, comCaixaLocal: true);
+
+        var (sucesso, mensagem) = await servico.VincularDispositivoAsync(LinkEmpresaA.Replace("client_id=1", "client_id=5"), "PDV-01");
+
+        Assert.True(sucesso, mensagem);   // mesmo CNPJ (ex: novo segredo): não mistura nada
+    }
+
+    [Fact]
+    public async Task LinkSemCnpjNaoBloqueiaPorqueNaoDaParaProvarADiferenca()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (servico, _) = await PrepararReVinculoAsync(fixture, comCaixaLocal: true);
+
+        var (sucesso, mensagem) = await servico.VincularDispositivoAsync("https://exemplo.softcomshop.com.br/registrar?client_id=9", "PDV-01");
+
+        Assert.True(sucesso, mensagem);
+    }
 }
