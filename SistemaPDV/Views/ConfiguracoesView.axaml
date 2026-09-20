@@ -15,11 +15,52 @@
                  FontSize="22" FontWeight="Bold"
                  Foreground="{StaticResource TextMainBrush}" />
 
+      <!-- Aberta pelo botão da barra: o formulário só aparece depois da chave de um supervisor. -->
       <Border Background="{StaticResource BgCardBrush}"
               BorderBrush="{StaticResource BorderColorBrush}"
               BorderThickness="1"
               CornerRadius="{StaticResource RadiusCard}"
-              Padding="24">
+              Padding="24"
+              IsVisible="{Binding Bloqueada}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="🔒 Acesso de supervisor" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+          <TextBlock Text="Digite a chave de um supervisor para abrir as configurações."
+                     Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+          <TextBox Text="{Binding ChaveSupervisor, Mode=TwoWay}"
+                   PasswordChar="●"
+                   PlaceholderText="Chave do supervisor"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   CornerRadius="{StaticResource RadiusSmall}"
+                   AutomationProperties.Name="Chave do supervisor">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding DesbloquearCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <TextBlock Text="{Binding MensagemDesbloqueio}"
+                     Foreground="{StaticResource AccentRedBrush}"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding MensagemDesbloqueio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Liberar"
+                    Command="{Binding DesbloquearCommand}"
+                    Background="{StaticResource BrandYellowBrush}"
+                    Foreground="{StaticResource TextDarkBrush}"
+                    FontWeight="Bold"
+                    CornerRadius="{StaticResource RadiusMedium}"
+                    Padding="16,8"
+                    AutomationProperties.Name="Liberar configurações" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Background="{StaticResource BgCardBrush}"
+              BorderBrush="{StaticResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource RadiusCard}"
+              Padding="24"
+              IsVisible="{Binding Liberada}">
         <StackPanel Spacing="12">
           <TextBlock Text="Vincular dispositivo" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
           <TextBlock Text="Cole o link de cadastro fornecido pela Softcom." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
@@ -62,7 +103,8 @@
               BorderBrush="{StaticResource BorderColorBrush}"
               BorderThickness="1"
               CornerRadius="{StaticResource RadiusCard}"
-              Padding="24">
+              Padding="24"
+              IsVisible="{Binding Liberada}">
         <StackPanel Spacing="12">
           <TextBlock Text="Regras do PDV" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
 
@@ -113,6 +155,16 @@
                  Foreground="{StaticResource TextMutedBrush}"
                  TextWrapping="Wrap"
                  IsVisible="{Binding Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+      <!-- Só quando aberta pelo botão da barra (na 1ª vinculação não há para onde voltar). -->
+      <Button Content="← Voltar"
+              Command="{Binding VoltarCommand}"
+              Background="{StaticResource BgCardBrush}"
+              Foreground="{StaticResource TextMainBrush}"
+              CornerRadius="{StaticResource RadiusMedium}"
+              Padding="16,8"
+              IsVisible="{Binding PodeVoltar}"
+              AutomationProperties.Name="Voltar" />
 
     </StackPanel>
   </ScrollViewer>

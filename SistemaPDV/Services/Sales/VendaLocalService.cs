@@ -45,7 +45,7 @@ public class VendaLocalService
         if (venda.SyncStatus != SyncStatus.FalhaSync)
             return ResultadoDescarte.Falha("Só uma venda em falha pode ser descartada (a pendente ainda vai ser enviada).");
 
-        var supervisor = await AutenticarSupervisorAsync(context, chaveSupervisor, ct);
+        var supervisor = await SupervisorAutenticador.AutenticarAsync(context, chaveSupervisor, ct);
         if (supervisor is null)
         {
             Registro.Aviso("Auditoria", $"Descarte da venda {venda.Id} (#{venda.NumeroPedido}) recusado: chave de supervisor inválida (pedido por funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}).");
@@ -60,20 +60,6 @@ public class VendaLocalService
         await context.SaveChangesAsync(ct);
         Registro.Info("Auditoria", $"Venda {venda.Id} (#{venda.NumeroPedido}) descartada pelo supervisor {supervisor.Id} a pedido do funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}. Motivo: {motivoLimpo}");
         return ResultadoDescarte.Ok();
-    }
-
-    // Uma mensagem só pra chave errada e pra chave de quem não é supervisor: não revela se a chave existe. bcrypt é
-    // lento de propósito, então a conferência roda fora da thread de UI.
-    private static async Task<Funcionario?> AutenticarSupervisorAsync(AppDbContext context, string? chave, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(chave))
-            return null;
-
-        var supervisores = await context.Funcionarios
-            .Where(f => f.Supervisor && !f.Desativado && f.PdvKeyHash != null)
-            .ToListAsync(ct);
-
-        return await Task.Run(() => supervisores.FirstOrDefault(f => PdvKeyHasher.Verificar(chave, f.PdvKeyHash)), ct);
     }
 
     // Vendas do caixa que ainda não chegaram à API (pendentes, com falha ou em espera): impedem o fechamento.

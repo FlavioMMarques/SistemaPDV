@@ -524,3 +524,18 @@ O envio retenta vendas em `FalhaSync` (até 8 vezes) e o supervisor pode descart
 Regras adotadas (decisão do usuário: descartar qualquer venda em falha, sem esperar as 8 tentativas, e reconferir antes de gravar): (1) **falha depois do descarte não grava nada** — `MarcarFalhaAsync` reconfere no banco (`AsNoTracking`) e devolve "descartada durante o envio"; (2) **sucesso depois do descarte: a verdade da API vence** — a venda já está lá, então fica `Sincronizado` (senão sairia do "esperado" do caixa por engano), a auditoria do pedido de descarte é preservada e um aviso vai pro log. A janela que sobra (entre a reconferência e o `SaveChanges`) é de milissegundos e o pior efeito é benigno.
 
 **Achado da revisão da numeração por PDV (#64):** o código está correto, mas o **formato `01-000005` nunca foi aceito pela API real** — as vendas reais 3 e 4 saíram com o número puro (o código do PDV não estava configurado). O Swagger diz `string`, então deve passar, mas é hipótese. Como confirmar: configurar um código e fazer uma venda; se a API recusar, o plano B é um prefixo só numérico (`<código numérico><sequencial de 6 dígitos>`).
+
+
+## 68. Uma tela que ninguém consegue abrir não existe: campo novo precisa de caminho até ele
+
+**Onde:** `ShellViewModel.IrParaConfiguracoesCommand`, `ConfiguracoesViewModel` (porta de entrada com chave), `SupervisorAutenticador`
+
+Ao criar o campo "Código deste PDV" (#64) eu o coloquei na tela de Configurações — que só abria sozinha no **1º uso**, com o dispositivo ainda sem vínculo (`IrParaConfiguracoes` era privado). Depois de vinculado, **não havia botão**: o código do PDV, "Exigir abertura de caixa" e o Consumidor Final ficaram inalcançáveis. Só apareceu quando o usuário perguntou "como faço para ir nas configurações?". Lição: ao entregar um campo/tela, percorra o caminho do usuário até ele (qual botão? em que estado do app fica visível?) — testes de ViewModel passam mesmo quando a tela é inacessível.
+
+Decisões do usuário (2026-09-20): botão **⚙ Configurações** na barra, em qualquer tela logada (sem exigir caixa aberto: o código do PDV precisa ser definido *antes* de vender; só bloqueia com venda em andamento) e **só supervisor**, digitando a chave. Como foi feito:
+- **A chave é pedida na própria tela**, que abre com o formulário escondido (`Bloqueada`); na 1ª vinculação não pede nada (ainda não há login nem supervisor local). Chave errada, de operador comum ou de supervisor desativado dão **a mesma mensagem**, e o campo é limpo depois de toda tentativa.
+- **A regra vive no ViewModel, não só no botão escondido**: `SalvarAsync` e `VincularAsync` recusam com a tela bloqueada (`Execute()` ignora `CanExecute` — mesma lição do fechamento de caixa, #62). Teste: salvar bloqueado não grava nada e vincular bloqueado não chama a rede.
+- **`SupervisorAutenticador`** (novo, estático): a conferência da chave estava privada em `VendaLocalService` (descarte); com o 2º uso virou um lugar só, para a regra "supervisor ativo + bcrypt" não divergir.
+- **Re-vincular a partir do menu derruba o login e o caixa** (`OperadorLogado`/`CaixaAberto` = null, volta ao Login): um novo vínculo pode ser de **outra empresa**. Limitação anotada: um caixa que estava aberto continua aberto no banco local; hoje não há bloqueio de re-vincular com caixa aberto.
+- **`IrParaTelaInicialAsync`**: a decisão "Dashboard ou Abrir caixa" estava duplicada no login e no fechamento; agora é um método usado também pelo "Voltar" das Configurações.
+- Tudo auditado no log: quem liberou (supervisor) e as tentativas recusadas.

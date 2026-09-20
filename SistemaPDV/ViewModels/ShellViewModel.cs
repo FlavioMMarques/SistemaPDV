@@ -37,6 +37,9 @@ public class ShellViewModel : ViewModelBase
     private string? detalheConexao;
     private readonly Subject<Unit> dispositivoVinculado = new();
 
+    // Marcado (como o de ConfiguracoesViewModel) porque IrParaConfiguracoesCommand referencia IrParaConfiguracoes, que
+    // constrói o ViewModel de Configurações (Windows-only por causa do vínculo de dispositivo via DPAPI).
+    [SupportedOSPlatform("windows")]
     public ShellViewModel(
         ConfiguracaoService configuracaoService,
         LoginOperadorService loginOperadorService,
@@ -79,6 +82,13 @@ public class ShellViewModel : ViewModelBase
         // Cadastros segue a mesma regra dos outros botões (decisão do usuário, 2026-09-20): só com caixa aberto e sem
         // venda em andamento. (Antes exigia só operador logado, e ficava ativo na tela de abrir caixa.)
         IrParaCadastrosCommand = ReactiveCommand.CreateFromTask(IrParaCadastrosAsync, podeNavegar);
+
+        // Configurações: qualquer tela depois do login (não exige caixa aberto — o código do PDV precisa ser definido
+        // ANTES de vender), bloqueada só com venda em andamento como as outras. A chave do supervisor é pedida na
+        // própria tela (ConfiguracoesViewModel), não aqui.
+        var podeAbrirConfiguracoes = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null)
+            .CombineLatest(semVendaEmAndamento, (logado, semVenda) => logado && semVenda);
+        IrParaConfiguracoesCommand = ReactiveCommand.Create(() => IrParaConfiguracoes(exigirSupervisor: true), podeAbrirConfiguracoes);
     }
 
     public Tela TelaAtual
@@ -162,6 +172,7 @@ public class ShellViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> IrParaListaPedidosCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaCadastrosCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaFecharCaixaCommand { get; }
+    public ReactiveCommand<Unit, Unit> IrParaConfiguracoesCommand { get; }
 
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
     // pode chegar em IrParaConfiguracoes, que constrói ConfiguracoesViewModel
@@ -183,9 +194,9 @@ public class ShellViewModel : ViewModelBase
     });
 
     [SupportedOSPlatform("windows")]
-    private void IrParaConfiguracoes()
+    private void IrParaConfiguracoes(bool exigirSupervisor = false)
     {
-        var viewModel = new ConfiguracoesViewModel(configuracaoService);
+        var viewModel = new ConfiguracoesViewModel(configuracaoService, exigirSupervisor);
 
         // Vincular com sucesso é o que destrava o resto (login, sincronização): leva ao
         // Login sem reabrir o app e avisa quem quiser sincronizar já, em vez de esperar o
@@ -194,10 +205,18 @@ public class ShellViewModel : ViewModelBase
             .Where(vinculou => vinculou)
             .Subscribe(_ =>
             {
+                // Um novo vínculo pode ser de OUTRA empresa: quem estava logado e o caixa aberto deixam de valer, o
+                // operador entra de novo. (Na 1ª vinculação já são null — não muda nada.)
+                OperadorLogado = null;
+                CaixaAberto = null;
+
                 // Avisa ANTES de navegar: quem espera a troca de tela já encontra o aviso feito.
                 dispositivoVinculado.OnNext(Unit.Default);
                 IrParaLogin();
             });
+
+        // "Voltar" (só existe quando aberta pelo botão): de volta ao ponto em que o operador estava.
+        viewModel.VoltarCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(IrParaTelaInicialAsync));
         // CurrentViewModel antes de TelaAtual de propósito: quem observa TelaAtual
         // (ex: um teste com WhenAnyValue) só deve acordar depois que o resto do
         // estado da navegação já está pronto — inverter a ordem cria uma corrida
@@ -225,17 +244,21 @@ public class ShellViewModel : ViewModelBase
     private async Task AposLoginAsync(Funcionario funcionario)
     {
         OperadorLogado = funcionario;
-
-        var configuracao = await configuracaoService.ObterOuCriarAsync();
         CaixaAberto = await caixaService.ObterCaixaAbertoAsync(funcionario.Id);
 
-        if (CaixaAberto is not null || !configuracao.ExigirAberturaCaixa)
-        {
-            await IrParaDashboardAsync();
-            return;
-        }
+        await IrParaTelaInicialAsync();
+    }
 
-        await IrParaAbrirCaixaAsync(funcionario.Id);
+    // Onde o operador logado "começa": Dashboard se já tem caixa aberto (ou a abertura não é exigida), senão a tela de
+    // abrir caixa. Usado depois do login, depois de fechar o caixa e ao voltar das Configurações.
+    private async Task IrParaTelaInicialAsync()
+    {
+        var configuracao = await configuracaoService.ObterOuCriarAsync();
+
+        if (CaixaAberto is null && configuracao.ExigirAberturaCaixa && OperadorLogado is { } operador)
+            await IrParaAbrirCaixaAsync(operador.Id);
+        else
+            await IrParaDashboardAsync();
     }
 
     // Carrega ANTES de mostrar a tela (e não em segundo plano depois): o turno sugerido já é o certo quando ela
@@ -313,11 +336,7 @@ public class ShellViewModel : ViewModelBase
     {
         CaixaAberto = null;
 
-        var configuracao = await configuracaoService.ObterOuCriarAsync();
-        if (configuracao.ExigirAberturaCaixa && OperadorLogado is { } operador)
-            await IrParaAbrirCaixaAsync(operador.Id);
-        else
-            await IrParaDashboardAsync();
+        await IrParaTelaInicialAsync();
     }
 
     private async Task IrParaCadastrosAsync()
