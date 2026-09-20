@@ -93,4 +93,17 @@ public class AbrirCaixaViewModelTests
 
         Assert.Equal(6, caixa!.Turno);
     }
+
+    [Fact]
+    public async Task TrocoComVirgulaEhLidoComoDecimalENaoComoMilhar()
+    {
+        // "10,50" era lido como 1050 (a vírgula virava separador de milhar).
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var viewModel = new AbrirCaixaViewModel(new CaixaService(fixture.CriarContexto), funcionarioId) { TrocoInicial = "10,50", Turno = 1 };
+
+        var caixa = await viewModel.AbrirCommand.Execute();
+
+        Assert.Equal(10.50m, caixa!.TrocoInicial);
+    }
 }

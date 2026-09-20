@@ -257,4 +257,31 @@ public class PdvViewModelTests
         Assert.Empty(viewModel.Pagamentos);
         Assert.False(viewModel.PodeFinalizarVenda);
     }
+
+    [Fact]
+    public async Task QuantidadeFracionadaComVirgulaEhLidaComoFracao()
+    {
+        // Venda por peso: "0,5" (kg) era lido como 5 — a vírgula virava separador de milhar.
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, produto, _) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+
+        viewModel.QuantidadeAdicionar = "0,5";
+        viewModel.AdicionarItem(produto);
+
+        Assert.Equal(0.5m, viewModel.Itens.Single().Quantidade);
+    }
+
+    [Fact]
+    public async Task ValorDePagamentoComVirgulaEhLidoComoDecimal()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, _, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+
+        viewModel.ValorPagamentoAdicionar = "12,50";
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.Equal(12.50m, viewModel.Pagamentos.Single().Valor);   // não 1250
+    }
 }
