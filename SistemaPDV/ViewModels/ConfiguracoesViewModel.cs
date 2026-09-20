@@ -25,16 +25,27 @@ public class ConfiguracoesViewModel : ViewModelBase
     private string codigoPdv = string.Empty;
     private bool exigirAberturaCaixa = true;
     private string? mensagem;
+    private bool bloqueada;
+    private string chaveSupervisor = string.Empty;
+    private string? mensagemDesbloqueio;
 
     // Marcado aqui (não a classe inteira) porque só referencia VincularAsync como
     // delegate do comando — IniciarAsync/SalvarAsync não têm nada de Windows-only e
     // ficam sem a restrição. Como o app inteiro só roda em Windows de qualquer forma
     // (ver App.axaml.cs), quem for construir esse ViewModel já está dentro dessa
     // cadeia — não é uma restrição nova se propagando, só reconhecendo a que já existe.
+    // exigirSupervisor: aberta pelo botão da barra (dispositivo já vinculado) — o formulário só aparece depois da chave
+    // de um supervisor. Na 1ª vez (sem vínculo) não há como logar nem supervisor local, então abre direto.
     [SupportedOSPlatform("windows")]
-    public ConfiguracoesViewModel(ConfiguracaoService configuracaoService)
+    public ConfiguracoesViewModel(ConfiguracaoService configuracaoService, bool exigirSupervisor = false)
     {
         this.configuracaoService = configuracaoService;
+        PodeVoltar = exigirSupervisor;
+        bloqueada = exigirSupervisor;
+
+        var podeDesbloquear = this.WhenAnyValue(vm => vm.ChaveSupervisor, chave => !string.IsNullOrEmpty(chave));
+        DesbloquearCommand = ReactiveCommand.CreateFromTask(DesbloquearAsync, podeDesbloquear);
+        VoltarCommand = ReactiveCommand.Create(() => { });
 
         var podeVincular = this.WhenAnyValue(
             vm => vm.LinkCadastro, vm => vm.NomeDispositivo,
@@ -84,6 +95,56 @@ public class ConfiguracoesViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref mensagem, value);
     }
 
+    // Formulário escondido até um supervisor digitar a chave (só quando aberta pelo botão da barra).
+    public bool Bloqueada
+    {
+        get => bloqueada;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref bloqueada, value);
+            this.RaisePropertyChanged(nameof(Liberada));
+        }
+    }
+
+    public bool Liberada => !Bloqueada;
+
+    // "Voltar" só existe quando aberta pelo botão (na 1ª vinculação não há para onde voltar).
+    public bool PodeVoltar { get; }
+
+    // Campo de senha, LIMPO depois de cada tentativa (certa ou errada) — a chave nunca fica no formulário.
+    public string ChaveSupervisor
+    {
+        get => chaveSupervisor;
+        set => this.RaiseAndSetIfChanged(ref chaveSupervisor, value);
+    }
+
+    public string? MensagemDesbloqueio
+    {
+        get => mensagemDesbloqueio;
+        private set => this.RaiseAndSetIfChanged(ref mensagemDesbloqueio, value);
+    }
+
+    public ReactiveCommand<Unit, Unit> DesbloquearCommand { get; }
+
+    // Só emite: quem sabe para onde voltar é o Shell (Dashboard ou Abrir caixa).
+    public ReactiveCommand<Unit, Unit> VoltarCommand { get; }
+
+    private async Task DesbloquearAsync()
+    {
+        var chave = ChaveSupervisor;
+        ChaveSupervisor = string.Empty;
+
+        if (await configuracaoService.AutenticarSupervisorAsync(chave))
+        {
+            MensagemDesbloqueio = null;
+            Bloqueada = false;
+            return;
+        }
+
+        // Uma mensagem só (não revela se a chave existe nem se é de um operador comum).
+        MensagemDesbloqueio = "Chave de supervisor inválida — as Configurações só abrem com a chave de um supervisor.";
+    }
+
     // Devolve se vinculou: o Shell escuta pra levar ao Login (e avisar a sincronização)
     // só quando deu certo — com falha, a tela fica pro operador corrigir o link.
     public ReactiveCommand<Unit, bool> VincularCommand { get; }
@@ -104,13 +165,27 @@ public class ConfiguracoesViewModel : ViewModelBase
     [SupportedOSPlatform("windows")]
     private async Task<bool> VincularAsync()
     {
+        if (Bloqueada)
+        {
+            Mensagem = MensagemBloqueada;   // Execute() ignora o CanExecute: a regra não pode depender do botão escondido
+            return false;
+        }
+
         var (sucesso, mensagemResultado) = await configuracaoService.VincularDispositivoAsync(LinkCadastro, NomeDispositivo);
         Mensagem = mensagemResultado;
         return sucesso;
     }
 
+    private const string MensagemBloqueada = "Digite a chave de um supervisor para alterar as configurações.";
+
     private async Task SalvarAsync()
     {
+        if (Bloqueada)
+        {
+            Mensagem = MensagemBloqueada;
+            return;
+        }
+
         // Código inválido não salva nada: melhor avisar do que gravar meio salvo e o operador achar que valeu.
         if (!NumeroDocumento.TentarNormalizarCodigo(CodigoPdv, out var codigo))
         {

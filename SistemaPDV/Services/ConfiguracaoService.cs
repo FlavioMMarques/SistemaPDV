@@ -66,6 +66,22 @@ public class ConfiguracaoService
         return (true, "Dispositivo vinculado com sucesso.");
     }
 
+    // Abrir as Configurações depois de o dispositivo estar vinculado exige a chave de um supervisor (decisão do
+    // usuário, 2026-09-20): re-vincular ou mudar o código do PDV afeta empresa e numeração, não é coisa de operador.
+    // Devolve se liberou; tudo fica no log (quem entrou, e as tentativas recusadas).
+    public async Task<bool> AutenticarSupervisorAsync(string? chave, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        var supervisor = await SupervisorAutenticador.AutenticarAsync(context, chave, ct);
+
+        if (supervisor is null)
+            Registro.Aviso("Auditoria", "Acesso às Configurações recusado: chave de supervisor inválida.");
+        else
+            Registro.Info("Auditoria", $"Configurações liberadas pelo supervisor {supervisor.Id}.");
+
+        return supervisor is not null;
+    }
+
     public async Task AtualizarAsync(Action<ConfiguracaoSincronizacao> aplicar, CancellationToken ct = default)
     {
         await using var context = contextFactory();
