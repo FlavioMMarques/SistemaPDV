@@ -73,4 +73,27 @@ public class ListaPedidosViewModelTests
 
         Assert.Equal(2, viewModel.Vendas.Count);
     }
+
+    [Fact]
+    public async Task AtualizarAposSincronizacaoRecarregaOStatusSemApertarNada()
+    {
+        // O ciclo de sincronização muda o SyncStatus da venda no banco; a lista aberta
+        // tem que refletir isso sem o operador clicar em Atualizar.
+        using var fixture = new SqliteInMemoryFixture();
+        var caixaId = await SemearCaixaComVendaAsync(fixture);
+        var viewModel = new ListaPedidosViewModel(new VendaLocalService(fixture.CriarContexto), caixaId);
+        await viewModel.IniciarAsync();
+        Assert.Equal(SyncStatus.PendenteSync, viewModel.Vendas.Single().SyncStatus);
+
+        await using (var context = fixture.CriarContexto())
+        {
+            var venda = await context.Vendas.SingleAsync();
+            venda.SyncStatus = SyncStatus.Sincronizado;
+            await context.SaveChangesAsync();
+        }
+
+        await ((IAtualizavelPorSincronizacao)viewModel).AtualizarAposSincronizacaoAsync();
+
+        Assert.Equal(SyncStatus.Sincronizado, viewModel.Vendas.Single().SyncStatus);
+    }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Runtime.Versioning;
@@ -61,6 +62,7 @@ public class SincronizacaoBackgroundService : IDisposable
 
     private readonly SemaphoreSlim cicloEmAndamento = new(1, 1);
     private readonly BehaviorSubject<EstadoConexao> estado = new(EstadoConexao.Desconhecida);
+    private readonly Subject<Unit> dadosAlterados = new();
 
     private bool catalogoSincronizado;
     private CancellationTokenSource? cancelamento;
@@ -89,6 +91,12 @@ public class SincronizacaoBackgroundService : IDisposable
     public string? MensagemUltimoCiclo { get; private set; }
 
     public IObservable<EstadoConexao> EstadoConexaoAlterada => estado.DistinctUntilChanged();
+
+    // Emite quando um ciclo mexeu no banco local (item enviado, falha registrada, dado novo
+    // do catálogo) — as telas que listam esses dados se recarregam sozinhas. Ciclo que não
+    // fez nada (ocioso, sem itens novos) não emite: recarregar lista à toa a cada 30 s é
+    // trabalho perdido.
+    public IObservable<Unit> DadosAlterados => dadosAlterados;
 
     // Liga os dois ritmos e já dispara uma primeira rodada — sem isso, o operador que
     // acabou de abrir o app esperaria 30 s pra ver qualquer coisa. Chamar na thread de UI.
@@ -130,6 +138,7 @@ public class SincronizacaoBackgroundService : IDisposable
     {
         Parar();
         estado.Dispose();
+        dadosAlterados.Dispose();
         cicloEmAndamento.Dispose();
     }
 
@@ -163,6 +172,8 @@ public class SincronizacaoBackgroundService : IDisposable
             {
                 catalogoSincronizado = true;
                 Publicar(EstadoConexao.Online, null);
+                if (TrouxeAlgo(resultado))
+                    dadosAlterados.OnNext(Unit.Default);
             }
             else
             {
@@ -205,6 +216,10 @@ public class SincronizacaoBackgroundService : IDisposable
             await ExecutarEtapaAsync(() => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
             await ExecutarEtapaAsync(() => SincronizarCaixasPendentesAsync(accessToken, ct));
             await ExecutarEtapaAsync(() => vendaSyncService.SincronizarVendasPendentesAsync(accessToken, ct));
+
+            // Chegou até aqui = havia pendência e tentou enviar: o que mudou (🟡 -> 🟢 ou 🔴)
+            // precisa aparecer nas listas.
+            dadosAlterados.OnNext(Unit.Default);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -231,6 +246,10 @@ public class SincronizacaoBackgroundService : IDisposable
         {
         }
     }
+
+    private static bool TrouxeAlgo(ResultadoSincronizacaoCompleta r) =>
+        (r.FormasPagamento?.Quantidade ?? 0) + (r.Clientes?.Quantidade ?? 0) + (r.Produtos?.Quantidade ?? 0) +
+        (r.Funcionarios?.Quantidade ?? 0) + (r.Empresa?.Quantidade ?? 0) > 0;
 
     private async Task SincronizarCaixasPendentesAsync(string accessToken, CancellationToken ct)
     {

@@ -167,4 +167,32 @@ public class CadastrosViewModelTests
         Assert.True(viewModel.ClientesCortados);
         Assert.False(viewModel.ProdutosCortados);
     }
+
+    [Fact]
+    public async Task AtualizarAposSincronizacaoRecarregaSemMexerNoFormularioNemNaBuscaDigitada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        viewModel.Busca = "maria";
+        await viewModel.BuscarCommand.Execute();
+        Assert.Single(viewModel.Clientes);
+
+        // O operador já digitou outra busca (sem apertar Enter) e está preenchendo o
+        // formulário; enquanto isso, o ciclo de sincronização adiciona uma "Maria".
+        viewModel.Busca = "pedro";
+        viewModel.NovoNome = "Ana em digitacao";
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Clientes.Add(new Cliente { Nome = "Maria Nova", SyncStatus = SyncStatus.Sincronizado, IdExterno = 3 });
+            await context.SaveChangesAsync();
+        }
+
+        await ((IAtualizavelPorSincronizacao)viewModel).AtualizarAposSincronizacaoAsync();
+
+        Assert.Equal(2, viewModel.Clientes.Count);                 // recarregou com a busca APLICADA ("maria")
+        Assert.All(viewModel.Clientes, c => Assert.Contains("Maria", c.Nome));
+        Assert.Equal("pedro", viewModel.Busca);                    // o texto digitado ficou como estava
+        Assert.Equal("Ana em digitacao", viewModel.NovoNome);      // e o formulário também
+    }
 }

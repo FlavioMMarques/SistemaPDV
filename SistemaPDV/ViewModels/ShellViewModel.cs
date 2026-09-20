@@ -140,6 +140,14 @@ public class ShellViewModel : ViewModelBase
     // serviço de sincronização pra rodar já, sem esperar os 30 s).
     public IObservable<Unit> DispositivoVinculado => dispositivoVinculado;
 
+    // Um ciclo de sincronização mexeu no banco: se a tela aberta lista esses dados,
+    // recarrega. Chamar na thread de UI (o App faz o Post).
+    public void NotificarDadosSincronizados()
+    {
+        if (CurrentViewModel is IAtualizavelPorSincronizacao tela)
+            _ = ExecutarComTratamentoDeErroAsync(tela.AtualizarAposSincronizacaoAsync);
+    }
+
     public void DefinirConexao(EstadoConexao estado, string? detalhe)
     {
         DetalheConexao = estado == EstadoConexao.Offline ? detalhe : null;

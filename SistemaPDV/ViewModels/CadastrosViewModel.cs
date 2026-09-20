@@ -14,13 +14,14 @@ namespace SistemaPDV.ViewModels;
 //
 // A busca é manual (Enter/botão), mesma decisão de ListaPedidosViewModel: sem
 // debounce automático, o comportamento é previsível e testável.
-public class CadastrosViewModel : ViewModelBase
+public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     private readonly CadastroLocalService cadastroLocalService;
 
     private IReadOnlyList<ClienteResumo> clientes = Array.Empty<ClienteResumo>();
     private IReadOnlyList<ProdutoResumo> produtos = Array.Empty<ProdutoResumo>();
     private string busca = string.Empty;
+    private string buscaAplicada = string.Empty;
     private string novoNome = string.Empty;
     private string novoCpfCnpj = string.Empty;
     private string? mensagemForm;
@@ -30,7 +31,7 @@ public class CadastrosViewModel : ViewModelBase
     {
         this.cadastroLocalService = cadastroLocalService;
 
-        BuscarCommand = ReactiveCommand.CreateFromTask(CarregarAsync);
+        BuscarCommand = ReactiveCommand.CreateFromTask(BuscarAsync);
 
         var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, nome => !string.IsNullOrWhiteSpace(nome));
         CriarClienteCommand = ReactiveCommand.CreateFromTask(CriarClienteAsync, podeCriar);
@@ -114,14 +115,26 @@ public class CadastrosViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> BuscarCommand { get; }
     public ReactiveCommand<Unit, Unit> CriarClienteCommand { get; }
 
-    public Task IniciarAsync() => CarregarAsync();
+    public Task IniciarAsync() => BuscarAsync();
+
+    // Chamado pelo Shell quando um ciclo de sincronização mexeu no banco. Recarrega com a
+    // busca JÁ APLICADA (a do último Enter/botão), não com o que o operador está digitando
+    // agora — senão a lista mudaria de filtro sozinha no meio da digitação. O formulário
+    // de novo cliente nem é tocado.
+    public Task AtualizarAposSincronizacaoAsync() => CarregarAsync();
+
+    private Task BuscarAsync()
+    {
+        buscaAplicada = Busca;
+        return CarregarAsync();
+    }
 
     private async Task CarregarAsync()
     {
         // Duas consultas em sequência (e não Task.WhenAll): cada uma abre seu próprio
         // contexto, mas em SQLite o ganho de paralelizar é nenhum e a ordem fica simples.
-        Clientes = await cadastroLocalService.ListarClientesAsync(Busca);
-        Produtos = await cadastroLocalService.ListarProdutosAsync(Busca);
+        Clientes = await cadastroLocalService.ListarClientesAsync(buscaAplicada);
+        Produtos = await cadastroLocalService.ListarProdutosAsync(buscaAplicada);
     }
 
     private async Task CriarClienteAsync()
@@ -143,7 +156,7 @@ public class CadastrosViewModel : ViewModelBase
 
         // Busca ativa poderia esconder o cliente recém-criado — limpa pra ele aparecer.
         Busca = string.Empty;
-        await CarregarAsync();
+        await BuscarAsync();
     }
 
     private void RaiseMensagemFormChanged()
@@ -152,7 +165,7 @@ public class CadastrosViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(MensagemFormSucesso));
     }
 
-    private string MensagemVazio(string item) => string.IsNullOrWhiteSpace(Busca)
+    private string MensagemVazio(string item) => string.IsNullOrWhiteSpace(buscaAplicada)
         ? $"Nenhum {item} cadastrado ainda — sincronize com a API ou cadastre o primeiro."
         : $"Nenhum {item} encontrado para essa busca.";
 }
