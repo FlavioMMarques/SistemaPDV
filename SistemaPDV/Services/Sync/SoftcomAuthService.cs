@@ -105,5 +105,26 @@ public class SoftcomAuthService
     // só o caminho de cada rota é fixo.
     public static string ExtrairDominio(string? urlApi) => new Uri(urlApi ?? string.Empty).GetLeftPart(UriPartial.Authority);
 
+    // O link de vínculo traz o CNPJ da empresa a que o dispositivo pertence (empresa_cnpj, com ou
+    // sem pontuação). A API devolve TODAS as empresas do cliente; este é o critério pra saber qual
+    // é a deste dispositivo. Só dígitos, ou null se o link não traz (vínculo antigo) ou é inválido.
+    public static string? ExtrairEmpresaCnpj(string? urlApi)
+    {
+        if (!Uri.TryCreate(urlApi, UriKind.Absolute, out var uri))
+            return null;
+
+        foreach (var par in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var partes = par.Split('=', 2);
+            if (partes.Length != 2 || partes[0] != "empresa_cnpj")
+                continue;
+
+            var digitos = DocumentoValidator.SoDigitos(Uri.UnescapeDataString(partes[1]));
+            return digitos.Length > 0 ? digitos : null;
+        }
+
+        return null;
+    }
+
     private static string MontarUrlToken(string? urlApi) => $"{ExtrairDominio(urlApi)}/softauth/authentication/token";
 }

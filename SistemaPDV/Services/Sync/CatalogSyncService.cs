@@ -445,15 +445,66 @@ public class CatalogSyncService
         var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
         var ultimaSincronizacao = configuracao.UltimaSincronizacaoEmpresa?.ToUnixTimeSeconds();
 
-        // Na prática, o dispositivo só enxerga a própria empresa — mesmo o endpoint
-        // sendo paginado (ver Open Questions de SPEC-catalog-sync.md).
+        // A API devolve TODAS as empresas do cliente (4, no dispositivo real), não só a deste
+        // dispositivo — quem diz qual é a dele é o link de vínculo (empresa_cnpj).
         var resultado = await apiClient.BuscarTudoAsync<EmpresaApiDto>(
             dominio, SoftcomRotas.Empresa, ultimaSincronizacao, accessToken, ct);
 
         if (!resultado.Sucesso)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Mensagem ?? "Falha desconhecida ao sincronizar empresa.");
 
-        foreach (var dto in resultado.Itens)
+        // Só a empresa do dispositivo é gravada: as outras não servem pra nada aqui e trariam junto o
+        // certificado digital e a senha delas pro banco local.
+        var cnpjDoDispositivo = SoftcomAuthService.ExtrairEmpresaCnpj(configuracao.UrlApi);
+        var empresasLocais = await context.Empresas.ToListAsync(ct);
+
+        // Versões anteriores gravavam TODAS as empresas (com o certificado digital e a senha das
+        // outras): sobra local a remover. Não há FK apontando pra Empresa e é dado que se baixa de novo.
+        if (cnpjDoDispositivo is not null)
+        {
+            var deOutras = empresasLocais.Where(e => DocumentoValidator.SoDigitos(e.Cnpj) != cnpjDoDispositivo).ToList();
+            if (deOutras.Count > 0)
+            {
+                context.Empresas.RemoveRange(deOutras);
+                await context.SaveChangesAsync(ct);
+                empresasLocais.RemoveAll(deOutras.Contains);
+            }
+        }
+
+        List<EmpresaApiDto> itens;
+        if (cnpjDoDispositivo is not null)
+        {
+            itens = resultado.Itens.Where(i => DocumentoValidator.SoDigitos(i.EmpresaCnpj) == cnpjDoDispositivo).ToList();
+        }
+        else if (resultado.Itens.Count <= 1)
+        {
+            itens = resultado.Itens.ToList();
+        }
+        else
+        {
+            // Link sem CNPJ (vínculo antigo) e várias empresas: não dá pra adivinhar — só atualiza a que já
+            // temos, se houver.
+            var idLocal = empresasLocais.Select(e => e.IdExterno).FirstOrDefault();
+            if (idLocal is null)
+                return ResultadoSincronizacaoRecurso.ComFalha("Não foi possível identificar a empresa deste dispositivo (o link de vínculo não traz o CNPJ e a API devolveu várias empresas) — vincule o dispositivo de novo.");
+
+            itens = resultado.Itens.Where(i => i.EmpresaId == idLocal).ToList();
+        }
+
+        if (itens.Count == 0)
+        {
+            // Sincronização incremental: nada mudou pra empresa deste dispositivo (a página pode vir vazia
+            // ou só com outras empresas). Só é erro se ainda não temos a empresa local.
+            var jaTemLocal = cnpjDoDispositivo is null
+                ? empresasLocais.Count > 0
+                : empresasLocais.Any(e => DocumentoValidator.SoDigitos(e.Cnpj) == cnpjDoDispositivo);
+
+            return resultado.Itens.Count == 0 || jaTemLocal
+                ? ResultadoSincronizacaoRecurso.ComSucesso(0)
+                : ResultadoSincronizacaoRecurso.ComFalha("Nenhuma das empresas devolvidas pela API tem o CNPJ deste dispositivo (do link de vínculo) — confira o vínculo.");
+        }
+
+        foreach (var dto in itens)
         {
             var entidade = await context.Empresas.FirstOrDefaultAsync(e => e.IdExterno == dto.EmpresaId, ct);
             if (entidade is null)
@@ -488,7 +539,7 @@ public class CatalogSyncService
             configuracao.UltimaSincronizacaoEmpresa = DateTimeOffset.FromUnixTimeSeconds(dateSync);
 
         await context.SaveChangesAsync(ct);
-        return ResultadoSincronizacaoRecurso.ComSucesso(resultado.Itens.Count);
+        return ResultadoSincronizacaoRecurso.ComSucesso(itens.Count);
     }
 
     // Certificado e senha vêm em campos separados da API, mas Empresa só tem UM
