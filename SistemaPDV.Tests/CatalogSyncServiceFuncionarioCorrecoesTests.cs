@@ -30,7 +30,7 @@ public class CatalogSyncServiceFuncionarioCorrecoesTests
         using var fixture = new SqliteInMemoryFixture();
         await SemearConfiguracaoAsync(fixture);
 
-        var jsonComPdvKey = """{ "current_page": 1, "data": [{ "id": 2, "nome": "Carlos Silva", "usuario": { "pdv_key": "1234" } }], "next_page_url": null, "total": 1 }""";
+        var jsonComPdvKey = $$"""{ "current_page": 1, "data": [{ "id": 2, "nome": "Carlos Silva", "usuario": { "pdv_key": "{{PdvKeyTeste.Hash("1234")}}" } }], "next_page_url": null, "total": 1 }""";
         var jsonSemUsuario = """{ "current_page": 1, "data": [{ "id": 2, "nome": "Carlos Silva" }], "next_page_url": null, "total": 1 }""";
 
         var primeiraChamada = true;

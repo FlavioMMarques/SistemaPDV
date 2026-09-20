@@ -15,7 +15,7 @@ public class ClienteApiDto
     [JsonPropertyName("inscricao_municipal")] public string? InscricaoMunicipal { get; set; }
     [JsonPropertyName("contribuinte_icms")] public string? ContribuinteIcms { get; set; }
     [JsonPropertyName("indicador_finalidade")] public int IndicadorFinalidade { get; set; }
-    [JsonPropertyName("bloqueado")] public string? Bloqueado { get; set; }
+    [JsonPropertyName("bloqueado")] [JsonConverter(typeof(BooleanoFlexivelConverter))] public bool Bloqueado { get; set; }
     [JsonPropertyName("observacao")] public string? Observacao { get; set; }
 
     [JsonPropertyName("contato_nome")] public string? ContatoNome { get; set; }

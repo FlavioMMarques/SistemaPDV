@@ -19,7 +19,7 @@ public class ProdutoApiDto
     [JsonPropertyName("referencia")] public string? Referencia { get; set; }
     [JsonPropertyName("grupo_id")] public int? GrupoId { get; set; }
 
-    [JsonPropertyName("estoque")] public int Estoque { get; set; }
+    [JsonPropertyName("estoque")] public decimal Estoque { get; set; }
     [JsonPropertyName("unidade_medida")] public string? UnidadeMedida { get; set; }
     [JsonPropertyName("peso")] public decimal? Peso { get; set; }
 
@@ -33,9 +33,8 @@ public class ProdutoApiDto
     [JsonPropertyName("status_fiscal")] public int StatusFiscal { get; set; }
     [JsonPropertyName("codigo_nfe")] public string? CodigoNfe { get; set; }
 
-    // "vender" vem como número (0/1) na API, não bool — tratado como flag na hora do
-    // upsert (ver CatalogSyncService.SincronizarProdutosAsync), não como bool direto.
-    [JsonPropertyName("vender")] public int? Vender { get; set; }
+    // "vender": true/false na API real (0/1 na documentação) — BooleanoFlexivelConverter aceita as duas formas.
+    [JsonPropertyName("vender")] [JsonConverter(typeof(BooleanoFlexivelConverter))] public bool? Vender { get; set; }
     [JsonPropertyName("restricao_idade")] public bool RestricaoIdade { get; set; }
     [JsonPropertyName("hortifruit")] public bool Hortifruit { get; set; }
     [JsonPropertyName("observacao")] public string? Observacao { get; set; }

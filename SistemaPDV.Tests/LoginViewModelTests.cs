@@ -11,7 +11,7 @@ public class LoginViewModelTests
     private static async Task SemearFuncionarioAsync(SqliteInMemoryFixture fixture, string nome, string pdvKey, bool desativado = false)
     {
         await using var context = fixture.CriarContexto();
-        context.Funcionarios.Add(new Funcionario { Nome = nome, PdvKeyHash = PdvKeyHasher.Hash(pdvKey), Desativado = desativado });
+        context.Funcionarios.Add(new Funcionario { Nome = nome, PdvKeyHash = PdvKeyTeste.Hash(pdvKey), Desativado = desativado });
         await context.SaveChangesAsync();
     }
 

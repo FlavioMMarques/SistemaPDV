@@ -56,7 +56,7 @@ public class CatalogSyncService
         var ultimaSincronizacao = configuracao.UltimaSincronizacaoFormasPagamento?.ToUnixTimeSeconds();
 
         var resultado = await apiClient.BuscarTudoAsync<FormaPagamentoApiDto>(
-            dominio, "api/v2/financeiro/forma-pagamento/page/1", ultimaSincronizacao, accessToken, ct);
+            dominio, SoftcomRotas.FormasPagamento, ultimaSincronizacao, accessToken, ct);
 
         if (!resultado.Sucesso)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Mensagem ?? "Falha desconhecida ao sincronizar formas de pagamento.");
@@ -114,7 +114,7 @@ public class CatalogSyncService
         var ultimaSincronizacao = configuracao.UltimaSincronizacaoClientes?.ToUnixTimeSeconds();
 
         var resultado = await apiClient.BuscarTudoAsync<ClienteApiDto>(
-            dominio, "softauth/api/v2/clientes/clientes", ultimaSincronizacao, accessToken, ct);
+            dominio, SoftcomRotas.Clientes, ultimaSincronizacao, accessToken, ct);
 
         if (!resultado.Sucesso)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Mensagem ?? "Falha desconhecida ao sincronizar clientes.");
@@ -143,7 +143,7 @@ public class CatalogSyncService
             entidade.InscricaoMunicipal = dto.InscricaoMunicipal;
             entidade.ContribuinteIcms = dto.ContribuinteIcms;
             entidade.IndicadorFinalidade = dto.IndicadorFinalidade;
-            entidade.Bloqueado = dto.Bloqueado == "1";
+            entidade.Bloqueado = dto.Bloqueado;
             entidade.Observacao = dto.Observacao;
             entidade.ContatoNome = dto.ContatoNome;
             entidade.ContatoDdd = dto.ContatoDdd;
@@ -188,7 +188,7 @@ public class CatalogSyncService
         var ultimaSincronizacao = configuracao.UltimaSincronizacaoProdutos?.ToUnixTimeSeconds();
 
         var resultado = await apiClient.BuscarTudoAsync<ProdutoApiDto>(
-            dominio, "softauth/api/v2/produtos/produtos", ultimaSincronizacao, accessToken, ct);
+            dominio, SoftcomRotas.Produtos, ultimaSincronizacao, accessToken, ct);
 
         if (!resultado.Sucesso)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Mensagem ?? "Falha desconhecida ao sincronizar produtos.");
@@ -216,7 +216,9 @@ public class CatalogSyncService
             entidade.Fabricante = dto.Fabricante;
             entidade.Referencia = dto.Referencia;
             entidade.GrupoId = dto.GrupoId;
-            entidade.EstoqueAtual = dto.Estoque;
+            // A API manda o estoque como texto decimal ("15.000"): o modelo local é inteiro
+            // (unidades) — arredonda, senão um item vendido a peso (kg) truncaria pra baixo.
+            entidade.EstoqueAtual = (int)Math.Round(dto.Estoque, MidpointRounding.AwayFromZero);
             entidade.UnidadeMedida = dto.UnidadeMedida;
             entidade.Peso = dto.Peso;
             entidade.PrecoVenda = dto.PrecoVenda;
@@ -227,7 +229,7 @@ public class CatalogSyncService
             entidade.CodigoBeneficioFiscal = dto.CodigoBeneficioFiscal;
             entidade.StatusFiscal = dto.StatusFiscal;
             entidade.CodigoNfe = dto.CodigoNfe;
-            entidade.Vender = dto.Vender is null or not 0;
+            entidade.Vender = dto.Vender ?? true;
             entidade.RestricaoIdade = dto.RestricaoIdade;
             entidade.Hortifruit = dto.Hortifruit;
             entidade.Observacao = dto.Observacao;
@@ -271,7 +273,7 @@ public class CatalogSyncService
         var ultimaSincronizacao = configuracao.UltimaSincronizacaoFuncionarios?.ToUnixTimeSeconds();
 
         var resultado = await apiClient.BuscarTudoAsync<FuncionarioApiDto>(
-            dominio, "api/v2/funcionarios", ultimaSincronizacao, accessToken, ct);
+            dominio, SoftcomRotas.Funcionarios, ultimaSincronizacao, accessToken, ct);
 
         if (!resultado.Sucesso)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Mensagem ?? "Falha desconhecida ao sincronizar funcionários.");
@@ -300,9 +302,13 @@ public class CatalogSyncService
             // pode apagar um hash que já funcionava; revisão de código achou que a
             // versão anterior gravava null incondicionalmente, travando o login do
             // operador sem erro nenhum visível em lugar nenhum.
-            var novoPdvKeyHash = PdvKeyHasher.Hash(dto.Usuario?.PdvKey);
-            if (novoPdvKeyHash is not null)
-                entidade.PdvKeyHash = novoPdvKeyHash;
+            //
+            // A API manda a pdv_key JÁ como hash bcrypt (nunca a chave): grava-se como veio.
+            // Qualquer outra coisa (vazio, ou um valor em claro se a API mudar um dia) é
+            // ignorada — nunca se persiste uma chave em claro (ver PdvKeyHasher).
+            var pdvKeyDaApi = dto.Usuario?.PdvKey;
+            if (PdvKeyHasher.EhHashBcrypt(pdvKeyDaApi))
+                entidade.PdvKeyHash = pdvKeyDaApi;
             entidade.SyncStatus = SyncStatus.Sincronizado;
         }
 
@@ -361,7 +367,7 @@ public class CatalogSyncService
         };
 
         var resultado = await apiClient.EnviarAsync(
-            HttpMethod.Post, $"{dominio}/softauth/api/v2/clientes/clientes", corpo, accessToken, ct);
+            HttpMethod.Post, SoftcomRotas.ClientesCriar(dominio), corpo, accessToken, ct);
 
         if (resultado.Tipo == ResultadoEnvioTipo.ConexaoInsegura)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Conteudo);
@@ -442,7 +448,7 @@ public class CatalogSyncService
         // Na prática, o dispositivo só enxerga a própria empresa — mesmo o endpoint
         // sendo paginado (ver Open Questions de SPEC-catalog-sync.md).
         var resultado = await apiClient.BuscarTudoAsync<EmpresaApiDto>(
-            dominio, "api/v2/empresa/empresas/1", ultimaSincronizacao, accessToken, ct);
+            dominio, SoftcomRotas.Empresa, ultimaSincronizacao, accessToken, ct);
 
         if (!resultado.Sucesso)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Mensagem ?? "Falha desconhecida ao sincronizar empresa.");
@@ -469,11 +475,11 @@ public class CatalogSyncService
             entidade.Cidade = dto.EmpresaCidade;
             entidade.Uf = dto.EmpresaUf;
             entidade.ModuloFiscal = dto.EmpresaModuloFiscal;
-            entidade.NfceSerie = dto.EmpresaNfceSerie;
-            entidade.NfceNumeroCaixa = dto.EmpresaNfceNumeroCaixa;
-            entidade.NfceAmbiente = dto.EmpresaNfceAmbiente;
-            entidade.NfceModelo = dto.EmpresaNfceModelo;
-            entidade.NfceProximoNumero = dto.EmpresaNfceProximoNumero;
+            entidade.NfceSerie = dto.EmpresaNfceSerie ?? 0;
+            entidade.NfceNumeroCaixa = dto.EmpresaNfceNumeroCaixa ?? 0;   // null na API real quando não configurado
+            entidade.NfceAmbiente = dto.EmpresaNfceAmbiente ?? 0;
+            entidade.NfceModelo = dto.EmpresaNfceModelo ?? 0;
+            entidade.NfceProximoNumero = dto.EmpresaNfceProximoNumero ?? 0;
             entidade.CertificadoProtegido = ProtegerCertificado(dto.EmpresaCertificado, dto.EmpresaCertificadoSenha);
             entidade.SyncStatus = SyncStatus.Sincronizado;
         }
