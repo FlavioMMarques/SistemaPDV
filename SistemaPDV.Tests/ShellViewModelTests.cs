@@ -324,6 +324,24 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void DefinirConexaoAtualizaOIndicadorEGuardaOMotivoSoQuandoOffline()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+        Assert.Equal(EstadoConexao.Desconhecida, shell.Conexao);
+
+        shell.DefinirConexao(EstadoConexao.Offline, "A URL da API não usa HTTPS");
+        Assert.Equal(EstadoConexao.Offline, shell.Conexao);
+        Assert.Equal("A URL da API não usa HTTPS", shell.DetalheConexao);
+
+        shell.DefinirConexao(EstadoConexao.Online, "resto de mensagem antiga");
+        Assert.Equal(EstadoConexao.Online, shell.Conexao);
+        Assert.Null(shell.DetalheConexao);
+
+    }
+
+    [Fact]
     public async Task CadastrosFicaDisponivelComOperadorLogadoMesmoSemCaixaAberto()
     {
         using var fixture = new SqliteInMemoryFixture();

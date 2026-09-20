@@ -196,7 +196,7 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - [x] Task 49: `CadastrosViewModel`/`CadastrosView` (leitura + criar cliente simples)
 
 **Sincronização automática**
-- [ ] Task 50: `SincronizacaoBackgroundService` (timer 30s outbox / 5min catálogo)
+- [x] Task 50: `SincronizacaoBackgroundService` (timer 30s outbox / 5min catálogo)
 
 ### Checkpoint: pdv-ui completo
 - [ ] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos

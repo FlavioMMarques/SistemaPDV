@@ -8,6 +8,7 @@ using SistemaPDV.Models;
 using SistemaPDV.Services;
 using SistemaPDV.Services.Caixa;
 using SistemaPDV.Services.Sales;
+using SistemaPDV.Services.Sync;
 
 namespace SistemaPDV.ViewModels;
 
@@ -31,6 +32,8 @@ public class ShellViewModel : ViewModelBase
     private Models.Caixa? caixaAberto;
     private string? mensagem;
     private bool vendaEmAndamento;
+    private EstadoConexao conexao;
+    private string? detalheConexao;
 
     public ShellViewModel(
         ConfiguracaoService configuracaoService,
@@ -114,6 +117,27 @@ public class ShellViewModel : ViewModelBase
     {
         get => vendaEmAndamento;
         private set => this.RaiseAndSetIfChanged(ref vendaEmAndamento, value);
+    }
+
+    // Indicador de conexão do header (Task 50): quem observa o SincronizacaoBackgroundService
+    // (App) chama DefinirConexao na thread de UI — o Shell não conhece o serviço.
+    public EstadoConexao Conexao
+    {
+        get => conexao;
+        private set => this.RaiseAndSetIfChanged(ref conexao, value);
+    }
+
+    // Por que ficou offline (ex: URL sem HTTPS) — vira a dica do indicador.
+    public string? DetalheConexao
+    {
+        get => detalheConexao;
+        private set => this.RaiseAndSetIfChanged(ref detalheConexao, value);
+    }
+
+    public void DefinirConexao(EstadoConexao estado, string? detalhe)
+    {
+        DetalheConexao = estado == EstadoConexao.Offline ? detalhe : null;
+        Conexao = estado;
     }
 
     public ReactiveCommand<Unit, Unit> IrParaDashboardCommand { get; }

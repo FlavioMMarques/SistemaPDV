@@ -1,7 +1,10 @@
 ﻿using System.Runtime.Versioning;
+using System;
+using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using SistemaPDV.ViewModels;
 using SistemaPDV.Views;
 
@@ -49,6 +52,15 @@ public partial class App : Application
             // esperando isso — ShellViewModel.CurrentViewModel é reativo, então a UI
             // atualiza sozinha assim que a decisão de navegação estiver pronta.
             _ = shellViewModel.IniciarAsync();
+
+            // Sincronização automática (30 s outbox / 5 min catálogo). O serviço roda os
+            // ciclos fora da thread de UI e publica o estado de conexão de lá — Post leva
+            // cada valor de volta pra thread de UI antes de tocar no ShellViewModel.
+            var sincronizacao = Services.SincronizacaoBackgroundService;
+            sincronizacao.EstadoConexaoAlterada.Subscribe(estado =>
+                Dispatcher.UIThread.Post(() => shellViewModel.DefinirConexao(estado, sincronizacao.MensagemUltimoCiclo)));
+            sincronizacao.Iniciar();
+            desktop.Exit += (_, _) => sincronizacao.Dispose();
         }
 
         base.OnFrameworkInitializationCompleted();
