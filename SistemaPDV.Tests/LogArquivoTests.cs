@@ -198,8 +198,33 @@ public class LogArquivoTests : IDisposable
         finally { Registro.Destino = anterior; }
 
         var texto = LerTudo();
-        Assert.Contains("[AVISO] Envio: Cliente não foi aceita pela API", texto);
+        Assert.Contains("[AVISO] Envio: Falha ao enviar Cliente", texto);
         Assert.DoesNotContain("123.456.789-09", texto);   // o CPF do cliente não vai pro arquivo
+    }
+
+    [Theory]
+    [InlineData("Access token expired.")]
+    [InlineData("""{"message":"Access token expired."}""")]
+    [InlineData("Token inválido para este dispositivo")]
+    [InlineData("senha incorreta")]
+    public void NaoMascaraAPalavraSoPorEstarNaMensagemDeErro(string mensagem)
+    {
+        // Sem ":" nem "=" não há valor de segredo: mascarar aqui apagaria o diagnóstico mais comum (401 de token expirado).
+        Assert.Equal(mensagem, LogArquivo.Mascarar(mensagem));
+    }
+
+    [Fact]
+    public void QuebraDeLinhaNaMensagemNaoForjaUmaNovaEntradaDoLog()
+    {
+        // Mensagens de erro vêm da API (dado externo): um "\n" seguido de um cabeçalho falso de log não pode criar
+        // uma linha que pareça uma entrada legítima.
+        var log = new LogArquivo(pasta);
+
+        log.Registrar(NivelLog.Erro, "Envio", "422 recusada\n2026-01-01 00:00:00.000 [INFO] App: tudo certo, nada a ver aqui");
+
+        var linhas = LerTudo().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, linhas.Length);
+        Assert.StartsWith("    ", linhas[1]);   // continuação recuada, não uma entrada nova
     }
 
     [Fact]

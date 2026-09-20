@@ -56,10 +56,10 @@ public class LogArquivo
             var texto = new StringBuilder()
                 .Append(agora.ToString("yyyy-MM-dd HH:mm:ss.fff"))
                 .Append(" [").Append(nivel switch { NivelLog.Erro => "ERRO", NivelLog.Aviso => "AVISO", _ => "INFO" }).Append("] ")
-                .Append(origem).Append(": ").Append(Limitar(Mascarar(mensagem)));
+                .Append(origem).Append(": ").Append(Recuar(Limitar(Mascarar(mensagem))));
 
             if (excecao is not null)
-                texto.AppendLine().Append("    ").Append(Limitar(Mascarar(excecao.ToString())).Replace("\n", "\n    "));
+                texto.AppendLine().Append("    ").Append(Recuar(Limitar(Mascarar(excecao.ToString()))));
 
             texto.AppendLine();
 
@@ -86,6 +86,11 @@ public class LogArquivo
             // Sem ter onde registrar a falha do próprio log — engolir é o comportamento certo.
         }
     }
+
+    // Toda linha depois da primeira ganha recuo: só uma entrada legítima começa em coluna 0 (com a data). Sem isso, uma
+    // mensagem vinda da API com "\n2026-... [INFO] ..." forjaria uma entrada falsa no arquivo.
+    private static string Recuar(string texto) =>
+        texto.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", Environment.NewLine + "    ");
 
     private static string Limitar(string texto) =>
         texto.Length > TamanhoMaximoMensagem ? texto[..TamanhoMaximoMensagem] + "…(cortado)" : texto;
@@ -123,8 +128,10 @@ public class LogArquivo
     };
 
     // chave: valor / "chave":"valor" / chave=valor — o valor some, o nome da chave fica (mostra o que era).
+    // O separador PRECISA ter ":" ou "=": só a palavra na frase ("Access token expired.") não é um segredo, e
+    // mascará-la apagaria o diagnóstico mais comum (401 de token expirado).
     private static readonly Regex ChaveValor = new(
-        @"(?i)(access_token|refresh_token|client_secret|pdv_key|password|senha|secret|authorization|token)([""'\s:=]+)(?:Bearer\s+)?[^\s""',;}&]+",
+        @"(?i)(access_token|refresh_token|client_secret|pdv_key|password|senha|secret|authorization|token)([""']?\s*[:=]\s*[""']?)(?:Bearer\s+)?[^\s""',;}&]+",
         RegexOptions.Compiled);
 
     public static string Mascarar(string texto)

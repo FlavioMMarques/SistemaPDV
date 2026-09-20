@@ -19,7 +19,8 @@ public static class OutboxHelper
     {
         aplicarErro(entidade, mensagem);
         await context.SaveChangesAsync(ct);
-        Registro.Aviso("Envio", $"{typeof(T).Name} não foi aceita pela API: {mensagem}");
+        // Também cobre token expirado e erro de rede (todos passam por aqui), então não afirma "a API recusou".
+        Registro.Aviso("Envio", $"Falha ao enviar {typeof(T).Name}: {mensagem}");
         return ResultadoSincronizacaoRecurso.ComFalha(mensagem);
     }
 }
