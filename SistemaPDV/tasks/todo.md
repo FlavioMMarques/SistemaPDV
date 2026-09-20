@@ -1418,10 +1418,27 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 O usuário viu "Chave inválida"; investigar levou a descobrir que a sincronização **nunca tinha funcionado** contra a API real. Corrigido (346 testes; o mesmo código sincroniza os 5 recursos numa cópia do banco): rotas sob `softauth/api/v2/` (`SoftcomRotas`), página de formas de pagamento embrulhada em array, `bloqueado`/`vender` booleanos, `estoque` textual, campos nulos da empresa, e login com **bcrypt** (a `pdv_key` da API é hash `$2y$10$`). Ver APRENDIZADOS #53 e #54.
 
 **A conferir/decidir (não verificado):**
-- **Venda (2026-09-20):** o POST real devolveu 422 (faltavam `numero_documento`, `cancelada`, `bloqueada`, `produto_empresa_grade_id`). Corrigido com testes; ver APRENDIZADOS #56. **Falta confirmar na 1ª venda real:** (a) o mapeamento dos ids do produto (grade = `id` da listagem, produto = `produto_id`) — conferir o item da venda no SoftcomShop; (b) se `numero_documento` precisa ser único por empresa/caixa (hoje: sequencial por dispositivo — dois PDVs na mesma empresa poderiam repetir); (c) `quantidade` é inteiro no Swagger (quantidade fracionada, ex: kg, pode ser recusada).
+- **Venda (2026-09-20):** o POST real devolveu 422 (faltavam `numero_documento`, `cancelada`, `bloqueada`, `produto_empresa_grade_id`). Corrigido com testes; ver APRENDIZADOS #56. **Falta confirmar na 1ª venda real:** (a) ✅ CONFIRMADO em 2026-09-20 (item da venda 333 = código 77) o mapeamento dos ids do produto (grade = `id` da listagem, produto = `produto_id`) — conferir o item da venda no SoftcomShop; (b) se `numero_documento` precisa ser único por empresa/caixa (hoje: sequencial por dispositivo — dois PDVs na mesma empresa poderiam repetir); (c) `quantidade` é inteiro no Swagger (quantidade fracionada, ex: kg, pode ser recusada).
 - POST de **caixa (abrir/fechar), venda e criar cliente** agora usam `softauth/api/v2/`, por inferência — não foi testado com POST real (criaria dado). Conferir no primeiro caixa/venda de teste.
 
 - Produtos: vieram 200 (uma página cheia) — conferir se há mais páginas a seguir e o total real.
+
+### Confirmado pelo usuário depois da 1ª venda real (2026-09-20)
+
+- ✅ **Ids do produto:** o item da venda 333 no SoftcomShop tem o código **77** (= `produto_id`) — o mapeamento `produto_id` = `Produto.ProdutoIdApi` está certo. (`produto_empresa_grade_id` = `Produto.IdExterno` segue sem contestação: a API aceitou.)
+- ⚠️ **`numero_documento` é ÚNICO POR EMPRESA** (não por dispositivo). Hoje `Venda.NumeroPedido` é sequencial **por dispositivo**: dois PDVs na mesma empresa gerariam números repetidos e a segunda venda seria recusada (ou pior, aceita duplicada). **Decidir:** faixa/prefixo por dispositivo, número vindo do servidor, ou reservar um bloco. Não corrigido — só vira problema com mais de um PDV na mesma empresa. Ver "Observações" abaixo.
+- ✅ **Quantidade fracionada existe** (venda por peso). O corpo já envia `quantidade` como decimal (`1.0`, `0.5`), mas o Swagger diz `integer($int32)`: **falta provar que a API aceita fração** — testar com uma venda de teste por peso (ex: 0,5 kg) e, se recusar, descobrir o campo/unidade certa. A tela de venda também precisa aceitar quantidade fracionada (hoje só se sabe que o modelo local é `decimal`).
+
+### Observações da revisão pré-push (2026-09-20) — para rever mais à frente (NADA mudou por causa delas)
+
+Achados de baixo risco deixados de propósito, registrados para a próxima passada:
+
+1. **Login bcrypt sem limite de tentativas.** Confere a chave contra cada funcionário ativo com hash (custo 10 ≈ dezenas de ms cada; ~1 s no pior caso com 14 operadores; roda fora da thread de UI). Não há bloqueio/atraso após erros repetidos — o bcrypt lento já dificulta força bruta, mas um PDV exposto poderia ganhar um atraso progressivo. Se o nº de operadores crescer (dezenas), medir o tempo de login.
+2. **`NumeroPedido` = MAX + 1.** Seguro hoje (o botão Finalizar não deixa duas vendas simultâneas no mesmo PDV; o índice único impediria duplicar) — só colide com **dois processos no mesmo banco**. Se colidir, a `DbUpdateException` derruba o registro da venda; considerar 1 nova tentativa. Relacionado ao ponto de `numero_documento` único por empresa acima.
+3. **`CatalogSyncService` com ~600 linhas** e duas responsabilidades (catálogo + envio de cliente novo). Longe do limite (~1000), mas é o candidato a dividir (ex: `ClienteSyncService`) se crescer.
+4. **Mensagens de erro de `SoftcomAuthService` (Configurações) mostram o corpo bruto da resposta**, sem limite de tamanho. Só aparece na tela local (não vai pro banco); truncar com `ErroApiExtractor` se um dia mostrar HTML de portal cativo.
+5. **Sem log.** Falhas engolidas de propósito (etapas do outbox, `TratamentoDeErros`, ciclos de sincronização) só aparecem como indicador/banner. Uma infraestrutura de log em arquivo ajudaria a diagnosticar problemas em campo.
+6. **`catalogoSincronizado` e `MensagemUltimoCiclo`** (`SincronizacaoBackgroundService`) são lidos/escritos de threads diferentes sem `volatile`/lock — benigno (bool e referência), mas vale um `volatile` se o serviço ganhar mais estado.
 
 ---
 
