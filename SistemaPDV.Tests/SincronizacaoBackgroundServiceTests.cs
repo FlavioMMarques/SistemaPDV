@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.Versioning;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using SistemaPDV.Models;
 using SistemaPDV.Services;
 using SistemaPDV.Services.Caixa;
@@ -348,7 +349,18 @@ public class SincronizacaoBackgroundServiceTests
             (caixaId, produtoId, formaId) = (caixaLocal.Id, produto.Id, forma.Id);
         }
         await new VendaService(fixture.CriarContexto).RegistrarVendaLocalAsync(caixaId, null, new[] { (produtoId, 1m, 10m, 0m, 0m) }, new[] { (formaId, 10m) });
-        await new CaixaService(fixture.CriarContexto).FecharCaixaLocalAsync(caixaId, 10m, new[] { (formaId, 10m) }, Array.Empty<(string, decimal)>());
+        // Caixa fechado com a venda ainda pendente = estado de ANTES da regra "só fecha sem venda pendente" (o serviço
+        // agora recusa isso): fechado direto no banco pra provar que o envio segue a ordem abrir -> vendas -> fechar.
+        await using (var context = fixture.CriarContexto())
+        {
+            var caixaFechado = await context.Caixas.Include(c => c.Digitacoes).SingleAsync();
+            caixaFechado.Status = StatusCaixa.Fechado;
+            caixaFechado.DataFechamento = DateTime.Now;
+            caixaFechado.TrocoFinal = 10m;
+            caixaFechado.SyncStatus = SyncStatus.PendenteSync;
+            caixaFechado.Digitacoes.Add(new DigitacaoCaixa { FormaPagamentoId = formaId, Valor = 10m });
+            await context.SaveChangesAsync();
+        }
         var api = new ApiFake
         {
             Sobrescrever = r =>

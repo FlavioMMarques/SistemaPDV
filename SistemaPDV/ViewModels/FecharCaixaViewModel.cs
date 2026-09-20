@@ -48,7 +48,7 @@ public class LinhaApuracao : ReactiveObject
 // como resultado observável, e CancelarCommand só emite; quem navega é o Shell.
 //
 // A apuração de bandeiras de cartão (digitacao_bandeiras) fica de fora do v1: vai vazia.
-public class FecharCaixaViewModel : ViewModelBase
+public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     private readonly CaixaService caixaService;
     private readonly VendaLocalService vendaLocalService;
@@ -58,6 +58,7 @@ public class FecharCaixaViewModel : ViewModelBase
     private string trocoFinal = ValorMonetario.Formatar(0m);
     private decimal totalVendido;
     private bool apuracaoValida = true;
+    private int vendasPendentes;
     private string? mensagem;
 
     public FecharCaixaViewModel(CaixaService caixaService, VendaLocalService vendaLocalService, int caixaId)
@@ -66,10 +67,12 @@ public class FecharCaixaViewModel : ViewModelBase
         this.vendaLocalService = vendaLocalService;
         this.caixaId = caixaId;
 
-        var podeConfirmar = this.WhenAnyValue(vm => vm.TrocoFinal, vm => vm.ApuracaoValida,
-            (troco, apuracao) => apuracao && ValorMonetario.TentarLer(troco, out var valor) && valor >= 0);
+        // Só fecha se NÃO há venda pendente (regra de negócio) — o serviço também recusa, isto só evita o clique à toa.
+        var podeConfirmar = this.WhenAnyValue(vm => vm.TrocoFinal, vm => vm.ApuracaoValida, vm => vm.VendasPendentes,
+            (troco, apuracao, pendentes) => pendentes == 0 && apuracao && ValorMonetario.TentarLer(troco, out var valor) && valor >= 0);
         ConfirmarCommand = ReactiveCommand.CreateFromTask(ConfirmarAsync, podeConfirmar);
         CancelarCommand = ReactiveCommand.Create(() => Unit.Default);
+        AtualizarCommand = ReactiveCommand.CreateFromTask(RecontarVendasPendentesAsync);
     }
 
     public IReadOnlyList<LinhaApuracao> Formas
@@ -104,6 +107,19 @@ public class FecharCaixaViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref apuracaoValida, value);
     }
 
+    // Vendas deste caixa que ainda não chegaram à API — enquanto houver, não dá pra fechar.
+    public int VendasPendentes
+    {
+        get => vendasPendentes;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref vendasPendentes, value);
+            this.RaisePropertyChanged(nameof(AvisoVendasPendentes));
+        }
+    }
+
+    public string? AvisoVendasPendentes => VendasPendentes == 0 ? null : CaixaService.MensagemVendasNaoEnviadas(VendasPendentes);
+
     public string? Mensagem
     {
         get => mensagem;
@@ -113,14 +129,24 @@ public class FecharCaixaViewModel : ViewModelBase
     public ReactiveCommand<Unit, Models.Caixa?> ConfirmarCommand { get; }
     public ReactiveCommand<Unit, Unit> CancelarCommand { get; }
 
+    // "Verificar de novo": a sincronização roda sozinha em segundo plano; o botão só reconta na hora.
+    public ReactiveCommand<Unit, Unit> AtualizarCommand { get; }
+
     public async Task IniciarAsync()
     {
         var totais = await vendaLocalService.TotaisPorFormaPagamentoAsync(caixaId);
 
         Formas = totais.Select(t => new LinhaApuracao(t.FormaPagamentoId, t.Nome, t.Total, Revalidar)).ToList();
         TotalVendido = totais.Sum(t => t.Total);
+        VendasPendentes = await vendaLocalService.ContarNaoEnviadasAsync(caixaId);
         Revalidar();
     }
+
+    // O Shell chama quando um ciclo de sincronização mexeu no banco: as vendas pendentes podem ter saído.
+    public Task AtualizarAposSincronizacaoAsync() => RecontarVendasPendentesAsync();
+
+    private async Task RecontarVendasPendentesAsync() =>
+        VendasPendentes = await vendaLocalService.ContarNaoEnviadasAsync(caixaId);
 
     private void Revalidar() =>
         ApuracaoValida = Formas.All(f => ValorMonetario.TentarLer(f.Contado, out var valor) && valor >= 0);

@@ -50,6 +50,11 @@ public class CaixaService
             .ToListAsync(ct);
     }
 
+    // Usada pelo serviço, pela tela (aviso) e pelo envio do fechamento — uma redação só.
+    public static string MensagemVendasNaoEnviadas(int quantidade) =>
+        (quantidade == 1 ? "Há 1 venda deste caixa ainda não enviada" : $"Há {quantidade} vendas deste caixa ainda não enviadas") +
+        " — aguarde a sincronização (ou use \"Reenviar falhas\" em Pedidos) antes de fechar o caixa.";
+
     private static string MensagemTurnoJaUsado(int turno) =>
         $"O turno {turno} de hoje já foi usado por este operador (mesmo com o caixa fechado, ele não reabre) — escolha outro turno.";
 
@@ -127,6 +132,12 @@ public class CaixaService
 
         if (caixa.Status == StatusCaixa.Fechado)
             return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha("Esse caixa já está fechado.");
+
+        // Regra de negócio (usuário, 2026-09-20): só fecha se NÃO há venda pendente. O fechamento resume o caixa na API;
+        // uma venda que ainda não chegou (pendente, com falha ou em espera crescente) ficaria de fora.
+        var naoEnviadas = await context.Vendas.CountAsync(v => v.CaixaId == caixaId && v.SyncStatus != SyncStatus.Sincronizado, ct);
+        if (naoEnviadas > 0)
+            return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha(MensagemVendasNaoEnviadas(naoEnviadas));
 
         // Validado ANTES de mudar qualquer coisa no caixa — revisão de código achou
         // que, sem isso, um formaPagamentoId inexistente localmente (FK Restrict) ou
