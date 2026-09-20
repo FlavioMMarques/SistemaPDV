@@ -1377,7 +1377,7 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 
 **Estimated scope:** M (3 arquivos) — na prática 7 (ganhou `CadastroLocalService` + `ResumoCadastro`, e o `ShellViewModel`/`ShellView` ganharam `IrParaCadastrosCommand`).
 
-**Decisões (2026-09-20):** busca manual (Enter/botão) como em `ListaPedidosViewModel`; listas cortadas em 200 com aviso (sem paginação); criar valida nome e CPF/CNPJ (dígitos verificadores + duplicidade) antes de gravar; `Cadastros` exige operador logado (não depende de caixa aberto), fica bloqueado com venda em andamento e **na tela de abrir caixa** (o fluxo obriga a abrir o caixa antes). Pendente: conferência visual da tela pelo usuário.
+**Decisões (2026-09-20):** busca manual (Enter/botão) como em `ListaPedidosViewModel`; listas cortadas em 200 com aviso (sem paginação); criar valida nome e CPF/CNPJ (dígitos verificadores + duplicidade) antes de gravar; `Cadastros` segue a mesma regra dos outros botões: só com caixa aberto e sem venda em andamento (decisão do usuário, 2026-09-20). Pendente: conferência visual da tela pelo usuário.
 
 ---
 
