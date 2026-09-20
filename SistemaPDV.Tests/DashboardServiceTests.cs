@@ -51,11 +51,11 @@ public class DashboardServiceTests
             context.Produtos.Add(produto);
             await context.SaveChangesAsync();
 
-            var venda = new Venda { CaixaId = caixaId, DataHora = DateTime.Now };
+            var venda = new Venda { CaixaId = caixaId, DataHora = DateTime.Now, NumeroPedido = 1 };
             venda.Itens.Add(new ItemVenda { VendaId = venda.Id, ProdutoId = produto.Id, Quantidade = 2, PrecoUnitario = 10m });
             context.Vendas.Add(venda);
 
-            var vendaOutroCaixa = new Venda { CaixaId = outroCaixaId, DataHora = DateTime.Now };
+            var vendaOutroCaixa = new Venda { CaixaId = outroCaixaId, DataHora = DateTime.Now, NumeroPedido = 2 };
             vendaOutroCaixa.Itens.Add(new ItemVenda { VendaId = vendaOutroCaixa.Id, ProdutoId = produto.Id, Quantidade = 100, PrecoUnitario = 10m });
             context.Vendas.Add(vendaOutroCaixa);
 

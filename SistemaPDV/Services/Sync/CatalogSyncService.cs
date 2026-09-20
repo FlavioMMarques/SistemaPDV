@@ -185,7 +185,10 @@ public class CatalogSyncService
         await using var context = contextFactory();
         var configuracao = await ObterConfiguracaoAsync(context, ct);
         var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
-        var ultimaSincronizacao = configuracao.UltimaSincronizacaoProdutos?.ToUnixTimeSeconds();
+        // Produtos sincronizados antes de o app guardar o produto_id (a venda precisa dele) nunca
+        // viriam de novo numa sincronização incremental — enquanto houver algum sem, busca tudo.
+        var faltaProdutoId = await context.Produtos.AnyAsync(p => p.IdExterno != null && p.ProdutoIdApi == null, ct);
+        var ultimaSincronizacao = faltaProdutoId ? null : configuracao.UltimaSincronizacaoProdutos?.ToUnixTimeSeconds();
 
         var resultado = await apiClient.BuscarTudoAsync<ProdutoApiDto>(
             dominio, SoftcomRotas.Produtos, ultimaSincronizacao, accessToken, ct);
@@ -209,6 +212,7 @@ public class CatalogSyncService
             }
 
             entidade.IdExterno = dto.Id;
+            entidade.ProdutoIdApi = dto.ProdutoId;
             entidade.Sku = dto.Sku;
             entidade.CodigoBarras = dto.CodigoBarras;
             entidade.Nome = dto.Nome ?? entidade.Nome;

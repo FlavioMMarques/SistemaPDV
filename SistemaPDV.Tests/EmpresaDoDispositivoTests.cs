@@ -154,7 +154,7 @@ public class EmpresaDoDispositivoTests
         await using (var context = fixture.CriarContexto())
         {
             var funcionario = new Funcionario { Nome = "Carlos", IdExterno = 2 };
-            var produto = new Produto { Nome = "Refri", PrecoVenda = 9.90m, IdExterno = 10 };
+            var produto = new Produto { Nome = "Refri", PrecoVenda = 9.90m, IdExterno = 10, ProdutoIdApi = 100 };
             var forma = new FormaPagamento { Nome = "PIX", Tipo = "CARTEIRA_DIGITAL", IdExterno = 5 };
             context.AddRange(funcionario, produto, forma);
             // A "primeira" empresa NÃO é a do dispositivo.

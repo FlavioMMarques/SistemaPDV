@@ -28,7 +28,7 @@ public class ListaPedidosViewModelTests
         context.Caixas.Add(caixa);
         await context.SaveChangesAsync();
 
-        var venda = new Venda { CaixaId = caixa.Id, DataHora = DateTime.Now };
+        var venda = new Venda { CaixaId = caixa.Id, DataHora = DateTime.Now, NumeroPedido = 1 };
         venda.Itens.Add(new ItemVenda { VendaId = venda.Id, ProdutoId = produto.Id, Quantidade = 1, PrecoUnitario = 9.90m });
         venda.Pagamentos.Add(new PagamentoVenda { VendaId = venda.Id, FormaPagamentoId = forma.Id, Valor = 9.90m });
         context.Vendas.Add(venda);
@@ -62,7 +62,7 @@ public class ListaPedidosViewModelTests
         {
             var produto = await context.Produtos.FirstAsync();
             var forma = await context.FormasPagamento.FirstAsync();
-            var novaVenda = new Venda { CaixaId = caixaId, DataHora = DateTime.Now };
+            var novaVenda = new Venda { CaixaId = caixaId, DataHora = DateTime.Now, NumeroPedido = 2 };
             novaVenda.Itens.Add(new ItemVenda { VendaId = novaVenda.Id, ProdutoId = produto.Id, Quantidade = 1, PrecoUnitario = 9.90m });
             novaVenda.Pagamentos.Add(new PagamentoVenda { VendaId = novaVenda.Id, FormaPagamentoId = forma.Id, Valor = 9.90m });
             context.Vendas.Add(novaVenda);

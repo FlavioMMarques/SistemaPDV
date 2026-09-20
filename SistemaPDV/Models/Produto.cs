@@ -8,6 +8,11 @@ public class Produto : ISincronizavel<int>
     public int? IdExterno { get; set; }
     public SyncStatus SyncStatus { get; set; } = SyncStatus.PendenteSync;
 
+    // IdExterno é o `id` do item na listagem da API (o "produto_empresa_grade_id" da venda). O
+    // `produto_id` do produto-base é OUTRO número (ex: id=206, produto_id=77) e a venda precisa dos
+    // dois. null = sincronizado antes de o app guardar isso (a próxima sincronização preenche).
+    public int? ProdutoIdApi { get; set; }
+
     public string? Sku { get; set; }
     public string? CodigoBarras { get; set; }
     public required string Nome { get; set; }
