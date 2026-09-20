@@ -48,7 +48,7 @@ public class CaixaSyncService
 
         var funcionario = await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct);
         if (funcionario?.IdExterno is not { } operadorId)
-            return ResultadoSincronizacaoRecurso.ComFalha("Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.");
+            return await AguardarAsync(context, caixa, "Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.", ct);
 
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Configuração de sincronização não encontrada.");
@@ -137,11 +137,20 @@ public class CaixaSyncService
 
         var funcionario = await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct);
         if (funcionario?.IdExterno is not { } operadorId)
-            return ResultadoSincronizacaoRecurso.ComFalha("Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.");
+            return await AguardarAsync(context, caixa, "Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.", ct);
 
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Configuração de sincronização não encontrada.");
         var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
+
+        // A API identifica a forma de pagamento pelo SEU id (ex: 5), não pelo id local (ex: 1): mandar o local
+        // registraria a apuração na forma errada.
+        var formaIdsLocais = caixa.Digitacoes.Select(d => d.FormaPagamentoId).Distinct().ToList();
+        var formasIdExterno = await context.FormasPagamento
+            .Where(f => formaIdsLocais.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => f.IdExterno, ct);
+        if (caixa.Digitacoes.Any(d => !formasIdExterno.TryGetValue(d.FormaPagamentoId, out var externo) || externo is null))
+            return await AguardarAsync(context, caixa, "Uma das formas de pagamento da apuração ainda não sincronizou — aguarde a sincronização de formas de pagamento.", ct);
 
         var corpo = new
         {
@@ -152,7 +161,7 @@ public class CaixaSyncService
             operador_id = operadorId,
             usuario_fechamento_id = operadorId,
             troco_final = FormatarValor(caixa.TrocoFinal ?? 0m),
-            digitacao = caixa.Digitacoes.Select(d => new { forma_pagamento_id = d.FormaPagamentoId, valor = d.Valor }),
+            digitacao = caixa.Digitacoes.Select(d => new { forma_pagamento_id = formasIdExterno[d.FormaPagamentoId]!.Value, valor = d.Valor }),
             digitacao_bandeiras = caixa.DigitacoesBandeiras.Select(d => new { bandeira = d.Bandeira, valor = d.Valor }),
         };
 
@@ -199,6 +208,20 @@ public class CaixaSyncService
         }
 
         return ResultadoSincronizacaoRecurso.ComSucesso(0);
+    }
+
+    // Espera por uma dependência (funcionário, forma de pagamento): NÃO é falha do caixa — segue PendenteSync e não
+    // gasta tentativa —, mas o motivo fica em UltimoErroSync pra ninguém achar que travou (mesmo padrão de
+    // VendaSyncService.AguardarAsync). Some quando o caixa é confirmado (UltimoErroSync = null).
+    private static async Task<ResultadoSincronizacaoRecurso> AguardarAsync(AppDbContext context, Models.Caixa caixa, string motivo, CancellationToken ct)
+    {
+        if (caixa.UltimoErroSync != motivo)
+        {
+            caixa.UltimoErroSync = motivo;
+            await context.SaveChangesAsync(ct);
+        }
+
+        return ResultadoSincronizacaoRecurso.ComFalha(motivo);
     }
 
     private Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(

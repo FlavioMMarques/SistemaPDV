@@ -22,7 +22,7 @@ public class CaixaSyncServiceIntegracaoTests
         await using (var context = fixture.CriarContexto())
         {
             var funcionario = new Funcionario { Nome = "Carlos Silva", IdExterno = 2 };
-            var forma = new FormaPagamento { Nome = "PIX", Tipo = "CARTEIRA_DIGITAL" };
+            var forma = new FormaPagamento { Nome = "PIX", Tipo = "CARTEIRA_DIGITAL", IdExterno = 5 };
             context.AddRange(funcionario, forma);
             context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao { UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1" });
             await context.SaveChangesAsync();
