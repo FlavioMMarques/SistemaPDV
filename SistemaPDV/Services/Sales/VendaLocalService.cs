@@ -21,6 +21,28 @@ public class VendaLocalService
         this.contextFactory = contextFactory;
     }
 
+    // Quanto as vendas deste caixa somam em cada forma de pagamento — o "esperado" que a tela de fechar caixa mostra
+    // pra o operador conferir contra o que apurou. Soma em memória (o SQLite não soma decimal no servidor).
+    public async Task<IReadOnlyList<TotalFormaPagamento>> TotaisPorFormaPagamentoAsync(int caixaId, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var pagamentos = await context.Vendas
+            .Where(v => v.CaixaId == caixaId)
+            .SelectMany(v => v.Pagamentos)
+            .Select(p => new { p.FormaPagamentoId, p.Valor })
+            .ToListAsync(ct);
+
+        var formaIds = pagamentos.Select(p => p.FormaPagamentoId).Distinct().ToList();
+        var nomes = await context.FormasPagamento.Where(f => formaIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Nome, ct);
+
+        return pagamentos
+            .GroupBy(p => p.FormaPagamentoId)
+            .Select(g => new TotalFormaPagamento(g.Key, nomes.GetValueOrDefault(g.Key, "?"), g.Sum(p => p.Valor)))
+            .OrderBy(t => t.Nome)
+            .ToList();
+    }
+
     // "Reenviar falhas": devolve à fila as vendas do caixa que falharam ou desistiram e o
     // próprio caixa, se o envio dele falhou (zera a espera crescente e o contador — ver
     // PoliticaRetentativa). O próximo ciclo de sincronização as envia. Devolve quantos itens voltaram.

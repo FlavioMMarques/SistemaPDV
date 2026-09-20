@@ -226,8 +226,11 @@ public class SincronizacaoBackgroundService : IDisposable
             Publicar(EstadoConexao.Online, null);
 
             await ExecutarEtapaAsync(() => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
-            await ExecutarEtapaAsync(() => SincronizarCaixasPendentesAsync(accessToken, ct));
+            // Ordem: abrir caixa -> vendas -> fechar caixa. A venda referencia o caixa aberto, e o FECHAMENTO resume
+            // o caixa: se chegasse à API antes das vendas, ela fecharia um caixa "sem vendas".
+            await ExecutarEtapaAsync(() => RepetirAsync(() => caixaSyncService.SincronizarAberturaAsync(accessToken, ct)));
             await ExecutarEtapaAsync(() => vendaSyncService.SincronizarVendasPendentesAsync(accessToken, ct));
+            await ExecutarEtapaAsync(() => RepetirAsync(() => caixaSyncService.SincronizarFechamentoAsync(accessToken, ct)));
 
             // Chegou até aqui = havia pendência e tentou enviar: o que mudou (🟡 -> 🟢 ou 🔴)
             // precisa aparecer nas listas.
@@ -291,11 +294,13 @@ public class SincronizacaoBackgroundService : IDisposable
         (r.FormasPagamento?.Quantidade ?? 0) + (r.Clientes?.Quantidade ?? 0) + (r.Produtos?.Quantidade ?? 0) +
         (r.Funcionarios?.Quantidade ?? 0) + (r.Empresa?.Quantidade ?? 0) > 0;
 
-    private async Task SincronizarCaixasPendentesAsync(string accessToken, CancellationToken ct)
+    // SincronizarAberturaAsync/SincronizarFechamentoAsync tratam UM caixa por chamada: repete até não haver mais
+    // nenhum (ou falhar), com teto pra não girar sem fim se algo estiver errado.
+    private static async Task RepetirAsync(Func<Task<ResultadoSincronizacaoRecurso>> etapa)
     {
         for (var i = 0; i < MaximoCaixasPorCiclo; i++)
         {
-            var resultado = await caixaSyncService.SincronizarCaixaPendenteAsync(accessToken, ct);
+            var resultado = await etapa();
             if (!resultado.Sucesso || resultado.Quantidade == 0)
                 return;
         }

@@ -9,4 +9,5 @@ public enum Tela
     Pdv,
     ListaPedidos,
     Cadastros,
+    FecharCaixa,
 }

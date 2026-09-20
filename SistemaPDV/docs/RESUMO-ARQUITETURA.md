@@ -130,6 +130,8 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | `CatalogoLocalService` | Leitura do catálogo pra tela de venda. |
 | `VendaLocalService` | Lista de pedidos do caixa (com número do pedido e motivo de espera/falha) e "Reenviar falhas". |
 | `CadastroLocalService` | Busca de clientes/produtos (`LIKE` com curingas escapados, teto de 200) e **criação local** de cliente (valida CPF/CNPJ com `DocumentoValidator`; nasce `PendenteSync`). |
+| `FecharCaixaViewModel` / `FecharCaixaView` | Conferência do fechamento: esperado por forma de pagamento (das vendas do caixa), apuração digitada (`LinhaApuracao`) e troco final; só grava local. Depois de fechar o Shell volta a Abrir caixa (com `ExigirAberturaCaixa`) ou ao Dashboard. |
+| `ValorMonetario` | Leitor único dos valores digitados (vírgula ou ponto; ambíguo é recusado; 2 casas pra dinheiro, 3 pra quantidade). |
 | `DashboardService` / `ConfiguracaoService` | Resumo do dia; leitura/gravação da configuração do dispositivo (vínculo protegido com DPAPI). |
 
 ### Sincronização automática
