@@ -195,4 +195,23 @@ public class CadastrosViewModelTests
         Assert.Equal("pedro", viewModel.Busca);                    // o texto digitado ficou como estava
         Assert.Equal("Ana em digitacao", viewModel.NovoNome);      // e o formulário também
     }
+
+    [Fact]
+    public async Task ReenviarFalhasDevolveOClienteQueDesistiuAFilaEAvisa()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Clientes.Add(new Cliente { Nome = "Ana Lima", SyncStatus = SyncStatus.FalhaSync, TentativasEnvio = 8, UltimoErroSync = "422 (parou de tentar)" });
+            await context.SaveChangesAsync();
+        }
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+
+        await viewModel.ReenviarFalhasCommand.Execute();
+
+        await using var leitura = fixture.CriarContexto();
+        Assert.Equal(0, leitura.Clientes.Single().TentativasEnvio);
+        Assert.Contains("1", viewModel.MensagemReenvio);
+    }
 }

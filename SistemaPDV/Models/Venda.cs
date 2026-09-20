@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SistemaPDV.Models;
 
-public class Venda : ISincronizavel<Guid>
+public class Venda : ISincronizavel<Guid>, IOutboxRetentavel
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -24,6 +24,7 @@ public class Venda : ISincronizavel<Guid>
 
     public string? UltimoErroSync { get; set; }
     public int TentativasEnvio { get; set; }
+    public DateTime? ProximaTentativaEm { get; set; }   // ver PoliticaRetentativa
 
     // Id numérico da venda devolvido pela API em caso de sucesso (200) — distinto de
     // IdExterno acima, de propósito, pra não confundir os dois conceitos.

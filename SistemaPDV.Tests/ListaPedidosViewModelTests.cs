@@ -96,4 +96,40 @@ public class ListaPedidosViewModelTests
 
         Assert.Equal(SyncStatus.Sincronizado, viewModel.Vendas.Single().SyncStatus);
     }
+
+    [Fact]
+    public async Task ReenviarFalhasDevolveAVendaQueDesistiuAFilaEAvisa()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var caixaId = await SemearCaixaComVendaAsync(fixture);
+        await using (var context = fixture.CriarContexto())
+        {
+            var venda = await context.Vendas.SingleAsync();
+            venda.SyncStatus = SyncStatus.FalhaSync;
+            venda.TentativasEnvio = 8;
+            venda.UltimoErroSync = "422 ... (parou de tentar)";
+            await context.SaveChangesAsync();
+        }
+        var viewModel = new ListaPedidosViewModel(new VendaLocalService(fixture.CriarContexto), caixaId);
+        await viewModel.IniciarAsync();
+
+        await viewModel.ReenviarFalhasCommand.Execute();
+
+        await using var leitura = fixture.CriarContexto();
+        Assert.Equal(0, (await leitura.Vendas.SingleAsync()).TentativasEnvio);
+        Assert.Contains("1", viewModel.MensagemReenvio);
+    }
+
+    [Fact]
+    public async Task ReenviarFalhasSemNadaParaReenviarDizIsso()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var caixaId = await SemearCaixaComVendaAsync(fixture);
+        var viewModel = new ListaPedidosViewModel(new VendaLocalService(fixture.CriarContexto), caixaId);
+        await viewModel.IniciarAsync();
+
+        await viewModel.ReenviarFalhasCommand.Execute();
+
+        Assert.Contains("Nenhuma", viewModel.MensagemReenvio);
+    }
 }

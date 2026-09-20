@@ -115,7 +115,7 @@ Estas três coisas não existiam nos módulos já construídos e precisam ser ad
 - **Sempre:** refletir o `SyncStatus` de cada entidade sincronizável na UI com indicador visual (🟢/🟡/🔴), igual ao protótipo mockado.
 - **Sempre:** qualquer chamada de rede (sync, envio de venda, criação de cliente) roda em background com feedback visual, nunca bloqueia um clique de comando.
 - **Perguntar antes:** qualquer edição de cadastro além do formulário simples de cliente (nome + CPF/CNPJ) — ex: editar cliente existente, cadastrar/editar produto — é escopo novo.
-- **Perguntar antes:** mudar os ritmos do timer de sincronização (30s/5min) ou o comportamento em caso de falha repetida (hoje: silencioso, sempre retenta).
+- **Perguntar antes:** mudar os ritmos do timer de sincronização (30s/5min) ou o comportamento em caso de falha repetida (decidido em 2026-09-20: espera crescente 30 s → 10 min e teto de 8 tentativas, depois desiste até o operador usar "Reenviar falhas" — ver `PoliticaRetentativa`).
 - **Nunca:** deixar a tela de venda travar esperando rede.
 - **Nunca:** deixar o timer de background derrubar o app com exceção não tratada — falha de sync é sempre silenciosa + indicador visual, nunca crash.
 

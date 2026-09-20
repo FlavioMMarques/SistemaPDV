@@ -1349,7 +1349,8 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 **Achados registrados, NÃO corrigidos (fora do escopo da Task 48 — decidir depois):**
 - Sem idempotência no push de cliente: a API aceita `api_guid` (nullable), mas `Cliente` não tem um `Guid` gerado na criação (como `Venda.Id`). Se o `POST` chega e a resposta se perde, o reenvio pode duplicar o cliente (ou dar `409` sem id).
 - `409` de cliente já existente fica em `FalhaSync` pra sempre: não há reconciliação por CPF/CNPJ quando o catálogo é puxado depois (o cliente da API entraria como uma linha nova, duplicando a local).
-- Erro permanente (`422`) é reenviado a cada 30s pra sempre — sem teto de tentativas (mesmo comportamento de venda).
+- ~~Erro permanente (`422`) é reenviado a cada 30s pra sempre~~ — **corrigido** na Task 50 (espera crescente + teto de 8 tentativas, `PoliticaRetentativa`).
+
 - `pdv.db` guarda CPF/CNPJ em texto puro (só `client_secret`/certificado usam DPAPI) — aceitável no escopo do curso, mas é dado pessoal sem criptografia em repouso.
 
 ---
@@ -1408,7 +1409,9 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 
 **Como ficou (2026-09-20):** dois `DispatcherTimer` (30 s / 5 min) só disparam `Task.Run` de ciclos públicos e testáveis (`ExecutarCicloRapidoAsync` = catálogo inicial se ainda não veio + outbox; `ExecutarCicloOutboxAsync`; `ExecutarCicloCatalogoAsync`). Ciclos nunca sobrepõem (semáforo sem fila), cada etapa do outbox é isolada, outbox só pede token se há pendência, e o estado (`EstadoConexao` Desconhecida/Online/Offline + motivo) vai pro header do Shell via `DefinirConexao`.
 
-**Pendente / decidir depois:** (1) 🔎 conferência manual do indicador com rede ligada/desligada; (2) teto de retentativas/backoff (achado #3 da revisão de segurança) — hoje um item com erro permanente é reenviado a cada 30 s; a SPEC diz "sempre retenta", mudar exige decisão do usuário; (3) `ListaPedidos`/`Cadastros` ainda não atualizam sozinhas quando um ciclo sincroniza algo (só pelo botão); (4) depois de vincular o dispositivo, a tela de Configurações não leva ao Login (é preciso reabrir o app).
+**Refinamentos feitos depois (2026-09-20, decididos com o usuário):** (a) vincular com sucesso leva ao Login e dispara a sincronização na hora (`DispositivoVinculado` → `SolicitarAgora`); (b) Pedidos e Cadastros se recarregam sozinhos quando um ciclo mexe no banco (`DadosAlterados` → `NotificarDadosSincronizados` → `IAtualizavelPorSincronizacao`; a tela de venda fica de fora de propósito); (c) espera crescente + teto de retentativas (achado #3 da revisão de segurança) — `PoliticaRetentativa`: 30 s, 1, 2, 4, 8, 10 min (teto da espera), desiste após 8 tentativas até o operador usar "Reenviar falhas"; contadores persistidos (migration `AddRetentativaOutbox`).
+
+**Pendente:** conferência manual do indicador com rede ligada/desligada e do "Reenviar falhas" na tela.
 
 ---
 

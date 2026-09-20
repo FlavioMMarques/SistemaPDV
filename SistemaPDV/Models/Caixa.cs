@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SistemaPDV.Models;
 
-public class Caixa : ISincronizavel<int>
+public class Caixa : ISincronizavel<int>, IOutboxRetentavel
 {
     public int Id { get; set; }
     public int? IdExterno { get; set; }
@@ -28,6 +28,11 @@ public class Caixa : ISincronizavel<int>
     // abertura/fechamento que falhou (409 tratado à parte, 422 cai aqui), sem travar
     // o operador nem perder o porquê.
     public string? UltimoErroSync { get; set; }
+
+    // Espera crescente/teto de retentativas (ver PoliticaRetentativa). Uma contagem só pros
+    // dois envios do caixa (abertura e fechamento): zera quando cada um é confirmado.
+    public int TentativasEnvio { get; set; }
+    public DateTime? ProximaTentativaEm { get; set; }
 
     // Sinaliza especificamente que a ABERTURA já foi confirmada com o servidor (200
     // ou 409 — os dois significam "o servidor já sabe desse caixa"), independente do

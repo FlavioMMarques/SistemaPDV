@@ -111,6 +111,19 @@ public class CadastroLocalService
         return ResultadoCriacaoCliente.ComSucesso(cliente.Id);
     }
 
+    // "Reenviar falhas": devolve à fila de envio os clientes que falharam ou desistiram
+    // (zera a espera crescente e o contador — ver PoliticaRetentativa). O próximo ciclo
+    // de sincronização os envia; nada é enviado daqui. Devolve quantos voltaram.
+    public async Task<int> ReenviarFalhasAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        return await context.Clientes
+            .Where(c => c.IdExterno == null && c.SyncStatus == SyncStatus.FalhaSync)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.TentativasEnvio, 0)
+                .SetProperty(c => c.ProximaTentativaEm, (DateTime?)null), ct);
+    }
+
     // "%" e "_" são curingas do LIKE: sem escapar, digitar "%" na busca listaria tudo.
     private static string PadraoContem(string texto) =>
         "%" + texto.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";

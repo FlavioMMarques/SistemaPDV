@@ -26,12 +26,14 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string novoCpfCnpj = string.Empty;
     private string? mensagemForm;
     private bool mensagemFormEhErro;
+    private string? mensagemReenvio;
 
     public CadastrosViewModel(CadastroLocalService cadastroLocalService)
     {
         this.cadastroLocalService = cadastroLocalService;
 
         BuscarCommand = ReactiveCommand.CreateFromTask(BuscarAsync);
+        ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
 
         var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, nome => !string.IsNullOrWhiteSpace(nome));
         CriarClienteCommand = ReactiveCommand.CreateFromTask(CriarClienteAsync, podeCriar);
@@ -115,6 +117,15 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<Unit, Unit> BuscarCommand { get; }
     public ReactiveCommand<Unit, Unit> CriarClienteCommand { get; }
 
+    // Clientes que falharam ou desistiram voltam à fila de envio — ver PoliticaRetentativa.
+    public ReactiveCommand<Unit, Unit> ReenviarFalhasCommand { get; }
+
+    public string? MensagemReenvio
+    {
+        get => mensagemReenvio;
+        private set => this.RaiseAndSetIfChanged(ref mensagemReenvio, value);
+    }
+
     public Task IniciarAsync() => BuscarAsync();
 
     // Chamado pelo Shell quando um ciclo de sincronização mexeu no banco. Recarrega com a
@@ -135,6 +146,15 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         // contexto, mas em SQLite o ganho de paralelizar é nenhum e a ordem fica simples.
         Clientes = await cadastroLocalService.ListarClientesAsync(buscaAplicada);
         Produtos = await cadastroLocalService.ListarProdutosAsync(buscaAplicada);
+    }
+
+    private async Task ReenviarFalhasAsync()
+    {
+        var reenviados = await cadastroLocalService.ReenviarFalhasAsync();
+        MensagemReenvio = reenviados == 0
+            ? "Nenhuma falha para reenviar."
+            : $"{reenviados} cliente(s) voltaram para a fila e serão enviados no próximo ciclo (até 30 s).";
+        await CarregarAsync();
     }
 
     private async Task CriarClienteAsync()

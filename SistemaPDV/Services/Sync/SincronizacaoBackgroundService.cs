@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -59,6 +60,7 @@ public class SincronizacaoBackgroundService : IDisposable
     private readonly CatalogSyncService catalogSyncService;
     private readonly CaixaSyncService caixaSyncService;
     private readonly VendaSyncService vendaSyncService;
+    private readonly TimeProvider timeProvider;
 
     private readonly SemaphoreSlim cicloEmAndamento = new(1, 1);
     private readonly BehaviorSubject<EstadoConexao> estado = new(EstadoConexao.Desconhecida);
@@ -74,13 +76,15 @@ public class SincronizacaoBackgroundService : IDisposable
         SoftcomAuthService authService,
         CatalogSyncService catalogSyncService,
         CaixaSyncService caixaSyncService,
-        VendaSyncService vendaSyncService)
+        VendaSyncService vendaSyncService,
+        TimeProvider? timeProvider = null)
     {
         this.contextFactory = contextFactory;
         this.authService = authService;
         this.catalogSyncService = catalogSyncService;
         this.caixaSyncService = caixaSyncService;
         this.vendaSyncService = vendaSyncService;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public EstadoConexao Estado => estado.Value;
@@ -267,13 +271,22 @@ public class SincronizacaoBackgroundService : IDisposable
     private async Task<bool> TemPendenciasAsync(CancellationToken ct)
     {
         await using var context = contextFactory();
+        var agora = timeProvider.GetUtcNow().UtcDateTime;
 
-        return await context.Caixas.AnyAsync(
-                   c => !c.AberturaSincronizada || (c.Status == StatusCaixa.Fechado && c.SyncStatus != SyncStatus.Sincronizado), ct)
-               || await context.Vendas.AnyAsync(
-                   v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync, ct)
-               || await context.Clientes.AnyAsync(
-                   c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado, ct);
+        // Só conta o que a política de retentativa deixa enviar agora: item em espera crescente
+        // ou que já desistiu não justifica autenticar a cada 30 s.
+        return await context.Caixas
+                   .Where(c => !c.AberturaSincronizada || (c.Status == StatusCaixa.Fechado && c.SyncStatus != SyncStatus.Sincronizado))
+                   .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(agora))
+                   .AnyAsync(ct)
+               || await context.Vendas
+                   .Where(v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync)
+                   .Where(PoliticaRetentativa.Elegivel<Venda>(agora))
+                   .AnyAsync(ct)
+               || await context.Clientes
+                   .Where(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado)
+                   .Where(PoliticaRetentativa.Elegivel<Cliente>(agora))
+                   .AnyAsync(ct);
     }
 
     // null = dispositivo ainda não vinculado: todos os ciclos ficam pausados.
