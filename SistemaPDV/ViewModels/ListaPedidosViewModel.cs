@@ -35,9 +35,11 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         AtualizarCommand = ReactiveCommand.CreateFromTask(CarregarAsync);
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
 
-        // Descartar: precisa de uma venda EM FALHA selecionada, do motivo e da chave do supervisor.
+        // Descartar: precisa de uma venda EM FALHA selecionada, do motivo e — só se a política do app exige
+        // (PoliticaSupervisor) — da chave do supervisor.
         var podeDescartar = this.WhenAnyValue(vm => vm.VendaSelecionada, vm => vm.MotivoDescarte, vm => vm.ChaveSupervisor,
-            (venda, motivo, chave) => venda is { SyncStatus: SyncStatus.FalhaSync } && !string.IsNullOrWhiteSpace(motivo) && !string.IsNullOrEmpty(chave));
+            (venda, motivo, chave) => venda is { SyncStatus: SyncStatus.FalhaSync } && !string.IsNullOrWhiteSpace(motivo)
+                && (!ExigeChave || !string.IsNullOrEmpty(chave)));
         DescartarCommand = ReactiveCommand.CreateFromTask(DescartarAsync, podeDescartar);
     }
 
@@ -70,6 +72,13 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
     // O painel de descarte só aparece com uma venda EM FALHA selecionada (a pendente comum ainda vai ser enviada).
     public bool PodeDescartar => VendaSelecionada is { SyncStatus: SyncStatus.FalhaSync };
+
+    // Se o descarte pede a chave de um supervisor (ver PoliticaSupervisor): a tela só mostra o campo quando pede.
+    public bool ExigeChave => vendaLocalService.ExigeChaveSupervisor;
+
+    public string TextoDescarte => ExigeChave
+        ? "Use quando a API nunca vai aceitar esta venda. Precisa da chave de um supervisor; a venda não é apagada, fica registrada."
+        : "Use quando a API nunca vai aceitar esta venda. A venda não é apagada: fica registrada como descartada, com o motivo.";
 
     public string MotivoDescarte
     {

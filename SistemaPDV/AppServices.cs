@@ -54,7 +54,7 @@ public class AppServices
         var segredoProtector = new SegredoProtector();
         var authService = new SoftcomAuthService(httpClient, segredoProtector);
 
-        ConfiguracaoService = new ConfiguracaoService(contextFactory, authService, segredoProtector);
+        ConfiguracaoService = new ConfiguracaoService(contextFactory, authService, segredoProtector, PoliticaSupervisor.ExigirChave);
         CatalogoLocalService = new CatalogoLocalService(contextFactory);
         DashboardService = new DashboardService(contextFactory);
         CatalogSyncService = new CatalogSyncService(contextFactory, apiClient, segredoProtector, authService);
@@ -63,7 +63,7 @@ public class AppServices
         CaixaSyncService = new CaixaSyncService(contextFactory, apiClient);
         VendaService = new VendaService(contextFactory);
         VendaSyncService = new VendaSyncService(contextFactory, apiClient);
-        VendaLocalService = new VendaLocalService(contextFactory);
+        VendaLocalService = new VendaLocalService(contextFactory, PoliticaSupervisor.ExigirChave);
         CadastroLocalService = new CadastroLocalService(contextFactory);
         SincronizacaoBackgroundService = new SincronizacaoBackgroundService(
             contextFactory, authService, CatalogSyncService, CaixaSyncService, VendaSyncService);

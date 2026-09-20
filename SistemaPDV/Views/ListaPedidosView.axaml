@@ -85,7 +85,7 @@
             IsVisible="{Binding PodeDescartar}">
       <StackPanel Spacing="8">
         <TextBlock Text="🗑 Descartar venda em falha" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-        <TextBlock Text="Use quando a API nunca vai aceitar esta venda. Precisa da chave de um supervisor; a venda não é apagada, fica registrada."
+        <TextBlock Text="{Binding TextoDescarte}"
                    Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
         <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
           <TextBox Grid.Column="0"
@@ -97,7 +97,9 @@
                    Foreground="{StaticResource TextMainBrush}"
                    CornerRadius="{StaticResource RadiusSmall}"
                    AutomationProperties.Name="Motivo do descarte" />
+          <!-- Só aparece quando a política do app exige a chave (PoliticaSupervisor). -->
           <TextBox Grid.Column="1"
+                   IsVisible="{Binding ExigeChave}"
                    Text="{Binding ChaveSupervisor, Mode=TwoWay}"
                    PasswordChar="●"
                    PlaceholderText="Chave do supervisor"

@@ -16,10 +16,16 @@ public class VendaLocalService
 {
     private readonly Func<AppDbContext> contextFactory;
 
-    public VendaLocalService(Func<AppDbContext> contextFactory)
+    // exigirChaveSupervisor: o padrão é TRUE (a regra completa); quem decide desligar é a composição do app
+    // (PoliticaSupervisor), não este serviço.
+    public VendaLocalService(Func<AppDbContext> contextFactory, bool exigirChaveSupervisor = true)
     {
         this.contextFactory = contextFactory;
+        ExigeChaveSupervisor = exigirChaveSupervisor;
     }
+
+    // Se descartar uma venda pede a chave de um supervisor (ver PoliticaSupervisor).
+    public bool ExigeChaveSupervisor { get; }
 
     private const int TamanhoMaximoMotivo = 300;
 
@@ -45,20 +51,27 @@ public class VendaLocalService
         if (venda.SyncStatus != SyncStatus.FalhaSync)
             return ResultadoDescarte.Falha("Só uma venda em falha pode ser descartada (a pendente ainda vai ser enviada).");
 
-        var supervisor = await SupervisorAutenticador.AutenticarAsync(context, chaveSupervisor, ct);
-        if (supervisor is null)
+        // Com a exigência desligada (PoliticaSupervisor) não há supervisor autorizando: DescartadaPorId fica vazio e a
+        // trilha registra só quem PEDIU. Com ela ligada, sem chave válida nada é descartado.
+        Funcionario? supervisor = null;
+        if (ExigeChaveSupervisor)
         {
-            Registro.Aviso("Auditoria", $"Descarte da venda {venda.Id} (#{venda.NumeroPedido}) recusado: chave de supervisor inválida (pedido por funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}).");
-            return ResultadoDescarte.Falha("Chave de supervisor inválida — o descarte precisa da chave de um supervisor.");
+            supervisor = await SupervisorAutenticador.AutenticarAsync(context, chaveSupervisor, ct);
+            if (supervisor is null)
+            {
+                Registro.Aviso("Auditoria", $"Descarte da venda {venda.Id} (#{venda.NumeroPedido}) recusado: chave de supervisor inválida (pedido por funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}).");
+                return ResultadoDescarte.Falha("Chave de supervisor inválida — o descarte precisa da chave de um supervisor.");
+            }
         }
 
         venda.SyncStatus = SyncStatus.Descartada;
         venda.DescartadaEm = DateTime.UtcNow;
-        venda.DescartadaPorId = supervisor.Id;
+        venda.DescartadaPorId = supervisor?.Id;
         venda.SolicitadaPorId = solicitadaPorFuncionarioId;
         venda.MotivoDescarte = motivoLimpo;
         await context.SaveChangesAsync(ct);
-        Registro.Info("Auditoria", $"Venda {venda.Id} (#{venda.NumeroPedido}) descartada pelo supervisor {supervisor.Id} a pedido do funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}. Motivo: {motivoLimpo}");
+        var autorizacao = supervisor is null ? "sem chave de supervisor (exigência desligada)" : $"pelo supervisor {supervisor.Id}";
+        Registro.Info("Auditoria", $"Venda {venda.Id} (#{venda.NumeroPedido}) descartada {autorizacao} a pedido do funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}. Motivo: {motivoLimpo}");
         return ResultadoDescarte.Ok();
     }
 
@@ -114,6 +127,16 @@ public class VendaLocalService
         return vendas + caixas;
     }
 
+    // Sem DescartadaPorId = descartada com a exigência de chave desligada (PoliticaSupervisor): ninguém autorizou, o
+    // texto não inventa um nome.
+    private static string TextoDoDescarte(Venda venda, Dictionary<int, string> autorizadores)
+    {
+        if (venda.DescartadaPorId is not { } porId)
+            return $"Descartada: {venda.MotivoDescarte}";
+
+        return $"Descartada por {autorizadores.GetValueOrDefault(porId, "?")}: {venda.MotivoDescarte}";
+    }
+
     public async Task<IReadOnlyList<VendaResumo>> ListarVendasDoCaixaAsync(int caixaId, CancellationToken ct = default)
     {
         await using var context = contextFactory();
@@ -150,7 +173,7 @@ public class VendaLocalService
             string.Join(", ", v.Pagamentos.Select(p => formas.TryGetValue(p.FormaPagamentoId, out var forma) ? forma.Nome : "?").Distinct()),
             v.SyncStatus,
             v.SyncStatus == SyncStatus.Descartada
-                ? $"Descartada por {(v.DescartadaPorId is { } porId && autorizadores.TryGetValue(porId, out var nomeSupervisor) ? nomeSupervisor : "?")}: {v.MotivoDescarte}"
+                ? TextoDoDescarte(v, autorizadores)
                 : v.UltimoErroSync))
             .ToList();
     }
