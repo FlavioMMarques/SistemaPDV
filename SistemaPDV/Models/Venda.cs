@@ -30,6 +30,10 @@ public class Venda : ISincronizavel<Guid>, IOutboxRetentavel
     // IdExterno acima, de propósito, pra não confundir os dois conceitos.
     public int? VendaIdExterno { get; set; }
 
+    // Número do pedido, gerado LOCALMENTE (sequencial, único) — vira o numero_documento enviado à API e
+    // já aparece na listagem offline. Antes a lista mostrava "—" até a API devolver o id da venda.
+    public int NumeroPedido { get; set; }
+
     public ICollection<ItemVenda> Itens { get; set; } = new List<ItemVenda>();
     public ICollection<PagamentoVenda> Pagamentos { get; set; } = new List<PagamentoVenda>();
 }

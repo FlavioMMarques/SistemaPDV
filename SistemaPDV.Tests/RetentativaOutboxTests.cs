@@ -263,7 +263,7 @@ public class RetentativaOutboxTests
         await using (var context = fixture.CriarContexto())
         {
             var funcionario = new Funcionario { Nome = "Carlos Silva", IdExterno = 2 };
-            var produto = new Produto { Nome = "Refrigerante 2L", PrecoVenda = 9.90m, IdExterno = 10 };
+            var produto = new Produto { Nome = "Refrigerante 2L", PrecoVenda = 9.90m, IdExterno = 10, ProdutoIdApi = 100 };
             var forma = new FormaPagamento { Nome = "PIX", Tipo = "CARTEIRA_DIGITAL", IdExterno = 5 };
             context.AddRange(funcionario, produto, forma);
             context.Empresas.Add(new Empresa { RazaoSocial = "Softcom", Cnpj = "12345678000199", IdExterno = 1 });

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using SistemaPDV.Data;
 using SistemaPDV.Models;
 
@@ -61,6 +62,12 @@ public class VendaService
         }
 
         await using var context = contextFactory();
+
+        // Número do pedido: sequencial e único neste dispositivo (índice único no banco). Lido do banco
+        // — não de um contador em memória — pra continuar de onde parou depois de reabrir o app.
+        var ultimoNumero = await context.Vendas.MaxAsync(v => (int?)v.NumeroPedido, ct) ?? 0;
+        venda.NumeroPedido = ultimoNumero + 1;
+
         context.Vendas.Add(venda);
         await context.SaveChangesAsync(ct);
 

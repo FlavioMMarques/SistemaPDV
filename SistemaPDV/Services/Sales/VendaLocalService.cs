@@ -67,7 +67,7 @@ public class VendaLocalService
 
         return vendas.Select(v => new VendaResumo(
             v.Id,
-            v.VendaIdExterno,
+            v.NumeroPedido,
             v.DataHora,
             v.ClienteId is { } clienteId && clientes.TryGetValue(clienteId, out var cliente) ? cliente.Nome : "Consumidor Final",
             operadorNome,

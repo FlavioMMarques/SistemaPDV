@@ -21,7 +21,7 @@ public class VendaSyncServiceTests
         await using var context = fixture.CriarContexto();
 
         var funcionario = new Funcionario { Nome = "Carlos Silva", IdExterno = 2 };
-        var produto = new Produto { Nome = "Refrigerante 2L", PrecoVenda = 9.90m, IdExterno = produtoSincronizado ? 10 : null };
+        var produto = new Produto { Nome = "Refrigerante 2L", PrecoVenda = 9.90m, IdExterno = produtoSincronizado ? 10 : null, ProdutoIdApi = produtoSincronizado ? 100 : null };
         var forma = new FormaPagamento { Nome = "PIX", Tipo = "CARTEIRA_DIGITAL", IdExterno = formaPagamentoSincronizada ? 5 : null };
         context.AddRange(funcionario, produto, forma);
 

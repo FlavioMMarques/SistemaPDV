@@ -9,6 +9,7 @@ public class VendaConfiguration : IEntityTypeConfiguration<Venda>
     public void Configure(EntityTypeBuilder<Venda> builder)
     {
         builder.HasKey(v => v.Id);
+        builder.HasIndex(v => v.NumeroPedido).IsUnique();
         builder.Property(v => v.Desconto).HasPrecision(18, 2);
         builder.Property(v => v.SyncStatus).HasConversion<string>();
 

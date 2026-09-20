@@ -97,9 +97,16 @@ public class VendaSyncService
             if (!produtos.TryGetValue(item.ProdutoId, out var produto) || produto.IdExterno is not { } produtoIdExterno)
                 return ResultadoSincronizacaoRecurso.ComFalha("Um dos produtos da venda ainda não sincronizou.");
 
+            // O produto tem DOIS ids na API. Sem o produto_id guardado (produto sincronizado antes de o
+            // app guardar isso), mandar o `id` no lugar registraria OUTRO produto na venda — espera a
+            // próxima sincronização de produtos, que preenche (e fica PendenteSync, sem marcar falha).
+            if (produto.ProdutoIdApi is not { } produtoIdApi)
+                return ResultadoSincronizacaoRecurso.ComFalha("Um dos produtos da venda ainda não tem o id-base da API — aguarde a próxima sincronização de produtos.");
+
             produtosDto.Add(new VendaProdutoRequestDto
             {
-                ProdutoId = produtoIdExterno,
+                ProdutoId = produtoIdApi,
+                ProdutoEmpresaGradeId = produtoIdExterno,
                 Preco = item.PrecoUnitario,
                 Quantidade = item.Quantidade,
                 DescontoValorItem = item.DescontoItem,
@@ -128,6 +135,9 @@ public class VendaSyncService
             UsuarioId = operadorId,
             FuncionarioId = operadorId,
             ClienteId = clienteIdExterno,
+            NumeroDocumento = venda.NumeroPedido.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Cancelada = false,
+            Bloqueada = false,
             CaixaData = caixa.DataCaixa.ToString("yyyy-MM-dd"),
             CaixaTurno = caixa.Turno,
             CaixaFuncoesId = caixa.IdExterno,

@@ -11,6 +11,8 @@ namespace SistemaPDV.Services.Sync.Dtos;
 public class ProdutoApiDto
 {
     [JsonPropertyName("id")] public int Id { get; set; }
+    // O produto-base (outro número que o `id` do item): a venda envia os dois. Ver Produto.ProdutoIdApi.
+    [JsonPropertyName("produto_id")] public int? ProdutoId { get; set; }
     [JsonPropertyName("sku")] public string? Sku { get; set; }
     [JsonPropertyName("codigo_barras")] public string? CodigoBarras { get; set; }
     [JsonPropertyName("nome")] public string? Nome { get; set; }

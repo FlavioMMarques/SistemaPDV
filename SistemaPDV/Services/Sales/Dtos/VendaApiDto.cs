@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace SistemaPDV.Services.Sales.Dtos;
 
-// Só o subconjunto essencial do schema completo de POST /api/v2/vendas — campos
-// claramente gerados pelo servidor (xml, numero_nfe, numero_documento, codigo_status)
-// ficam de fora por ora (ver SPEC-sales.md).
+// Subconjunto do schema de POST softauth/api/v2/vendas. Validado contra a API REAL (422): além do
+// mínimo, ela EXIGE numero_documento, cancelada, bloqueada e produtos[].produto_empresa_grade_id
+// (o resto que o Swagger lista é opcional/gerado pelo servidor: xml, numero_nfe, codigo_status…).
 public class VendaRequestDto
 {
     [JsonPropertyName("guid")] public string Guid { get; set; } = string.Empty;
@@ -17,6 +17,14 @@ public class VendaRequestDto
     [JsonPropertyName("usuario_id")] public int UsuarioId { get; set; }
     [JsonPropertyName("funcionario_id")] public int FuncionarioId { get; set; }
     [JsonPropertyName("cliente_id")] public int ClienteId { get; set; }
+
+    // "Número do pedido" (string no Swagger): gerado pelo PDV, sequencial — ver Venda.NumeroPedido.
+    [JsonPropertyName("numero_documento")] public string NumeroDocumento { get; set; } = string.Empty;
+
+    // Obrigatórios na API mesmo numa venda nova: uma venda que o PDV envia nasce não cancelada e
+    // não bloqueada.
+    [JsonPropertyName("cancelada")] public bool Cancelada { get; set; }
+    [JsonPropertyName("bloqueada")] public bool Bloqueada { get; set; }
 
     // Chave natural do caixa — caixa_funcoes_id é opcional (nullable no schema real),
     // é o que permite caixa 100% offline (ver SPEC-caixa.md).
@@ -30,7 +38,10 @@ public class VendaRequestDto
 
 public class VendaProdutoRequestDto
 {
+    // Dois ids distintos do mesmo produto (ex: 77 e 206) — ver Produto.ProdutoIdApi. Hipótese de
+    // mapeamento a confirmar na primeira venda real: grade = `id` da listagem, produto = `produto_id`.
     [JsonPropertyName("produto_id")] public int ProdutoId { get; set; }
+    [JsonPropertyName("produto_empresa_grade_id")] public int ProdutoEmpresaGradeId { get; set; }
     [JsonPropertyName("preco")] public decimal Preco { get; set; }
     [JsonPropertyName("quantidade")] public decimal Quantidade { get; set; }
     [JsonPropertyName("desconto_valor_item")] public decimal DescontoValorItem { get; set; }

@@ -1418,6 +1418,7 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 O usuário viu "Chave inválida"; investigar levou a descobrir que a sincronização **nunca tinha funcionado** contra a API real. Corrigido (346 testes; o mesmo código sincroniza os 5 recursos numa cópia do banco): rotas sob `softauth/api/v2/` (`SoftcomRotas`), página de formas de pagamento embrulhada em array, `bloqueado`/`vender` booleanos, `estoque` textual, campos nulos da empresa, e login com **bcrypt** (a `pdv_key` da API é hash `$2y$10$`). Ver APRENDIZADOS #53 e #54.
 
 **A conferir/decidir (não verificado):**
+- **Venda (2026-09-20):** o POST real devolveu 422 (faltavam `numero_documento`, `cancelada`, `bloqueada`, `produto_empresa_grade_id`). Corrigido com testes; ver APRENDIZADOS #56. **Falta confirmar na 1ª venda real:** (a) o mapeamento dos ids do produto (grade = `id` da listagem, produto = `produto_id`) — conferir o item da venda no SoftcomShop; (b) se `numero_documento` precisa ser único por empresa/caixa (hoje: sequencial por dispositivo — dois PDVs na mesma empresa poderiam repetir); (c) `quantidade` é inteiro no Swagger (quantidade fracionada, ex: kg, pode ser recusada).
 - POST de **caixa (abrir/fechar), venda e criar cliente** agora usam `softauth/api/v2/`, por inferência — não foi testado com POST real (criaria dado). Conferir no primeiro caixa/venda de teste.
 
 - Produtos: vieram 200 (uma página cheia) — conferir se há mais páginas a seguir e o total real.
