@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Threading;
@@ -305,6 +307,116 @@ public class CatalogSyncService
         await context.SaveChangesAsync(ct);
         return ResultadoSincronizacaoRecurso.ComSucesso(resultado.Itens.Count);
     }
+
+    // Outbox de cliente criado localmente (Task 48): mesmo desenho de CaixaSyncService/
+    // VendaSyncService, só que empurrando um cadastro em vez de uma operação. Envia
+    // DADO PESSOAL (nome, CPF/CNPJ) + o access token, então (revisão de segurança):
+    //  - só sai por HTTPS (ou loopback, pra desenvolvimento) — ver ConexaoSegura;
+    //  - o documento é validado localmente antes de sair, e o erro gravado nunca o repete;
+    //  - o payload é uma allowlist (ClienteNovoRequestDto), não a entidade;
+    //  - a resposta é tratada como não confiável (id validado, corpo nunca lança nem
+    //    entra sem limite no banco — ver ErroApiExtractor).
+    public async Task<ResultadoSincronizacaoRecurso> SincronizarClienteNovoAsync(int clienteId, string accessToken, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var cliente = await context.Clientes.FirstOrDefaultAsync(c => c.Id == clienteId, ct);
+        if (cliente is null)
+            return ResultadoSincronizacaoRecurso.ComFalha("Cliente não encontrado.");
+
+        // Já tem par na API (veio de lá, ou já foi enviado) — nada a empurrar.
+        if (cliente.IdExterno is not null)
+            return ResultadoSincronizacaoRecurso.ComSucesso(0);
+
+        var configuracao = await ObterConfiguracaoAsync(context, ct);
+        var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
+
+        // Problema de configuração, não do cliente: devolve falha SEM marcar o cliente
+        // (ele continua PendenteSync, sem UltimoErroSync) — mesma lógica de "dependência
+        // ainda não sincronizou" em VendaSyncService.
+        if (!ConexaoSegura.Permitida(dominio))
+            return ResultadoSincronizacaoRecurso.ComFalha(ConexaoSegura.MensagemRecusa);
+
+        var documento = DocumentoValidator.SoDigitos(cliente.CpfCnpj);
+        var temDocumento = documento.Length > 0;
+        if (temDocumento && !DocumentoValidator.CpfValido(documento) && !DocumentoValidator.CnpjValido(documento))
+            return await MarcarFalhaClienteAsync(context, cliente, "CPF/CNPJ inválido — corrija o cadastro para sincronizar.", ct);
+
+        // Pessoa vem do documento já validado (14 dígitos = CNPJ), não do campo local —
+        // um CNPJ marcado como Física geraria 422 (razão social obrigatória).
+        var juridica = temDocumento ? documento.Length == 14 : cliente.Pessoa == TipoPessoa.Juridica;
+        var nome = cliente.Nome.Trim();
+
+        var corpo = new ClienteNovoRequestDto
+        {
+            Pessoa = juridica ? "JURIDICA" : "FISICA",
+            Nome = nome,
+            CpfCnpj = temDocumento ? documento : null,
+            RazaoSocial = juridica ? (string.IsNullOrWhiteSpace(cliente.RazaoSocial) ? nome : cliente.RazaoSocial.Trim()) : null,
+        };
+
+        var resultado = await apiClient.EnviarAsync(
+            HttpMethod.Post, $"{dominio}/softauth/api/v2/clientes/clientes", corpo, accessToken, ct);
+
+        if (resultado.Tipo == ResultadoEnvioTipo.ConexaoInsegura)
+            return ResultadoSincronizacaoRecurso.ComFalha(resultado.Conteudo);
+
+        if (resultado.Tipo != ResultadoEnvioTipo.Sucesso)
+            return await MarcarFalhaClienteAsync(context, cliente, ErroApiExtractor.Extrair(resultado.Conteudo), ct);
+
+        // Nunca confiar cegamente no id devolvido: 0/negativo/ausente não é um id de cliente.
+        var resposta = SoftcomJson.TentarDesserializar<ClienteNovoRespostaDto>(resultado.Conteudo);
+        if (resposta?.Data is not { Id: > 0 } dados)
+            return await MarcarFalhaClienteAsync(context, cliente, $"A resposta não trouxe um id de cliente válido: {ErroApiExtractor.Extrair(resultado.Conteudo)}", ct);
+
+        cliente.IdExterno = dados.Id;
+        cliente.SyncStatus = SyncStatus.Sincronizado;
+        cliente.UltimoErroSync = null;
+        await context.SaveChangesAsync(ct);
+        return ResultadoSincronizacaoRecurso.ComSucesso(1);
+    }
+
+    // Percorre os clientes criados localmente e ainda não confirmados (sem IdExterno,
+    // PendenteSync ou FalhaSync — FalhaSync fica elegível pra retry, como em Venda).
+    // Um cliente com erro não impede os outros: não é tudo-ou-nada.
+    public async Task<ResultadoSincronizacaoRecurso> SincronizarClientesNovosPendentesAsync(string accessToken, CancellationToken ct = default)
+    {
+        List<int> clienteIds;
+        await using (var context = contextFactory())
+        {
+            clienteIds = await context.Clientes
+                .Where(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado)
+                .Select(c => c.Id)
+                .ToListAsync(ct);
+        }
+
+        var totalSincronizados = 0;
+        foreach (var clienteId in clienteIds)
+        {
+            try
+            {
+                var resultado = await SincronizarClienteNovoAsync(clienteId, accessToken, ct);
+                if (resultado.Sucesso)
+                    totalSincronizados += resultado.Quantidade;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Mesmo raciocínio de VendaSyncService.SincronizarVendasPendentesAsync: um
+                // cliente com falha inesperada (ex: UrlApi malformada) não trava o lote;
+                // ele simplesmente segue pendente e é tentado de novo no próximo ciclo.
+            }
+        }
+
+        return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizados);
+    }
+
+    private static Task<ResultadoSincronizacaoRecurso> MarcarFalhaClienteAsync(
+        AppDbContext context, Cliente cliente, string mensagem, CancellationToken ct) =>
+        OutboxHelper.MarcarFalhaAsync(context, cliente, mensagem, (c, m) =>
+        {
+            c.SyncStatus = SyncStatus.FalhaSync;
+            c.UltimoErroSync = m;
+        }, ct);
 
     // Único método que lida com dado sensível (certificado digital + senha) — a
     // restrição de plataforma (SegredoProtector é Windows-only) fica só aqui, não na

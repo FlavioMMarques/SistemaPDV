@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -63,6 +62,11 @@ public class CaixaSyncService
         var resultado = await apiClient.EnviarAsync(
             HttpMethod.Post, $"{dominio}/api/v2/financeiro/caixa-funcoes/abrir", corpo, accessToken, ct);
 
+        // URL não segura é problema de configuração, não do caixa: nada saiu daqui,
+        // então o caixa continua exatamente como estava (sem FalhaSync).
+        if (resultado.Tipo == ResultadoEnvioTipo.ConexaoInsegura)
+            return ResultadoSincronizacaoRecurso.ComFalha(resultado.Conteudo);
+
         // 409: já existe caixa aberto pra essa data/operador/turno no servidor —
         // trata como já sincronizado em vez de erro (ver Open Questions da spec).
         // AberturaSincronizada = true aqui é o que estava faltando antes: mesmo
@@ -90,9 +94,9 @@ public class CaixaSyncService
         if (resultado.Tipo is ResultadoEnvioTipo.Falha or ResultadoEnvioTipo.TokenExpirado)
             return await MarcarFalhaAsync(context, caixa, ErroApiExtractor.Extrair(resultado.Conteudo), ct);
 
-        var respostaDto = JsonSerializer.Deserialize<CaixaFuncaoRespostaDto>(resultado.Conteudo, SoftcomJson.Opcoes);
+        var respostaDto = SoftcomJson.TentarDesserializar<CaixaFuncaoRespostaDto>(resultado.Conteudo);
         if (respostaDto?.Data?.Success is not { } sucesso)
-            return await MarcarFalhaAsync(context, caixa, $"A resposta não trouxe o id do caixa: {resultado.Conteudo}", ct);
+            return await MarcarFalhaAsync(context, caixa, $"A resposta não trouxe o id do caixa: {ErroApiExtractor.Extrair(resultado.Conteudo)}", ct);
 
         caixa.IdExterno = sucesso.Id;
         caixa.AberturaSincronizada = true;
@@ -142,6 +146,12 @@ public class CaixaSyncService
 
         var resultado = await apiClient.EnviarAsync(
             HttpMethod.Post, $"{dominio}/api/v2/financeiro/caixa-funcoes/fechar", corpo, accessToken, ct);
+
+        // Sem esta linha, ConexaoInsegura cairia no "else" abaixo e o fechamento seria
+        // marcado Sincronizado sem nunca ter saído da máquina (só Falha/TokenExpirado
+        // eram tratados como erro). Novo valor de enum = revisar todo switch/if que o usa.
+        if (resultado.Tipo == ResultadoEnvioTipo.ConexaoInsegura)
+            return ResultadoSincronizacaoRecurso.ComFalha(resultado.Conteudo);
 
         if (resultado.Tipo is ResultadoEnvioTipo.Falha or ResultadoEnvioTipo.TokenExpirado)
             return await MarcarFalhaAsync(context, caixa, ErroApiExtractor.Extrair(resultado.Conteudo), ct);

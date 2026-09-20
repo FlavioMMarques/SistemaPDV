@@ -1317,23 +1317,40 @@ Testes: 153 → 159. Build limpo, 0 avisos.
 **Description:** Nova ponta de outbox, simétrica à de `Caixa`/`Venda`: busca clientes locais com `IdExterno == null && SyncStatus == PendenteSync`, envia via `POST {dominio}/softauth/api/v2/clientes/clientes` (`apiClient.EnviarAsync`), grava o `IdExterno` retornado em sucesso. Reaproveita `OutboxHelper.MarcarFalhaAsync`, `SoftcomJson`, `ErroApiExtractor`.
 
 **Acceptance criteria:**
-- [ ] `200` → grava `IdExterno`, `SyncStatus = Sincronizado`
-- [ ] `409`/`422`/erro de rede → `SyncStatus = FalhaSync` (via `ErroApiExtractor`), cliente continua elegível pra nova tentativa
-- [ ] Payload mapeia `Pessoa`→`pessoa` (`"FISICA"`/`"JURIDICA"`), `CpfCnpj`→`cpf_cnpj`, e usa os defaults decididos na spec (`contribuinte_icms=9`, `indicador_finalidade=0`) pros campos obrigatórios que o formulário simples não pergunta
-- [ ] Um cliente com erro não impede outros de serem tentados (mesmo princípio já usado em `catalog-sync`/`sales`)
+- [x] `200` → grava `IdExterno`, `SyncStatus = Sincronizado` (id validado: `> 0`, resposta não-JSON/sem id vira falha, nunca exceção)
+- [x] `409`/`422`/erro de rede → `SyncStatus = FalhaSync` + `UltimoErroSync` (via `ErroApiExtractor`), cliente continua elegível pra nova tentativa — **`409` deliberadamente NÃO vira `Sincronizado`** (diferente de venda/caixa): a resposta não traz o id do cliente que já existe, então marcar sincronizado deixaria `IdExterno` nulo e travaria toda venda pra esse cliente
+- [x] Payload mapeia `Pessoa`→`pessoa`, `CpfCnpj`→`cpf_cnpj` (só dígitos), defaults da spec (`contribuinte_icms=9`, `indicador_finalidade=0`) — `pessoa` é derivada do documento validado (14 dígitos = JURIDICA), não do campo local; `razao_social` cai no `Nome` quando JURIDICA sem razão social (obrigatória na API)
+- [x] Um cliente com erro não impede outros (`SincronizarClientesNovosPendentesAsync`, lote com try/catch por cliente)
+- [x] **Segurança (skill `security-and-hardening`)**: só sai por HTTPS ou loopback; documento validado localmente (dígitos verificadores) antes de sair e nunca repetido no erro gravado; payload é uma allowlist (`ClienteNovoRequestDto`); corpo de erro da API truncado (`ErroApiExtractor.TamanhoMaximo = 300`) — endurecimento que vale também pra caixa/venda
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter SincronizarClienteNovo`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter SincronizarClienteNovo` — 18 testes novos (`CatalogSyncServiceClienteNovoTests`) + 4 de `ErroApiExtractor` + 14 de `DocumentoValidator`; 205 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
 
 **Dependencies:** None (extensão do `CatalogSyncService` já existente)
 
 **Files likely touched:**
-- `SistemaPDV/Services/Sync/CatalogSyncService.cs`
-- `SistemaPDV/Services/Sync/Dtos/ClienteApiDto.cs` (novo DTO de request, se o formato de escrita divergir do de leitura)
-- `SistemaPDV.Tests/CatalogSyncServiceClienteNovoTests.cs`
+- `SistemaPDV/Services/Sync/CatalogSyncService.cs` — `SincronizarClienteNovoAsync(clienteId, token)` (um) + `SincronizarClientesNovosPendentesAsync(token)` (lote, é o que a Task 50 chama)
+- `SistemaPDV/Services/Sync/Dtos/ClienteNovoApiDto.cs` (novo — request/response de escrita)
+- `SistemaPDV/Services/DocumentoValidator.cs` (novo — CPF/CNPJ), `ErroApiExtractor.cs` (endurecido)
+- `SistemaPDV/Models/Cliente.cs` + `ClienteConfiguration.cs` + migration `AddClienteUltimoErroSync` (novo campo `UltimoErroSync`)
+- `SistemaPDV.Tests/CatalogSyncServiceClienteNovoTests.cs`, `DocumentoValidatorTests.cs`, `ErroApiExtractorTests.cs`
 
-**Estimated scope:** M (3 arquivos)
+**Estimated scope:** M (3 arquivos) — na prática L (12 arquivos), por causa do endurecimento de segurança
+
+### Revisão de segurança da Task 48 (skill `security-and-hardening`, 2026-09-20)
+
+Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não fosse array de arrays e devolvia o corpo inteiro (sem limite) no fallback — agora nunca lança e trunca; (2) documento inválido era reenviado a cada ciclo de 30s — agora validado antes de sair; (3) token + CPF poderiam trafegar em `http://` — agora recusado (exceto loopback); (4) falha de cliente era indiagnosticável — `UltimoErroSync`.
+
+**Corrigidos na sequência da revisão (2026-09-20):**
+- [x] Resposta `200` com corpo não-JSON (portal cativo) não lança mais: `SoftcomJson.TentarDesserializar<T>` em caixa (abertura), venda e cliente; mensagem gravada passa por `ErroApiExtractor` (truncada).
+- [x] HTTPS obrigatório (exceto loopback) em **todos** os endpoints: `ConexaoSegura.Permitida` aplicada em `SoftcomApiClient` (`EnviarAsync` e `BuscarTudoAsync`) e `SoftcomAuthService` (`ObterClienteSecretAsync`, `ObterTokenAsync` — antes de desproteger o secret). Novo `ResultadoEnvioTipo.ConexaoInsegura` tratado explicitamente em caixa (abertura e fechamento), venda e cliente: devolve falha **sem marcar** a entidade nem contar tentativa. Testes: `ConexaoSeguraTests`, `SincronizacaoRespostaHostilTests` (+ testes em ApiClient/AuthService); 233 testes verdes ×3.
+
+**Achados registrados, NÃO corrigidos (fora do escopo da Task 48 — decidir depois):**
+- Sem idempotência no push de cliente: a API aceita `api_guid` (nullable), mas `Cliente` não tem um `Guid` gerado na criação (como `Venda.Id`). Se o `POST` chega e a resposta se perde, o reenvio pode duplicar o cliente (ou dar `409` sem id).
+- `409` de cliente já existente fica em `FalhaSync` pra sempre: não há reconciliação por CPF/CNPJ quando o catálogo é puxado depois (o cliente da API entraria como uma linha nova, duplicando a local).
+- Erro permanente (`422`) é reenviado a cada 30s pra sempre — sem teto de tentativas (mesmo comportamento de venda).
+- `pdv.db` guarda CPF/CNPJ em texto puro (só `client_secret`/certificado usam DPAPI) — aceitável no escopo do curso, mas é dado pessoal sem criptografia em repouso.
 
 ---
 

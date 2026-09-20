@@ -26,6 +26,9 @@ public class SoftcomAuthService
     public async Task<(bool Sucesso, string Mensagem, string? ClienteSecret)> ObterClienteSecretAsync(
         string link, string nomeDispositivo, CancellationToken ct = default)
     {
+        if (!ConexaoSegura.Permitida(link))
+            return (false, ConexaoSegura.MensagemRecusa, null);
+
         try
         {
             var url = $"{link}&device_id={Uri.EscapeDataString(nomeDispositivo)}";
@@ -58,6 +61,11 @@ public class SoftcomAuthService
     public async Task<(bool Sucesso, string Mensagem, string? AccessToken)> ObterTokenAsync(
         ConfiguracaoSincronizacao configuracao, CancellationToken ct = default)
     {
+        // ANTES de desproteger o client_secret: em http:// ele iria em texto puro no
+        // corpo do pedido — nem chega a ser descriptografado se a URL não é segura.
+        if (!ConexaoSegura.Permitida(configuracao.UrlApi))
+            return (false, ConexaoSegura.MensagemRecusa, null);
+
         try
         {
             var clienteSecret = segredoProtector.Desproteger(configuracao.ApiClienteSecretProtegido);

@@ -11,6 +11,7 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Nome).IsRequired().HasMaxLength(150);
         builder.Property(c => c.CpfCnpj).HasMaxLength(14);
+        builder.Property(c => c.UltimoErroSync).HasMaxLength(500);
         builder.Property(c => c.Pessoa).HasConversion<string>();
         builder.Property(c => c.SyncStatus).HasConversion<string>();
         builder.HasIndex(c => c.IdExterno).IsUnique();

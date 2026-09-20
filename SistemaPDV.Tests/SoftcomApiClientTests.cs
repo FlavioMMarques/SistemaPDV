@@ -15,6 +15,45 @@ public class SoftcomApiClientTests
     };
 
     [Fact]
+    public async Task EnviarEmHttpNaoLoopbackNaoEnviaNadaEDevolveConexaoInsegura()
+    {
+        var chamou = false;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => { chamou = true; return RespostaJson("{}"); });
+        var cliente = new SoftcomApiClient(httpClient);
+
+        var resultado = await cliente.EnviarAsync(
+            HttpMethod.Post, "http://exemplo.softcomshop.com.br/api/v2/vendas", new { a = 1 }, "token-fake");
+
+        Assert.Equal(ResultadoEnvioTipo.ConexaoInsegura, resultado.Tipo);
+        Assert.False(chamou);
+        Assert.DoesNotContain("token-fake", resultado.Conteudo);
+    }
+
+    [Fact]
+    public async Task BuscarTudoEmHttpNaoLoopbackNaoEnviaNada()
+    {
+        var chamou = false;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => { chamou = true; return RespostaJson("{}"); });
+        var cliente = new SoftcomApiClient(httpClient);
+
+        var resultado = await cliente.BuscarTudoAsync<ItemTeste>("http://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.False(resultado.Sucesso);
+        Assert.False(chamou);
+    }
+
+    [Fact]
+    public async Task EnviarEmHttpLoopbackContinuaFuncionandoParaDesenvolvimento()
+    {
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => RespostaJson("{}"));
+        var cliente = new SoftcomApiClient(httpClient);
+
+        var resultado = await cliente.EnviarAsync(HttpMethod.Post, "http://localhost:73/api/v2/vendas", new { a = 1 }, "token-fake");
+
+        Assert.Equal(ResultadoEnvioTipo.Sucesso, resultado.Tipo);
+    }
+
+    [Fact]
     public async Task UmaPaginaSoDevolveTodosOsItens()
     {
         var json = """

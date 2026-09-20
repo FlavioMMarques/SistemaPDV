@@ -14,6 +14,12 @@ public enum ResultadoEnvioTipo
     // sentido implementar o retry com token renovado.
     TokenExpirado,
 
+    // A URL configurada não é HTTPS (nem loopback) — nada foi enviado. É problema de
+    // CONFIGURAÇÃO, não da entidade: quem chama devolve falha SEM marcar o
+    // caixa/venda/cliente como FalhaSync (não é culpa dele, e ele não deve acumular
+    // tentativas por isso). Ver ConexaoSegura.
+    ConexaoInsegura,
+
     Falha,
 }
 
