@@ -183,6 +183,7 @@ public class VendaSyncService
         // sucesso, não reenvia nem duplica.
         if (resultado.Tipo == ResultadoEnvioTipo.Conflito)
         {
+            await AvisarSeFoiDescartadaAsync(context, venda.Id, ct);
             venda.SyncStatus = SyncStatus.Sincronizado;
             PoliticaRetentativa.Zerar(venda);
             venda.UltimoErroSync = null;
@@ -198,6 +199,7 @@ public class VendaSyncService
             return await MarcarFalhaAsync(context, venda, $"A resposta não trouxe o id da venda: {ErroApiExtractor.Extrair(resultado.Conteudo)}", ct);
 
         venda.VendaIdExterno = dados.Id;
+        await AvisarSeFoiDescartadaAsync(context, venda.Id, ct);
         venda.SyncStatus = SyncStatus.Sincronizado;
         PoliticaRetentativa.Zerar(venda);
         venda.UltimoErroSync = null;
@@ -265,13 +267,30 @@ public class VendaSyncService
         return ResultadoSincronizacaoRecurso.ComFalha(motivo);
     }
 
-    private Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(AppDbContext context, Venda venda, string mensagem, CancellationToken ct)
+    private async Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(AppDbContext context, Venda venda, string mensagem, CancellationToken ct)
     {
+        // Um supervisor pode descartar a venda (estava FalhaSync) enquanto este envio já estava em andamento. Reconfere
+        // no banco antes de gravar: a falha desta tentativa não pode contar tentativa nem sobrescrever o erro de uma
+        // venda que acabou de ser descartada.
+        if (await FoiDescartadaAsync(context, venda.Id, ct))
+            return ResultadoSincronizacaoRecurso.ComFalha("Venda descartada durante o envio — nada foi gravado.");
+
         var agora = AgoraUtc;
-        return OutboxHelper.MarcarFalhaAsync(context, venda, mensagem, (v, m) =>
+        return await OutboxHelper.MarcarFalhaAsync(context, venda, mensagem, (v, m) =>
         {
             v.SyncStatus = SyncStatus.FalhaSync;
             v.UltimoErroSync = PoliticaRetentativa.RegistrarFalha(v, agora, m);   // também conta TentativasEnvio
         }, ct);
+    }
+
+    private static Task<bool> FoiDescartadaAsync(AppDbContext context, Guid vendaId, CancellationToken ct) =>
+        context.Vendas.AsNoTracking().AnyAsync(v => v.Id == vendaId && v.SyncStatus == SyncStatus.Descartada, ct);
+
+    // Sucesso depois de um descarte no meio do envio: a venda JÁ está na API, então a verdade da API vence (fica
+    // Sincronizado — senão ela sairia do "esperado" do caixa por engano). Fica só o aviso no log.
+    private static async Task AvisarSeFoiDescartadaAsync(AppDbContext context, Guid vendaId, CancellationToken ct)
+    {
+        if (await FoiDescartadaAsync(context, vendaId, ct))
+            Registro.Aviso("Auditoria", $"A venda {vendaId} foi descartada por um supervisor durante o envio, mas a API já a tinha aceitado — ficou como Sincronizado.");
     }
 }
