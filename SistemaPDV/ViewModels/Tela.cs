@@ -8,4 +8,5 @@ public enum Tela
     Dashboard,
     Pdv,
     ListaPedidos,
+    Cadastros,
 }

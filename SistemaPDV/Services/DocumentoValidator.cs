@@ -11,6 +11,19 @@ public static class DocumentoValidator
     public static string SoDigitos(string? texto) =>
         texto is null ? string.Empty : new string(texto.Where(char.IsAsciiDigit).ToArray());
 
+    // Só para exibir: 11 dígitos -> 000.000.000-00, 14 -> 00.000.000/0000-00. Qualquer
+    // outra coisa (vazio, tamanho estranho vindo da API) volta como está.
+    public static string? Formatar(string? documento)
+    {
+        var digitos = SoDigitos(documento);
+        return digitos.Length switch
+        {
+            11 => $"{digitos[..3]}.{digitos[3..6]}.{digitos[6..9]}-{digitos[9..]}",
+            14 => $"{digitos[..2]}.{digitos[2..5]}.{digitos[5..8]}/{digitos[8..12]}-{digitos[12..]}",
+            _ => documento,
+        };
+    }
+
     public static bool CpfValido(string? cpf)
     {
         var digitos = SoDigitos(cpf);

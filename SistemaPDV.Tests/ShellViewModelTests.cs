@@ -29,7 +29,8 @@ public class ShellViewModelTests
         DashboardService Dashboard,
         VendaService Venda,
         CatalogoLocalService CatalogoLocal,
-        VendaLocalService VendaLocal) CriarServicos(SqliteInMemoryFixture fixture)
+        VendaLocalService VendaLocal,
+        CadastroLocalService CadastroLocal) CriarServicos(SqliteInMemoryFixture fixture)
     {
         var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => RespostaJson(HttpStatusCode.OK, "{}"));
         var segredoProtector = new SegredoProtector();
@@ -41,7 +42,8 @@ public class ShellViewModelTests
             new DashboardService(fixture.CriarContexto),
             new VendaService(fixture.CriarContexto),
             new CatalogoLocalService(fixture.CriarContexto),
-            new VendaLocalService(fixture.CriarContexto));
+            new VendaLocalService(fixture.CriarContexto),
+            new CadastroLocalService(fixture.CriarContexto));
     }
 
     private static async Task<int> SemearFuncionarioAsync(SqliteInMemoryFixture fixture, string pdvKey)
@@ -57,8 +59,8 @@ public class ShellViewModelTests
     public async Task SemConfiguracaoVaiDireitoPraConfiguracoes()
     {
         using var fixture = new SqliteInMemoryFixture();
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
 
         await shell.IniciarAsync();
 
@@ -75,8 +77,8 @@ public class ShellViewModelTests
             context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao { UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1" });
             await context.SaveChangesAsync();
         }
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
 
         await shell.IniciarAsync();
 
@@ -98,8 +100,8 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -131,8 +133,8 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -165,8 +167,8 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -192,9 +194,9 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         var funcionarioId = await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
         await caixa.AbrirCaixaLocalAsync(funcionarioId, DateOnly.FromDateTime(DateTime.Now), 1, 10m);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -221,8 +223,8 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -254,7 +256,7 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, _, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
+        var (configuracao, login, _, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
 
         // CaixaService com um contextFactory que sempre lança — simula uma falha
         // inesperada bem depois do login (ex: banco indisponível num instante),
@@ -263,7 +265,7 @@ public class ShellViewModelTests
         // isso derrubaria a exceção como task nunca observada, travando a tela sem
         // nenhum aviso.
         var caixaQuebrado = new CaixaService(() => throw new InvalidOperationException("Falha simulada de banco."));
-        var shell = new ShellViewModel(configuracao, login, caixaQuebrado, dashboard, venda, catalogoLocal, vendaLocal);
+        var shell = new ShellViewModel(configuracao, login, caixaQuebrado, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -290,9 +292,9 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         var funcionarioId = await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
         await caixa.AbrirCaixaLocalAsync(funcionarioId, DateOnly.FromDateTime(DateTime.Now), 1, 10m);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -309,8 +311,9 @@ public class ShellViewModelTests
         var bloqueouDashboard = shell.IrParaDashboardCommand.CanExecute.Where(v => !v).FirstAsync().ToTask();
         var bloqueouPdv = shell.IrParaPdvCommand.CanExecute.Where(v => !v).FirstAsync().ToTask();
         var bloqueouPedidos = shell.IrParaListaPedidosCommand.CanExecute.Where(v => !v).FirstAsync().ToTask();
+        var bloqueouCadastros = shell.IrParaCadastrosCommand.CanExecute.Where(v => !v).FirstAsync().ToTask();
         pdv.AdicionarItem(new Produto { Nome = "Refrigerante", PrecoVenda = 9.90m });
-        await Task.WhenAll(bloqueouDashboard, bloqueouPdv, bloqueouPedidos);
+        await Task.WhenAll(bloqueouDashboard, bloqueouPdv, bloqueouPedidos, bloqueouCadastros);
 
         var liberouDashboard = shell.IrParaDashboardCommand.CanExecute.Where(v => v).FirstAsync().ToTask();
         await pdv.CancelarCommand.Execute();
@@ -321,22 +324,56 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public async Task CadastrosFicaDisponivelComOperadorLogadoMesmoSemCaixaAberto()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao
+            {
+                UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1",
+                ExigirAberturaCaixa = true,
+            });
+            await context.SaveChangesAsync();
+        }
+        await SemearFuncionarioAsync(fixture, "1234");
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+        await shell.IniciarAsync();
+        var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.PdvKeyDigitada = "1234";
+        var chegouEmAbrirCaixa = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
+        await loginViewModel.EntrarCommand.Execute();
+        await chegouEmAbrirCaixa;
+        Assert.Null(shell.CaixaAberto);
+
+        var podeCadastros = await shell.IrParaCadastrosCommand.CanExecute.FirstAsync();
+        var podePedidos = await shell.IrParaListaPedidosCommand.CanExecute.FirstAsync();
+
+        Assert.True(podeCadastros);
+        Assert.False(podePedidos);
+    }
+
+    [Fact]
     public async Task NavegacaoPersistenteFicaDesabilitadaSemCaixaAberto()
     {
         using var fixture = new SqliteInMemoryFixture();
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
 
         var podeDashboard = false;
         var podePdv = false;
         var podeListaPedidos = false;
+        var podeCadastros = false;
         shell.IrParaDashboardCommand.CanExecute.Subscribe(v => podeDashboard = v);
         shell.IrParaPdvCommand.CanExecute.Subscribe(v => podePdv = v);
         shell.IrParaListaPedidosCommand.CanExecute.Subscribe(v => podeListaPedidos = v);
+        shell.IrParaCadastrosCommand.CanExecute.Subscribe(v => podeCadastros = v);
 
         Assert.False(podeDashboard);
         Assert.False(podePdv);
         Assert.False(podeListaPedidos);
+        Assert.False(podeCadastros);
     }
 
     [Fact]
@@ -353,9 +390,9 @@ public class ShellViewModelTests
             await context.SaveChangesAsync();
         }
         var funcionarioId = await SemearFuncionarioAsync(fixture, "1234");
-        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal) = CriarServicos(fixture);
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
         await caixa.AbrirCaixaLocalAsync(funcionarioId, DateOnly.FromDateTime(DateTime.Now), 1, 10m);
-        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
         loginViewModel.PdvKeyDigitada = "1234";
@@ -374,7 +411,13 @@ public class ShellViewModelTests
         Assert.Equal(Tela.ListaPedidos, shell.TelaAtual);
         Assert.IsType<ListaPedidosViewModel>(shell.CurrentViewModel);
 
-        var voltouAoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.ListaPedidos).FirstAsync().ToTask();
+        var chegouEmCadastros = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.ListaPedidos).FirstAsync().ToTask();
+        await shell.IrParaCadastrosCommand.Execute();
+        await chegouEmCadastros;
+        Assert.Equal(Tela.Cadastros, shell.TelaAtual);
+        Assert.IsType<CadastrosViewModel>(shell.CurrentViewModel);
+
+        var voltouAoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Cadastros).FirstAsync().ToTask();
         await shell.IrParaDashboardCommand.Execute();
         await voltouAoDashboard;
         Assert.Equal(Tela.Dashboard, shell.TelaAtual);
