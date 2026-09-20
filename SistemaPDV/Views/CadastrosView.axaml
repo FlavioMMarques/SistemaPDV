@@ -1,0 +1,201 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:svc="using:SistemaPDV.Services"
+             xmlns:controls="using:SistemaPDV.Views.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+             x:Class="SistemaPDV.Views.CadastrosView"
+             x:DataType="vm:CadastrosViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="24">
+
+    <TextBlock Grid.Row="0" Text="📇 Cadastros" FontSize="22" FontWeight="Bold"
+               Foreground="{StaticResource TextMainBrush}" Margin="0,0,0,16" />
+
+    <!-- Busca única pras duas abas: Enter ou o botão dispara BuscarCommand (manual,
+         igual ao "Atualizar" da lista de pedidos). -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <TextBox Grid.Column="0"
+               Text="{Binding Busca, Mode=TwoWay}"
+               Watermark="Buscar por nome, CPF/CNPJ ou código de barras…"
+               Background="{StaticResource BgInputBrush}"
+               BorderBrush="{StaticResource BorderColorBrush}"
+               Foreground="{StaticResource TextMainBrush}"
+               CornerRadius="{StaticResource RadiusSmall}"
+               AutomationProperties.Name="Buscar cadastros"
+               TabIndex="0">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding BuscarCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+      <Button Grid.Column="1"
+              Content="🔍 Buscar"
+              Command="{Binding BuscarCommand}"
+              Background="{StaticResource BgCardBrush}"
+              Foreground="{StaticResource TextMainBrush}"
+              CornerRadius="{StaticResource RadiusMedium}"
+              Padding="16,8" Margin="8,0,0,0"
+              AutomationProperties.Name="Buscar" />
+    </Grid>
+
+    <TabControl Grid.Row="2" Background="Transparent">
+
+      <TabItem Header="👥 Clientes">
+        <Grid RowDefinitions="Auto,Auto,*" Margin="0,12,0,0">
+
+          <!-- Formulário de novo cliente: só grava local (PendenteSync); o envio à API
+               é do serviço de sincronização. -->
+          <Border Grid.Row="0"
+                  Background="{StaticResource BgCardBrush}"
+                  BorderBrush="{StaticResource BorderColorBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusCard}"
+                  Padding="16" Margin="0,0,0,12">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Novo cliente" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
+              <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0"
+                         Text="{Binding NovoNome, Mode=TwoWay}"
+                         Watermark="Nome"
+                         MaxLength="150"
+                         Background="{StaticResource BgInputBrush}"
+                         BorderBrush="{StaticResource BorderColorBrush}"
+                         Foreground="{StaticResource TextMainBrush}"
+                         CornerRadius="{StaticResource RadiusSmall}"
+                         AutomationProperties.Name="Nome do novo cliente"
+                         TabIndex="1" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding NovoCpfCnpj, Mode=TwoWay}"
+                         Watermark="CPF/CNPJ (opcional)"
+                         MaxLength="18"
+                         Background="{StaticResource BgInputBrush}"
+                         BorderBrush="{StaticResource BorderColorBrush}"
+                         Foreground="{StaticResource TextMainBrush}"
+                         FontFamily="{StaticResource FontMono}"
+                         CornerRadius="{StaticResource RadiusSmall}"
+                         AutomationProperties.Name="CPF ou CNPJ do novo cliente"
+                         TabIndex="2">
+                  <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
+                  </TextBox.KeyBindings>
+                </TextBox>
+                <Button Grid.Column="2"
+                        Content="Salvar"
+                        Command="{Binding CriarClienteCommand}"
+                        Background="{StaticResource BrandYellowBrush}"
+                        Foreground="{StaticResource TextDarkBrush}"
+                        FontWeight="Bold"
+                        CornerRadius="{StaticResource RadiusMedium}"
+                        Padding="20,8"
+                        TabIndex="3"
+                        AutomationProperties.Name="Salvar cliente" />
+              </Grid>
+              <TextBlock Text="{Binding MensagemFormErro}"
+                         Foreground="{StaticResource AccentRedBrush}"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding MensagemFormErro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <TextBlock Text="{Binding MensagemFormSucesso}"
+                         Foreground="{StaticResource AccentGreenBrush}"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding MensagemFormSucesso, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock Grid.Row="1"
+                     Text="{Binding AvisoLimite}"
+                     Foreground="{StaticResource TextMutedBrush}"
+                     Margin="0,0,0,8"
+                     IsVisible="{Binding ClientesCortados}" />
+
+          <Border Grid.Row="2"
+                  Background="{StaticResource BgCardBrush}"
+                  BorderBrush="{StaticResource BorderColorBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusCard}"
+                  Padding="8">
+            <Grid>
+              <ListBox ItemsSource="{Binding Clientes}" Background="Transparent">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="svc:ClienteResumo">
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="4">
+                      <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Binding Nome}" Foreground="{StaticResource TextMainBrush}" />
+                        <!-- Falha do envio fica visível: sem isso um cliente em 🔴 seria indiagnosticável. -->
+                        <TextBlock Text="{Binding UltimoErroSync}"
+                                   Foreground="{StaticResource AccentRedBrush}"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   IsVisible="{Binding UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding Documento, TargetNullValue='—'}"
+                                 FontFamily="{StaticResource FontMono}"
+                                 Foreground="{StaticResource TextMutedBrush}"
+                                 Width="160" Margin="8,0" />
+                      <controls:SyncStatusIndicator Grid.Column="2" Status="{Binding SyncStatus}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="{Binding MensagemVazioClientes}"
+                         Foreground="{StaticResource TextMutedBrush}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding MensagemVazioClientes, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="📦 Produtos">
+        <Grid RowDefinitions="Auto,*" Margin="0,12,0,0">
+          <TextBlock Grid.Row="0"
+                     Text="{Binding AvisoLimite}"
+                     Foreground="{StaticResource TextMutedBrush}"
+                     Margin="0,0,0,8"
+                     IsVisible="{Binding ProdutosCortados}" />
+
+          <Border Grid.Row="1"
+                  Background="{StaticResource BgCardBrush}"
+                  BorderBrush="{StaticResource BorderColorBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusCard}"
+                  Padding="8">
+            <Grid>
+              <ListBox ItemsSource="{Binding Produtos}" Background="Transparent">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="svc:ProdutoResumo">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="4">
+                      <TextBlock Grid.Column="0" Text="{Binding Nome}" Foreground="{StaticResource TextMainBrush}" />
+                      <TextBlock Grid.Column="1" Text="{Binding CodigoBarras, TargetNullValue='—'}"
+                                 FontFamily="{StaticResource FontMono}"
+                                 Foreground="{StaticResource TextMutedBrush}"
+                                 Width="140" Margin="8,0" />
+                      <TextBlock Grid.Column="2" Text="{Binding EstoqueAtual, StringFormat='{}{0} un'}"
+                                 Foreground="{StaticResource TextMutedBrush}"
+                                 Width="70" />
+                      <TextBlock Grid.Column="3" Text="{Binding PrecoVenda, StringFormat='R$ {0:F2}'}"
+                                 FontFamily="{StaticResource FontMono}"
+                                 Foreground="{StaticResource TextMainBrush}"
+                                 Width="90" />
+                      <controls:SyncStatusIndicator Grid.Column="4" Status="{Binding SyncStatus}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="{Binding MensagemVazioProdutos}"
+                         Foreground="{StaticResource TextMutedBrush}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding MensagemVazioProdutos, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+    </TabControl>
+
+  </Grid>
+
+</UserControl>

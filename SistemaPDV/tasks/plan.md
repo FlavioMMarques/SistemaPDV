@@ -193,7 +193,7 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 
 **Cadastros e push de cliente**
 - [x] Task 48: `CatalogSyncService.SincronizarClienteNovoAsync` + `SincronizarClientesNovosPendentesAsync` (outbox de cliente novo, com revisão de segurança)
-- [ ] Task 49: `CadastrosViewModel`/`CadastrosView` (leitura + criar cliente simples)
+- [x] Task 49: `CadastrosViewModel`/`CadastrosView` (leitura + criar cliente simples)
 
 **Sincronização automática**
 - [ ] Task 50: `SincronizacaoBackgroundService` (timer 30s outbox / 5min catálogo)

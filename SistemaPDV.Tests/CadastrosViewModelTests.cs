@@ -1,0 +1,170 @@
+using System.Reactive.Linq;
+using SistemaPDV.Models;
+using SistemaPDV.Services;
+using SistemaPDV.ViewModels;
+
+namespace SistemaPDV.Tests;
+
+public class CadastrosViewModelTests
+{
+    private const string CpfValido = "529.982.247-25";
+
+    private static async Task SemearAsync(SqliteInMemoryFixture fixture)
+    {
+        await using var context = fixture.CriarContexto();
+        context.Clientes.Add(new Cliente { Nome = "Maria Souza", SyncStatus = SyncStatus.Sincronizado, IdExterno = 1 });
+        context.Clientes.Add(new Cliente { Nome = "Pedro Alves", SyncStatus = SyncStatus.Sincronizado, IdExterno = 2 });
+        context.Produtos.Add(new Produto { Nome = "Refrigerante 2L", PrecoVenda = 9.90m, IdExterno = 10 });
+        context.Produtos.Add(new Produto { Nome = "Pão Francês", PrecoVenda = 0.80m, IdExterno = 11 });
+        await context.SaveChangesAsync();
+    }
+
+    private static CadastrosViewModel CriarViewModel(SqliteInMemoryFixture fixture) =>
+        new(new CadastroLocalService(fixture.CriarContexto));
+
+    [Fact]
+    public async Task IniciarCarregaClientesEProdutos()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+
+        await viewModel.IniciarAsync();
+
+        Assert.Equal(2, viewModel.Clientes.Count);
+        Assert.Equal(2, viewModel.Produtos.Count);
+        Assert.Null(viewModel.MensagemVazioClientes);
+        Assert.Null(viewModel.MensagemVazioProdutos);
+    }
+
+    [Fact]
+    public async Task BuscarFiltraAsDuasListasPeloMesmoTexto()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+
+        viewModel.Busca = "pe";
+        await viewModel.BuscarCommand.Execute();
+
+        Assert.Equal("Pedro Alves", Assert.Single(viewModel.Clientes).Nome);
+        Assert.Empty(viewModel.Produtos);
+    }
+
+    [Fact]
+    public async Task SemDadosMostraMensagemDeEstadoVazio()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var viewModel = CriarViewModel(fixture);
+
+        await viewModel.IniciarAsync();
+
+        Assert.False(string.IsNullOrWhiteSpace(viewModel.MensagemVazioClientes));
+        Assert.False(string.IsNullOrWhiteSpace(viewModel.MensagemVazioProdutos));
+    }
+
+    [Fact]
+    public async Task BuscaSemResultadoTemMensagemDiferenteDeSemDados()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+
+        viewModel.Busca = "zzz";
+        await viewModel.BuscarCommand.Execute();
+
+        Assert.Contains("busca", viewModel.MensagemVazioClientes, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CriarClienteGravaLimpaOFormularioEMostraNaListaComoPendente()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+
+        viewModel.NovoNome = "Ana Lima";
+        viewModel.NovoCpfCnpj = CpfValido;
+        await viewModel.CriarClienteCommand.Execute();
+
+        var novo = Assert.Single(viewModel.Clientes, c => c.Nome == "Ana Lima");
+        Assert.Equal(SyncStatus.PendenteSync, novo.SyncStatus);
+        Assert.Equal(string.Empty, viewModel.NovoNome);
+        Assert.Equal(string.Empty, viewModel.NovoCpfCnpj);
+        Assert.False(viewModel.MensagemFormEhErro);
+        Assert.False(string.IsNullOrWhiteSpace(viewModel.MensagemForm));
+    }
+
+    [Fact]
+    public async Task CriarClienteComBuscaAtivaLimpaABuscaParaONovoAparecer()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        viewModel.Busca = "maria";
+        await viewModel.IniciarAsync();
+
+        viewModel.NovoNome = "Ana Lima";
+        await viewModel.CriarClienteCommand.Execute();
+
+        Assert.Equal(string.Empty, viewModel.Busca);
+        Assert.Contains(viewModel.Clientes, c => c.Nome == "Ana Lima");
+    }
+
+    [Fact]
+    public async Task DocumentoInvalidoMostraErroMantemOFormularioENaoGrava()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+
+        viewModel.NovoNome = "Ana Lima";
+        viewModel.NovoCpfCnpj = "123.456.789-00";
+        await viewModel.CriarClienteCommand.Execute();
+
+        Assert.True(viewModel.MensagemFormEhErro);
+        Assert.Contains("inválido", viewModel.MensagemForm);
+        Assert.Equal("Ana Lima", viewModel.NovoNome);
+        Assert.Equal("123.456.789-00", viewModel.NovoCpfCnpj);
+        Assert.Equal(2, viewModel.Clientes.Count);
+    }
+
+    [Fact]
+    public void CriarClienteFicaDesabilitadoSemNome()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var viewModel = CriarViewModel(fixture);
+
+        var podeCriar = false;
+        using var inscricao = viewModel.CriarClienteCommand.CanExecute.Subscribe(valor => podeCriar = valor);
+        Assert.False(podeCriar);
+
+        viewModel.NovoNome = "Ana";
+        Assert.True(podeCriar);
+
+        viewModel.NovoNome = "   ";
+        Assert.False(podeCriar);
+    }
+
+    [Fact]
+    public async Task ListaCortadaNoLimiteAvisaOOperador()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            for (var i = 0; i < CadastroLocalService.LimiteLista + 1; i++)
+                context.Clientes.Add(new Cliente { Nome = $"Cliente {i:D4}" });
+            await context.SaveChangesAsync();
+        }
+        var viewModel = CriarViewModel(fixture);
+
+        await viewModel.IniciarAsync();
+
+        Assert.True(viewModel.ClientesCortados);
+        Assert.False(viewModel.ProdutosCortados);
+    }
+}

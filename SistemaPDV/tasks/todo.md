@@ -1359,13 +1359,13 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 **Description:** Lista clientes e produtos já sincronizados (leitura), com busca. Formulário simples de criar cliente (Nome + CPF/CNPJ) — grava local na hora (`SyncStatus = PendenteSync`), sem chamada de rede própria (quem sincroniza é o `SincronizacaoBackgroundService`, Task 50, via Task 48).
 
 **Acceptance criteria:**
-- [ ] Busca/listagem de clientes e produtos funciona sobre o banco local
-- [ ] Criar cliente grava local instantaneamente, sem travar a UI esperando rede
-- [ ] Cliente recém-criado aparece na lista com indicador `🟡 Pendente`, e não some nem duplica quando o `IdExterno` chegar depois
+- [x] Busca/listagem de clientes e produtos funciona sobre o banco local
+- [x] Criar cliente grava local instantaneamente, sem travar a UI esperando rede
+- [x] Cliente recém-criado aparece na lista com indicador `🟡 Pendente`, e não some nem duplica quando o `IdExterno` chegar depois
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter Cadastros`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter Cadastros` (+ `CadastroLocalService`)
+- [x] Build: `dotnet build` (0 avisos)
 
 **Dependencies:** Task 38, Task 42, Task 48
 
@@ -1374,7 +1374,9 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 - `SistemaPDV/Views/CadastrosView.axaml` (+ `.cs`)
 - `SistemaPDV.Tests/CadastrosViewModelTests.cs`
 
-**Estimated scope:** M (3 arquivos)
+**Estimated scope:** M (3 arquivos) — na prática 7 (ganhou `CadastroLocalService` + `ResumoCadastro`, e o `ShellViewModel`/`ShellView` ganharam `IrParaCadastrosCommand`).
+
+**Decisões (2026-09-20):** busca manual (Enter/botão) como em `ListaPedidosViewModel`; listas cortadas em 200 com aviso (sem paginação); criar valida nome e CPF/CNPJ (dígitos verificadores + duplicidade) antes de gravar; `Cadastros` só exige operador logado (não depende de caixa aberto) e fica bloqueado com venda em andamento. Pendente: conferência visual da tela pelo usuário.
 
 ---
 

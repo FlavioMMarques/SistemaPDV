@@ -37,10 +37,10 @@
       </Grid>
     </Border>
 
-    <!-- Navegação persistente entre Dashboard/Nova Venda/Pedidos — só habilitada com
+    <!-- Navegação persistente entre Dashboard/Nova Venda/Pedidos/Cadastros — habilitada com
          caixa aberto (ver ShellViewModel). Resolve o que ficou pendente nas Tasks
-         42/43/45 sobre não ter como voltar depois de sair do Dashboard; Cadastros
-         ainda não entra aqui (Task 48). -->
+         42/43/45 sobre não ter como voltar depois de sair do Dashboard. Cadastros só
+         exige operador logado (não depende de caixa aberto). -->
     <Border DockPanel.Dock="Top"
             Background="{StaticResource BgCardBrush}"
             BorderBrush="{StaticResource BorderColorBrush}"
@@ -62,6 +62,11 @@
                 Background="Transparent"
                 Foreground="{StaticResource TextMainBrush}"
                 AutomationProperties.Name="Ir para lista de pedidos" />
+        <Button Content="📇 Cadastros"
+                Command="{Binding IrParaCadastrosCommand}"
+                Background="Transparent"
+                Foreground="{StaticResource TextMainBrush}"
+                AutomationProperties.Name="Ir para cadastros" />
       </StackPanel>
     </Border>
 

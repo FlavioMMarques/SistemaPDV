@@ -23,6 +23,7 @@ public class ShellViewModel : ViewModelBase
     private readonly VendaService vendaService;
     private readonly CatalogoLocalService catalogoLocalService;
     private readonly VendaLocalService vendaLocalService;
+    private readonly CadastroLocalService cadastroLocalService;
 
     private Tela telaAtual;
     private ViewModelBase? currentViewModel;
@@ -38,7 +39,8 @@ public class ShellViewModel : ViewModelBase
         DashboardService dashboardService,
         VendaService vendaService,
         CatalogoLocalService catalogoLocalService,
-        VendaLocalService vendaLocalService)
+        VendaLocalService vendaLocalService,
+        CadastroLocalService cadastroLocalService)
     {
         this.configuracaoService = configuracaoService;
         this.loginOperadorService = loginOperadorService;
@@ -47,12 +49,13 @@ public class ShellViewModel : ViewModelBase
         this.vendaService = vendaService;
         this.catalogoLocalService = catalogoLocalService;
         this.vendaLocalService = vendaLocalService;
+        this.cadastroLocalService = cadastroLocalService;
 
         // Navegação persistente entre as 3 telas pós-caixa-aberto (Dashboard/Pdv/
         // ListaPedidos) — só habilitada com CaixaAberto preenchido, já que nenhuma
         // delas faz sentido sem caixa. Resolve o que ficou pendente nas Tasks 42/43
-        // ("navegação entre as telas sem menu"), pelo menos pra essas três (Cadastros
-        // ainda não existe — Task 48).
+        // ("navegação entre as telas sem menu"), pelo menos pra essas três (Cadastros,
+        // abaixo, tem a própria regra).
         //
         // Também bloqueada enquanto há venda em andamento (decisão do usuário,
         // 2026-09-20): cada IrPara* cria um ViewModel novo, então sair da tela de
@@ -64,6 +67,14 @@ public class ShellViewModel : ViewModelBase
         IrParaDashboardCommand = ReactiveCommand.Create(() => IrParaDashboard(), podeNavegar);
         IrParaPdvCommand = ReactiveCommand.Create(() => IrParaPdv(CaixaAberto!.Id), podeNavegar);
         IrParaListaPedidosCommand = ReactiveCommand.Create(() => IrParaListaPedidos(CaixaAberto!.Id), podeNavegar);
+
+        // Cadastros não depende de caixa (é só leitura/cadastro local), só de haver
+        // operador logado — assim continua acessível com ExigirAberturaCaixa desligado
+        // e sem caixa aberto. Mesmo bloqueio de venda em andamento: também descartaria
+        // o carrinho.
+        var temOperador = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null);
+        var podeAbrirCadastros = temOperador.CombineLatest(semVendaEmAndamento, (temLogin, semVenda) => temLogin && semVenda);
+        IrParaCadastrosCommand = ReactiveCommand.Create(() => IrParaCadastros(), podeAbrirCadastros);
     }
 
     public Tela TelaAtual
@@ -108,6 +119,7 @@ public class ShellViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> IrParaDashboardCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaPdvCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaListaPedidosCommand { get; }
+    public ReactiveCommand<Unit, Unit> IrParaCadastrosCommand { get; }
 
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
     // pode chegar em IrParaConfiguracoes, que constrói ConfiguracoesViewModel
@@ -215,6 +227,14 @@ public class ShellViewModel : ViewModelBase
         var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId);
         CurrentViewModel = viewModel;
         TelaAtual = Tela.ListaPedidos;
+        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
+    }
+
+    private void IrParaCadastros()
+    {
+        var viewModel = new CadastrosViewModel(cadastroLocalService);
+        CurrentViewModel = viewModel;
+        TelaAtual = Tela.Cadastros;
         _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 

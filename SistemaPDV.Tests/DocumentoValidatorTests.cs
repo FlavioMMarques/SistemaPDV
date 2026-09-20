@@ -48,4 +48,14 @@ public class DocumentoValidatorTests
         Assert.Equal("123", DocumentoValidator.SoDigitos("1a2b3c"));
         Assert.Equal(string.Empty, DocumentoValidator.SoDigitos(null));
     }
+
+    [Theory]
+    [InlineData("52998224725", "529.982.247-25")]
+    [InlineData("11222333000181", "11.222.333/0001-81")]
+    [InlineData("1234", "1234")]   // tamanho estranho: volta como veio
+    [InlineData(null, null)]
+    public void FormatarMascaraCpfECnpjEDeixaOResto(string? entrada, string? esperado)
+    {
+        Assert.Equal(esperado, DocumentoValidator.Formatar(entrada));
+    }
 }
