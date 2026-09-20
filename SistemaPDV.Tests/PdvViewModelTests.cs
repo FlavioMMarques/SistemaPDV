@@ -148,6 +148,27 @@ public class PdvViewModelTests
     }
 
     [Fact]
+    public async Task TemVendaEmAndamentoAcompanhaCarrinhoEPagamentos()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        Assert.False(viewModel.TemVendaEmAndamento);
+
+        viewModel.AdicionarItem(produto);
+        Assert.True(viewModel.TemVendaEmAndamento);
+
+        await viewModel.NovoCommand.Execute();
+        Assert.False(viewModel.TemVendaEmAndamento);
+
+        // Só pagamento, sem item, também conta como venda em andamento — descartar
+        // isso ao navegar seria perder o que o operador já digitou.
+        viewModel.ValorPagamentoAdicionar = "5.00";
+        viewModel.AdicionarPagamento(forma);
+        Assert.True(viewModel.TemVendaEmAndamento);
+    }
+
+    [Fact]
     public async Task AdicionarPagamentoComValorInvalidoNaoAdicionaNada()
     {
         using var fixture = new SqliteInMemoryFixture();

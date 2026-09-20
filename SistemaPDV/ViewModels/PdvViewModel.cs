@@ -46,8 +46,13 @@ public class PdvViewModel : ViewModelBase
         {
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
             this.RaisePropertyChanged(nameof(Total));
+            this.RaisePropertyChanged(nameof(TemVendaEmAndamento));
         };
-        Pagamentos.CollectionChanged += (_, _) => this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+        Pagamentos.CollectionChanged += (_, _) =>
+        {
+            this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+            this.RaisePropertyChanged(nameof(TemVendaEmAndamento));
+        };
 
         var podeFinalizar = this.WhenAnyValue(vm => vm.PodeFinalizarVenda);
         FinalizarVendaCommand = ReactiveCommand.CreateFromTask(FinalizarVendaAsync, podeFinalizar);
@@ -139,6 +144,10 @@ public class PdvViewModel : ViewModelBase
     // do que o total é permitido (dinheiro com troco); a MENOS, não. Troco em si
     // não é modelado ainda.
     public bool PodeFinalizarVenda => Itens.Count > 0 && Pagamentos.Sum(p => p.Valor) >= Total;
+
+    // Qualquer coisa já digitada conta (item OU pagamento) — o Shell usa isso pra
+    // bloquear a navegação e não descartar o que o operador já montou.
+    public bool TemVendaEmAndamento => Itens.Count > 0 || Pagamentos.Count > 0;
 
     public ReactiveCommand<Unit, Venda?> FinalizarVendaCommand { get; }
     public ReactiveCommand<Unit, Unit> NovoCommand { get; }

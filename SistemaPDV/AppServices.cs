@@ -28,6 +28,7 @@ public class AppServices
     public CaixaSyncService CaixaSyncService { get; }
     public VendaService VendaService { get; }
     public VendaSyncService VendaSyncService { get; }
+    public VendaLocalService VendaLocalService { get; }
 
     [SupportedOSPlatform("windows")]
     public AppServices(string caminhoBanco = "pdv.db")
@@ -60,5 +61,6 @@ public class AppServices
         CaixaSyncService = new CaixaSyncService(contextFactory, apiClient);
         VendaService = new VendaService(contextFactory);
         VendaSyncService = new VendaSyncService(contextFactory, apiClient);
+        VendaLocalService = new VendaLocalService(contextFactory);
     }
 }

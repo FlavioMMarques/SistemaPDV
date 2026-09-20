@@ -290,3 +290,29 @@ Rodei a skill `code-review-and-quality` sobre as Tasks 37-46 (todo o fluxo "vend
 3. **Exceção em código fire-and-forget desaparecia silenciosa.** `ShellViewModel` dispara vários `_ = algumaCoisa.IniciarAsync()`/`_ = AposLoginAsync(...)` sem esperar o resultado (de propósito, pra não travar a UI — ver #29). Mas nenhum desses tinha `try/catch`: uma falha ali vira uma "task nunca observada" que o .NET moderno engole sem crashar e sem avisar nada — a tela simplesmente para de reagir, sem pista nenhuma do que aconteceu. Testes normais não pegam isso porque testam o caminho de sucesso; só um teste desenhado especificamente pra injetar uma falha nesse ponto exato (usando um serviço com `contextFactory` quebrado de propósito) revelou o problema.
 
 A lição maior: **testes verdes provam que o código faz o que os testes descrevem, não que os testes descrevem tudo que importa**. Revisão de código com foco em "o que mais eu escreveria um teste pra pegar, olhando de fora?" acha uma classe diferente de bug do que TDD acha sozinho — os dois se completam, nenhum substitui o outro.
+
+## 38. Teste que passa sozinho mas falha na suíte inteira é bug de teste, não "azar"
+
+**Onde:** `SistemaPDV.Tests/DashboardViewModelTests.cs` (`NovaVendaCommandEmiteQuandoExecutado`) — Fase 5 (pdv-ui), Task 47
+
+Ao rodar a suíte completa depois da Task 47, um teste antigo (`NovaVendaCommandEmiteQuandoExecutado`, da Task 46) falhou — sem eu ter mexido em nada relacionado a ele — e passou de primeira quando rodado sozinho. Esse padrão ("verde isolado, vermelho na suíte") é a assinatura clássica de um teste que depende de **timing**: o xUnit roda classes de teste em paralelo, então a suíte inteira mexe com a ordem em que threads e schedulers correm, e um teste que só acerta "por sorte" numa execução calma começa a errar quando tem mais concorrência.
+
+A causa: o teste assinava o comando com `Subscribe(_ => disparou = true)` e logo depois de `await Execute()` conferia `Assert.True(disparou)`. Isso pressupõe que o callback do `Subscribe` já rodou quando o `await` volta — mas quem entrega essa notificação é o scheduler do ReactiveUI, e nada garante que ela chegue *antes* da linha seguinte. É a mesma família de bug do #31 (esperar a entrada em vez do sinal de saída), só que agora num teste que eu mesmo tinha escrito e considerado "simples demais pra falhar".
+
+A correção foi o padrão já estabelecido: assinar **antes** de disparar, com `FirstAsync().ToTask()`, e `await` esse sinal explicitamente. Rodei a suíte 3 vezes seguidas pra confirmar que ficou estável. A regra prática: se um teste falha só de vez em quando, ou só junto com outros, trate como bug real de sincronização — não rode de novo "pra ver se passa".
+
+## 39. Reaproveitar um serviço de leitura em lote, em vez de consultar item por item
+
+**Onde:** `Services/Sales/VendaLocalService.cs` — Fase 5 (pdv-ui), Task 47
+
+A lista de pedidos precisa, pra cada venda, do nome do cliente, do operador e dos nomes das formas de pagamento — dados que moram em outras tabelas. O jeito ingênuo (dentro de um laço sobre as vendas, buscar o cliente daquela venda, depois as formas de pagamento daquela venda) faz 1 consulta pra listar + N consultas extras: o mesmo N+1 que já corrigimos em `CatalogSyncService` (#22). Aqui a mesma lição foi aplicada *já na primeira versão*, sem esperar uma revisão de código apontar: primeiro carrega todas as vendas de uma vez (`Include` de itens e pagamentos), junta os ids de cliente/forma de pagamento que aparecem, e busca cada tabela **uma vez só** com `Where(x => ids.Contains(x.Id))`, montando dicionários pra resolver o nome em memória. Total: 4 consultas fixas, não importa se a lista tem 5 ou 500 vendas.
+
+## 40. Navegação livre entre telas exige decidir o que acontece com o estado de quem sai
+
+**Onde:** `ViewModels/ShellViewModel.cs` (`IrParaDashboardCommand`/`IrParaPdvCommand`/`IrParaListaPedidosCommand`) — Fase 5 (pdv-ui), Task 47
+
+Até a Task 46 o Shell só andava "pra frente" (login → caixa → dashboard → venda), sem como voltar. A Task 47 exigiu uma barra de navegação persistente (Painel / Nova Venda / Pedidos), habilitada só com caixa aberto — o `CanExecute` de cada comando é `WhenAnyValue(vm => vm.CaixaAberto).Select(c => c is not null)`, reativo, então os botões acendem sozinhos assim que o caixa abre.
+
+Mas construir a navegação expôs uma pergunta que o fluxo linear escondia: **e o que acontece com a tela que a gente está deixando?** Hoje cada `IrPara*` cria um ViewModel novo — então sair da tela de venda no meio de uma venda e voltar **descarta o carrinho**. Registrei isso como critério não atendido em vez de marcar como feito, porque é uma decisão de produto (reaproveitar a mesma instância enquanto o caixa for o mesmo? bloquear a navegação com venda em andamento?) que não é minha de tomar sozinha.
+
+**Resolução (2026-09-20):** o usuário escolheu bloquear a navegação enquanto há venda em andamento. `PdvViewModel` ganhou `TemVendaEmAndamento` (item **ou** pagamento já digitado — só pagamento também conta, senão sair descartaria dado do operador), o Shell espelha isso em `VendaEmAndamento` e o `CanExecute` dos três comandos de navegação virou `temCaixaAberto.CombineLatest(semVendaEmAndamento, (a, b) => a && b)`. Repare que "Nova Venda" também fica bloqueada estando na própria tela de venda: como `IrParaPdv` cria um `PdvViewModel` novo, clicar nele com o carrinho cheio apagaria o carrinho da mesma forma. O teste (`NavegacaoFicaBloqueadaEnquantoHaVendaEmAndamento`) assina o sinal de "bloqueou" **antes** de mexer no carrinho e o de "liberou" antes de cancelar — o mesmo padrão de esperar o sinal, não a ação (#31, #38).

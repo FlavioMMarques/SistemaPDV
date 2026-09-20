@@ -7,4 +7,5 @@ public enum Tela
     AbrirCaixa,
     Dashboard,
     Pdv,
+    ListaPedidos,
 }
