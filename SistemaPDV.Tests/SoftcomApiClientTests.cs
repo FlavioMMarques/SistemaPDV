@@ -100,6 +100,44 @@ public class SoftcomApiClientTests
     }
 
     [Fact]
+    public async Task VariasPaginasSaoTodasLidasNaOrdem()
+    {
+        // Catálogo maior que uma página (per_page=200): 5 páginas encadeadas por next_page_url.
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            chamadas++;
+            var pagina = int.Parse(System.Web.HttpUtility.ParseQueryString(req.RequestUri!.Query)["page"] ?? "1");
+            var proxima = pagina < 5 ? $"\"https://exemplo.softcomshop.com.br/recurso?page={pagina + 1}\"" : "null";
+            return RespostaJson($$"""{ "current_page": {{pagina}}, "data": [{"id":{{pagina}},"nome":"P{{pagina}}"}], "next_page_url": {{proxima}}, "total": 5 }""");
+        });
+
+        var resultado = await new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>("https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        Assert.Equal(5, chamadas);
+        Assert.Equal(new[] { 1, 2, 3, 4, 5 }, resultado.Itens.Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task ProximaPaginaQueRepeteUmaJaLidaInterrompeEmVezDeEntrarEmLaco()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            // Toda resposta aponta de volta pra mesma página.
+            return RespostaJson("""{ "current_page": 1, "data": [{"id":1,"nome":"A"}], "next_page_url": "https://exemplo.softcomshop.com.br/recurso?page=1", "total": 9 }""");
+        });
+
+        var resultado = await new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>("https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("repetiu", resultado.Mensagem);
+        Assert.True(chamadas <= 3, $"deveria parar logo, chamou {chamadas}x");
+    }
+
+    [Fact]
     public async Task NextPageUrlDeDominioDiferenteEhRejeitado()
     {
         var pagina1 = """
