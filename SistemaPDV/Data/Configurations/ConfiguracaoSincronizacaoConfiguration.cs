@@ -12,6 +12,7 @@ public class ConfiguracaoSincronizacaoConfiguration : IEntityTypeConfiguration<C
         builder.Property(c => c.UrlApi).HasMaxLength(500);
         builder.Property(c => c.ApiClienteId).HasMaxLength(100);
         builder.Property(c => c.NomeDispositivo).HasMaxLength(100);
+        builder.Property(c => c.CodigoPdv).HasMaxLength(6);
 
         // HasDefaultValue explícito (não basta o "= true" no C#): sem isso, o EF
         // gera a coluna com default false no banco, e qualquer linha existente

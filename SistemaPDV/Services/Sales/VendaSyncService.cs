@@ -159,7 +159,7 @@ public class VendaSyncService
             UsuarioId = operadorId,
             FuncionarioId = operadorId,
             ClienteId = clienteIdExterno,
-            NumeroDocumento = venda.NumeroPedido.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            NumeroDocumento = NumeroDocumento.Formatar(configuracao.CodigoPdv, venda.NumeroPedido),
             Cancelada = false,
             Bloqueada = false,
             CaixaData = caixa.DataCaixa.ToString("yyyy-MM-dd"),

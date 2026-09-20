@@ -18,7 +18,7 @@ public class VendaRequestDto
     [JsonPropertyName("funcionario_id")] public int FuncionarioId { get; set; }
     [JsonPropertyName("cliente_id")] public int ClienteId { get; set; }
 
-    // "Número do pedido" (string no Swagger): gerado pelo PDV, sequencial — ver Venda.NumeroPedido.
+    // "Número do pedido" (string no Swagger): gerado pelo PDV — ver NumeroDocumento (código do PDV + Venda.NumeroPedido).
     [JsonPropertyName("numero_documento")] public string NumeroDocumento { get; set; } = string.Empty;
 
     // Obrigatórios na API mesmo numa venda nova: uma venda que o PDV envia nasce não cancelada e
