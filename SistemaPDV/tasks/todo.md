@@ -1419,7 +1419,7 @@ O usuário viu "Chave inválida"; investigar levou a descobrir que a sincroniza�
 
 **A conferir/decidir (não verificado):**
 - POST de **caixa (abrir/fechar), venda e criar cliente** agora usam `softauth/api/v2/`, por inferência — não foi testado com POST real (criaria dado). Conferir no primeiro caixa/venda de teste.
-- O sync trouxe **4 empresas** de `empresa/empresas/1`; a venda usa `Empresas.FirstOrDefault()` — confirmar qual é a empresa deste dispositivo (o `empresa_id` do vínculo?) antes de vender de verdade.
+
 - Produtos: vieram 200 (uma página cheia) — conferir se há mais páginas a seguir e o total real.
 
 ---

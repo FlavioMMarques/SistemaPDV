@@ -53,12 +53,19 @@ public class VendaSyncService
         if (funcionario?.IdExterno is not { } operadorId)
             return ResultadoSincronizacaoRecurso.ComFalha("Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.");
 
-        var empresa = await context.Empresas.FirstOrDefaultAsync(ct);
-        if (empresa?.IdExterno is not { } empresaId)
-            return ResultadoSincronizacaoRecurso.ComFalha("Empresa ainda não sincronizou — sincronize empresa antes.");
-
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Configuração de sincronização não encontrada.");
+
+        // A empresa é a DESTE dispositivo (o CNPJ vem no link de vínculo), não "a primeira que
+        // houver": o app já só grava a empresa do dispositivo, mas dados de antes disso podem ter
+        // outras. Sem CNPJ no link (vínculo antigo), cai na única empresa local.
+        var cnpjDoDispositivo = SoftcomAuthService.ExtrairEmpresaCnpj(configuracao.UrlApi);
+        var empresas = await context.Empresas.ToListAsync(ct);
+        var empresa = cnpjDoDispositivo is null
+            ? empresas.FirstOrDefault()
+            : empresas.FirstOrDefault(e => DocumentoValidator.SoDigitos(e.Cnpj) == cnpjDoDispositivo);
+        if (empresa?.IdExterno is not { } empresaId)
+            return ResultadoSincronizacaoRecurso.ComFalha("Empresa deste dispositivo ainda não sincronizou — sincronize a empresa antes.");
 
         int clienteIdExterno;
         if (venda.ClienteId is { } clienteIdLocal)
