@@ -487,3 +487,12 @@ A API exige `numero_documento` único **por empresa**, e cada PDV gera o número
 3. Número dado pelo servidor: sem buracos, mas **não funciona offline** — quebra o princípio central do app.
 
 Detalhes que valem lembrar: (a) o **`#N` da tela continua o sequencial simples** — o balcão fala "venda 45", não "02-000045"; o número composto só existe no envio, montado na hora (`Formatar`), então mudar o código não mexe no banco de vendas. (b) O **hífen é proibido no código**: é o separador, e assim dois pares (código, número) diferentes nunca produzem o mesmo texto. (c) Sem código configurado o número segue puro — uma empresa com um PDV só não precisa mudar nada, e as vendas já enviadas (`1`, `2`) não colidem com as novas (`01-000003`). (d) Limite honesto: **o app não tem como saber que outro PDV usa o mesmo código** — a unicidade entre dispositivos depende de quem configura, por isso a tela avisa. Código inválido não salva nada (nem o resto do formulário), para o operador não achar que valeu.
+
+
+## 65. Antes de "provar" com a API, olhe o que o banco local já provou — e proteja o laço de paginação
+
+**Onde:** `SoftcomApiClient.BuscarTudoAsync`, item "mais de 200 produtos" do backlog
+
+Dúvida: se o catálogo passa de uma página (`per_page=200`), a sincronização pega tudo? Em vez de chamar a API real (que exigiria token e segredo), contei os produtos numa **cópia** do `pdv.db`: **201**. Como uma página tem 200, o 201º só chegou se a segunda página foi seguida — a paginação já funciona no mundo real, com custo zero e sem tocar em credencial. Lição: dado que o próprio sistema já gravou costuma ser prova mais barata (e mais segura) que uma nova chamada.
+
+O que a evidência **não** cobre é o caso ruim: uma API que devolve a mesma `next_page_url` para sempre prenderia o ciclo de sincronização num laço infinito, baixando a mesma página. O laço agora guarda as URLs já visitadas e falha com mensagem clara ao repetir uma. Dois testes novos: cinco páginas encadeadas lidas na ordem, e o caso do laço (para em 2 chamadas).

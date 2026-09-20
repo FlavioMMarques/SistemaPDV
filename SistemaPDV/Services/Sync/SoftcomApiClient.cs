@@ -36,9 +36,15 @@ public class SoftcomApiClient
         var itens = new List<T>();
         long? dateSync = null;
         string? url = MontarUrlInicial(dominio, caminho, ultimaSincronizacao);
+        var urlsVisitadas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         while (url is not null)
         {
+            // Uma API que devolve a mesma next_page_url (ou volta a uma página já lida) prenderia a sincronização
+            // num laço infinito, baixando a mesma página pra sempre.
+            if (!urlsVisitadas.Add(url))
+                return ResultadoBusca<T>.ComFalha($"A API repetiu a página {url} — paginação interrompida para não entrar em laço.");
+
             // A API pode devolver next_page_url absoluto; nunca segue pra um domínio
             // diferente do configurado (evita vazar o access token se a API um dia
             // devolver isso errado).
