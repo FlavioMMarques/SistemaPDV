@@ -1,8 +1,10 @@
+using System;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Models;
+using SistemaPDV.Services;
 using SistemaPDV.Services.Caixa;
 
 namespace SistemaPDV.ViewModels;
@@ -44,14 +46,27 @@ public class LoginViewModel : ViewModelBase
     {
         MensagemErro = null;
 
+        // Em espera (erros seguidos): nem tenta — o serviço ignoraria mesmo a chave certa.
+        if (loginOperadorService.EsperaRestante > TimeSpan.Zero)
+        {
+            MensagemErro = TextoDeEspera(loginOperadorService.EsperaRestante);
+            return null;
+        }
+
         var funcionario = await loginOperadorService.AutenticarAsync(PdvKeyDigitada);
 
         // Mensagem genérica de propósito — não revela se a chave existe ou não,
         // nem se o funcionário está desativado, pra não dar pista útil num ataque
         // de força bruta contra a pdv_key.
         if (funcionario is null)
-            MensagemErro = "Chave inválida.";
+        {
+            var espera = loginOperadorService.EsperaRestante;
+            MensagemErro = espera > TimeSpan.Zero ? $"Chave inválida. {TextoDeEspera(espera)}" : "Chave inválida.";
+        }
 
         return funcionario;
     }
+
+    private static string TextoDeEspera(TimeSpan espera) =>
+        $"Muitas tentativas erradas — aguarde {LimitadorDeTentativas.Descrever(espera)} para tentar de novo.";
 }

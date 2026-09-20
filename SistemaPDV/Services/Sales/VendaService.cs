@@ -27,6 +27,48 @@ public class VendaService
         IReadOnlyList<(int FormaPagamentoId, decimal Valor)> pagamentos,
         CancellationToken ct = default)
     {
+        // Número do pedido: sequencial e único neste dispositivo (índice único no banco). Lido do banco — não de um
+        // contador em memória — pra continuar de onde parou depois de reabrir o app. Se outro processo do app usando o
+        // MESMO banco pegou o mesmo número entre a leitura e a gravação, o índice único recusa: tenta de novo com o
+        // próximo, em vez de perder a venda que o operador acabou de finalizar.
+        for (var tentativa = 1; ; tentativa++)
+        {
+            var venda = Montar(caixaId, clienteId, itens, pagamentos);
+
+            await using var context = contextFactory();
+            var ultimoNumero = await context.Vendas.MaxAsync(v => (int?)v.NumeroPedido, ct) ?? 0;
+            venda.NumeroPedido = ultimoNumero + 1;
+            context.Vendas.Add(venda);
+
+            try
+            {
+                await context.SaveChangesAsync(ct);
+                return venda;
+            }
+            catch (DbUpdateException) when (tentativa < MaximoTentativasDeNumero)
+            {
+                // Só recomeça se FOI colisão de número (o número já existe agora). Qualquer outra falha (banco
+                // travado, disco cheio, chave estrangeira) sobe na hora: repetir não a resolveria.
+                await using var conferencia = contextFactory();
+                if (!await conferencia.Vendas.AnyAsync(v => v.NumeroPedido == venda.NumeroPedido, ct))
+                    throw;
+
+                Registro.Aviso("Venda", $"Número de pedido {venda.NumeroPedido} já foi usado por outro processo — tentando o próximo (tentativa {tentativa}).");
+            }
+        }
+    }
+
+    // O 5º erro seguido não é mais azar de corrida: sobe pro operador/log em vez de insistir pra sempre.
+    private const int MaximoTentativasDeNumero = 5;
+
+    // Uma venda NOVA por tentativa: depois de um SaveChanges que falhou, o contexto (e o que ele rastreava) não serve
+    // mais. O Guid é o da venda que efetivamente for gravada — a que falhou nunca existiu.
+    private static Venda Montar(
+        int caixaId,
+        int? clienteId,
+        IReadOnlyList<(int ProdutoId, decimal Quantidade, decimal PrecoUnitario, decimal DescontoItem, decimal AcrescimoItem)> itens,
+        IReadOnlyList<(int FormaPagamentoId, decimal Valor)> pagamentos)
+    {
         // Guid gerado aqui, na criação — nunca depois. É a chave de idempotência
         // enviada como "guid" pra API (ver VendaSyncService), então precisa nascer
         // junto com a venda, não ser atribuído só na hora de sincronizar.
@@ -60,16 +102,6 @@ public class VendaService
                 Valor = valor,
             });
         }
-
-        await using var context = contextFactory();
-
-        // Número do pedido: sequencial e único neste dispositivo (índice único no banco). Lido do banco
-        // — não de um contador em memória — pra continuar de onde parou depois de reabrir o app.
-        var ultimoNumero = await context.Vendas.MaxAsync(v => (int?)v.NumeroPedido, ct) ?? 0;
-        venda.NumeroPedido = ultimoNumero + 1;
-
-        context.Vendas.Add(venda);
-        await context.SaveChangesAsync(ct);
 
         return venda;
     }
