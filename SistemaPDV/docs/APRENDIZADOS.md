@@ -523,7 +523,7 @@ O envio retenta vendas em `FalhaSync` (até 8 vezes) e o supervisor pode descart
 
 Regras adotadas (decisão do usuário: descartar qualquer venda em falha, sem esperar as 8 tentativas, e reconferir antes de gravar): (1) **falha depois do descarte não grava nada** — `MarcarFalhaAsync` reconfere no banco (`AsNoTracking`) e devolve "descartada durante o envio"; (2) **sucesso depois do descarte: a verdade da API vence** — a venda já está lá, então fica `Sincronizado` (senão sairia do "esperado" do caixa por engano), a auditoria do pedido de descarte é preservada e um aviso vai pro log. A janela que sobra (entre a reconferência e o `SaveChanges`) é de milissegundos e o pior efeito é benigno.
 
-**Achado da revisão da numeração por PDV (#64):** o código está correto, mas o **formato `01-000005` nunca foi aceito pela API real** — as vendas reais 3 e 4 saíram com o número puro (o código do PDV não estava configurado). O Swagger diz `string`, então deve passar, mas é hipótese. Como confirmar: configurar um código e fazer uma venda; se a API recusar, o plano B é um prefixo só numérico (`<código numérico><sequencial de 6 dígitos>`).
+**Achado da revisão da numeração por PDV (#64):** o código está correto, mas o **formato `01-000005` ainda não tinha sido aceito pela API real** — as vendas reais 3 e 4 saíram com o número puro. **CONFIRMADO em seguida (usuário, 2026-09-20):** com o código `01` configurado pelo botão de Configurações, a venda #5 sincronizou normalmente (id 337 na API; conferido no banco local). Como confirmar: configurar um código e fazer uma venda; se a API recusar, o plano B é um prefixo só numérico (`<código numérico><sequencial de 6 dígitos>`).
 
 
 ## 68. Uma tela que ninguém consegue abrir não existe: campo novo precisa de caminho até ele
