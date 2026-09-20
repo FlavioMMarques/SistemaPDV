@@ -106,4 +106,36 @@ public class AbrirCaixaViewModelTests
 
         Assert.Equal(10.50m, caixa!.TrocoInicial);
     }
+
+    [Fact]
+    public async Task IniciarSugereOPrimeiroTurnoAindaNaoUsadoHoje()
+    {
+        // Depois de fechar o turno 1, a tela voltava sugerindo "Turno 1" e a abertura era recusada.
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var service = new CaixaService(fixture.CriarContexto);
+        var hoje = DateOnly.FromDateTime(DateTime.Now);
+        foreach (var turno in new[] { 1, 2 })
+        {
+            var caixa = await service.AbrirCaixaLocalAsync(funcionarioId, hoje, turno, 10m);
+            await service.FecharCaixaLocalAsync(caixa.Valor!.Id, 0m, Array.Empty<(int, decimal)>(), Array.Empty<(string, decimal)>());
+        }
+        var viewModel = new AbrirCaixaViewModel(service, funcionarioId);
+
+        await viewModel.IniciarAsync();
+
+        Assert.Equal(3, viewModel.Turno);
+    }
+
+    [Fact]
+    public async Task SemTurnoUsadoIniciarMantemOTurnoUm()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var viewModel = new AbrirCaixaViewModel(new CaixaService(fixture.CriarContexto), funcionarioId);
+
+        await viewModel.IniciarAsync();
+
+        Assert.Equal(1, viewModel.Turno);
+    }
 }
