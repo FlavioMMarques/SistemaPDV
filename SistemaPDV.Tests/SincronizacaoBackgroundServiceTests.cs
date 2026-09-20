@@ -228,6 +228,28 @@ public class SincronizacaoBackgroundServiceTests
     }
 
     [Fact]
+    public async Task OutboxIgnoraItensEmEsperaOuQueDesistiramSemNemPedirToken()
+    {
+        // Sem isso, um único cliente com erro permanente faria o app autenticar a cada 30 s
+        // pra nada (a política de retentativa já o tirou da fila de envio).
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Clientes.AddRange(
+                new Cliente { Nome = "em espera", SyncStatus = SyncStatus.FalhaSync, TentativasEnvio = 2, ProximaTentativaEm = DateTime.UtcNow.AddHours(1) },
+                new Cliente { Nome = "desistiu", SyncStatus = SyncStatus.FalhaSync, TentativasEnvio = PoliticaRetentativa.MaximoTentativas });
+            await context.SaveChangesAsync();
+        }
+        var api = new ApiFake();
+        var service = CriarService(fixture, api.CriarHttpClient());
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Empty(api.Requisicoes);
+    }
+
+    [Fact]
     public async Task OutboxEnviaClientePendenteEFicaOnline()
     {
         using var fixture = new SqliteInMemoryFixture();

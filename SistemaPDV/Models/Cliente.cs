@@ -2,7 +2,7 @@ using System;
 
 namespace SistemaPDV.Models;
 
-public class Cliente : ISincronizavel<int>
+public class Cliente : ISincronizavel<int>, IOutboxRetentavel
 {
     public int Id { get; set; }
     public int? IdExterno { get; set; }
@@ -12,6 +12,10 @@ public class Cliente : ISincronizavel<int>
     // mesmo papel de Caixa/Venda.UltimoErroSync: sem isso, um cliente em FalhaSync
     // ficaria indiagnosticável. Truncado (ver ErroApiExtractor.TamanhoMaximo).
     public string? UltimoErroSync { get; set; }
+
+    // Espera crescente/teto de retentativas do envio (ver PoliticaRetentativa).
+    public int TentativasEnvio { get; set; }
+    public DateTime? ProximaTentativaEm { get; set; }
 
     public required string Nome { get; set; }
     public string? RazaoSocial { get; set; }

@@ -11,4 +11,5 @@ public record VendaResumo(
     string OperadorNome,
     decimal Total,
     string FormasPagamento,
-    SyncStatus SyncStatus);
+    SyncStatus SyncStatus,
+    string? UltimoErroSync = null);

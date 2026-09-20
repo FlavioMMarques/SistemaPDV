@@ -10,21 +10,36 @@
              x:DataType="vm:ListaPedidosViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <Grid RowDefinitions="Auto,*" Margin="24">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="24">
 
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <TextBlock Grid.Column="0" Text="📋 Listagem de Pedidos" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
-      <Button Grid.Column="1"
-              Content="🔄 Atualizar"
-              Command="{Binding AtualizarCommand}"
-              Background="{StaticResource BgCardBrush}"
-              Foreground="{StaticResource TextMainBrush}"
-              CornerRadius="{StaticResource RadiusMedium}"
-              Padding="16,8"
-              AutomationProperties.Name="Atualizar lista de pedidos" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="🔁 Reenviar falhas"
+                Command="{Binding ReenviarFalhasCommand}"
+                Background="{StaticResource BgCardBrush}"
+                Foreground="{StaticResource TextMainBrush}"
+                CornerRadius="{StaticResource RadiusMedium}"
+                Padding="16,8"
+                ToolTip.Tip="Devolve à fila de envio as vendas que falharam ou desistiram"
+                AutomationProperties.Name="Reenviar vendas com falha" />
+        <Button Content="🔄 Atualizar"
+                Command="{Binding AtualizarCommand}"
+                Background="{StaticResource BgCardBrush}"
+                Foreground="{StaticResource TextMainBrush}"
+                CornerRadius="{StaticResource RadiusMedium}"
+                Padding="16,8"
+                AutomationProperties.Name="Atualizar lista de pedidos" />
+      </StackPanel>
     </Grid>
 
-    <Border Grid.Row="1"
+    <TextBlock Grid.Row="1"
+               Text="{Binding MensagemReenvio}"
+               Foreground="{StaticResource TextMutedBrush}"
+               Margin="0,0,0,8"
+               IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+    <Border Grid.Row="2"
             Background="{StaticResource BgCardBrush}"
             BorderBrush="{StaticResource BorderColorBrush}"
             BorderThickness="1"
@@ -33,7 +48,8 @@
       <ListBox ItemsSource="{Binding Vendas}" Background="Transparent">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="sales:VendaResumo">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="4">
+            <StackPanel Margin="4">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto">
               <TextBlock Grid.Column="0" Text="{Binding Numero, StringFormat='#{0}', TargetNullValue='—'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMutedBrush}" Width="60" />
               <TextBlock Grid.Column="1" Text="{Binding DataHora, StringFormat='{}{0:dd/MM HH:mm}'}" Foreground="{StaticResource TextMutedBrush}" Width="110" />
               <TextBlock Grid.Column="2" Text="{Binding ClienteNome}" Foreground="{StaticResource TextMainBrush}" Margin="8,0" />
@@ -42,6 +58,12 @@
               <TextBlock Grid.Column="5" Text="{Binding Total, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMainBrush}" Width="90" />
               <controls:SyncStatusIndicator Grid.Column="6" Status="{Binding SyncStatus}" />
             </Grid>
+              <!-- Motivo da falha (e o aviso "parou de tentar") — sem isso um 🔴 seria indiagnosticável. -->
+              <TextBlock Text="{Binding UltimoErroSync}"
+                         Foreground="{StaticResource AccentRedBrush}"
+                         FontSize="12" TextWrapping="Wrap"
+                         IsVisible="{Binding UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>

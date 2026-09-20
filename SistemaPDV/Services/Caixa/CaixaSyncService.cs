@@ -20,12 +20,16 @@ public class CaixaSyncService
 {
     private readonly Func<AppDbContext> contextFactory;
     private readonly SoftcomApiClient apiClient;
+    private readonly TimeProvider timeProvider;
 
-    public CaixaSyncService(Func<AppDbContext> contextFactory, SoftcomApiClient apiClient)
+    public CaixaSyncService(Func<AppDbContext> contextFactory, SoftcomApiClient apiClient, TimeProvider? timeProvider = null)
     {
         this.contextFactory = contextFactory;
         this.apiClient = apiClient;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    private DateTime AgoraUtc => timeProvider.GetUtcNow().UtcDateTime;
 
     // Elegível: abertura ainda não confirmada com o servidor — inclui PendenteSync
     // (nunca tentou) E FalhaSync (tentou e não deu certo; revisão de código pegou que
@@ -34,7 +38,11 @@ public class CaixaSyncService
     {
         await using var context = contextFactory();
 
-        var caixa = await context.Caixas.FirstOrDefaultAsync(c => !c.AberturaSincronizada, ct);
+        // Elegivel: quem está em espera crescente (ou já desistiu) fica de fora — ver PoliticaRetentativa.
+        var caixa = await context.Caixas
+            .Where(c => !c.AberturaSincronizada)
+            .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(AgoraUtc))
+            .FirstOrDefaultAsync(ct);
         if (caixa is null)
             return ResultadoSincronizacaoRecurso.ComSucesso(0);
 
@@ -84,6 +92,7 @@ public class CaixaSyncService
         if (resultado.Tipo == ResultadoEnvioTipo.Conflito)
         {
             caixa.AberturaSincronizada = true;
+            PoliticaRetentativa.Zerar(caixa);
             caixa.UltimoErroSync = null;
             if (caixa.Status == StatusCaixa.Aberto)
                 caixa.SyncStatus = SyncStatus.Sincronizado;
@@ -100,6 +109,7 @@ public class CaixaSyncService
 
         caixa.IdExterno = sucesso.Id;
         caixa.AberturaSincronizada = true;
+        PoliticaRetentativa.Zerar(caixa);
         caixa.UltimoErroSync = null;
         if (caixa.Status == StatusCaixa.Aberto)
             caixa.SyncStatus = SyncStatus.Sincronizado;
@@ -118,7 +128,9 @@ public class CaixaSyncService
         var caixa = await context.Caixas
             .Include(c => c.Digitacoes)
             .Include(c => c.DigitacoesBandeiras)
-            .FirstOrDefaultAsync(c => c.Status == StatusCaixa.Fechado && c.AberturaSincronizada && c.SyncStatus != SyncStatus.Sincronizado, ct);
+            .Where(c => c.Status == StatusCaixa.Fechado && c.AberturaSincronizada && c.SyncStatus != SyncStatus.Sincronizado)
+            .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(AgoraUtc))
+            .FirstOrDefaultAsync(ct);
 
         if (caixa is null)
             return ResultadoSincronizacaoRecurso.ComSucesso(0);
@@ -156,6 +168,7 @@ public class CaixaSyncService
         if (resultado.Tipo is ResultadoEnvioTipo.Falha or ResultadoEnvioTipo.TokenExpirado)
             return await MarcarFalhaAsync(context, caixa, ErroApiExtractor.Extrair(resultado.Conteudo), ct);
 
+        PoliticaRetentativa.Zerar(caixa);
         caixa.SyncStatus = SyncStatus.Sincronizado;
         caixa.UltimoErroSync = null;
         await context.SaveChangesAsync(ct);
@@ -169,12 +182,18 @@ public class CaixaSyncService
     {
         await using (var context = contextFactory())
         {
-            var temAberturaPendente = await context.Caixas.AnyAsync(c => !c.AberturaSincronizada, ct);
+            var agora = AgoraUtc;
+            var temAberturaPendente = await context.Caixas
+                .Where(c => !c.AberturaSincronizada)
+                .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(agora))
+                .AnyAsync(ct);
             if (temAberturaPendente)
                 return await SincronizarAberturaAsync(accessToken, ct);
 
-            var temFechamentoPendente = await context.Caixas.AnyAsync(
-                c => c.Status == StatusCaixa.Fechado && c.AberturaSincronizada && c.SyncStatus != SyncStatus.Sincronizado, ct);
+            var temFechamentoPendente = await context.Caixas
+                .Where(c => c.Status == StatusCaixa.Fechado && c.AberturaSincronizada && c.SyncStatus != SyncStatus.Sincronizado)
+                .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(agora))
+                .AnyAsync(ct);
             if (temFechamentoPendente)
                 return await SincronizarFechamentoAsync(accessToken, ct);
         }
@@ -182,13 +201,16 @@ public class CaixaSyncService
         return ResultadoSincronizacaoRecurso.ComSucesso(0);
     }
 
-    private static Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(
-        AppDbContext context, Models.Caixa caixa, string mensagem, CancellationToken ct) =>
-        OutboxHelper.MarcarFalhaAsync(context, caixa, mensagem, (c, m) =>
+    private Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(
+        AppDbContext context, Models.Caixa caixa, string mensagem, CancellationToken ct)
+    {
+        var agora = AgoraUtc;
+        return OutboxHelper.MarcarFalhaAsync(context, caixa, mensagem, (c, m) =>
         {
             c.SyncStatus = SyncStatus.FalhaSync;
-            c.UltimoErroSync = m;
+            c.UltimoErroSync = PoliticaRetentativa.RegistrarFalha(c, agora, m);
         }, ct);
+    }
 
     private static string FormatarValor(decimal valor) => valor.ToString("F2", CultureInfo.InvariantCulture);
 

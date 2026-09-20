@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SistemaPDV.Data;
+using SistemaPDV.Models;
 
 namespace SistemaPDV.Services.Sales;
 
@@ -18,6 +19,28 @@ public class VendaLocalService
     public VendaLocalService(Func<AppDbContext> contextFactory)
     {
         this.contextFactory = contextFactory;
+    }
+
+    // "Reenviar falhas": devolve à fila as vendas do caixa que falharam ou desistiram e o
+    // próprio caixa, se o envio dele falhou (zera a espera crescente e o contador — ver
+    // PoliticaRetentativa). O próximo ciclo de sincronização as envia. Devolve quantos itens voltaram.
+    public async Task<int> ReenviarFalhasAsync(int caixaId, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var vendas = await context.Vendas
+            .Where(v => v.CaixaId == caixaId && v.SyncStatus == SyncStatus.FalhaSync)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(v => v.TentativasEnvio, 0)
+                .SetProperty(v => v.ProximaTentativaEm, (DateTime?)null), ct);
+
+        var caixas = await context.Caixas
+            .Where(c => c.Id == caixaId && c.SyncStatus == SyncStatus.FalhaSync)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.TentativasEnvio, 0)
+                .SetProperty(c => c.ProximaTentativaEm, (DateTime?)null), ct);
+
+        return vendas + caixas;
     }
 
     public async Task<IReadOnlyList<VendaResumo>> ListarVendasDoCaixaAsync(int caixaId, CancellationToken ct = default)
@@ -50,7 +73,8 @@ public class VendaLocalService
             operadorNome,
             v.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.DescontoItem + i.AcrescimoItem) - v.Desconto,
             string.Join(", ", v.Pagamentos.Select(p => formas.TryGetValue(p.FormaPagamentoId, out var forma) ? forma.Nome : "?").Distinct()),
-            v.SyncStatus))
+            v.SyncStatus,
+            v.UltimoErroSync))
             .ToList();
     }
 }

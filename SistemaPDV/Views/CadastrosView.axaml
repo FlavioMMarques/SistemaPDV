@@ -10,14 +10,14 @@
              x:DataType="vm:CadastrosViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <Grid RowDefinitions="Auto,Auto,*" Margin="24">
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24">
 
     <TextBlock Grid.Row="0" Text="📇 Cadastros" FontSize="22" FontWeight="Bold"
                Foreground="{StaticResource TextMainBrush}" Margin="0,0,0,16" />
 
     <!-- Busca única pras duas abas: Enter ou o botão dispara BuscarCommand (manual,
          igual ao "Atualizar" da lista de pedidos). -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
       <TextBox Grid.Column="0"
                Text="{Binding Busca, Mode=TwoWay}"
                Watermark="Buscar por nome, CPF/CNPJ ou código de barras…"
@@ -39,9 +39,24 @@
               CornerRadius="{StaticResource RadiusMedium}"
               Padding="16,8" Margin="8,0,0,0"
               AutomationProperties.Name="Buscar" />
+      <Button Grid.Column="2"
+              Content="🔁 Reenviar falhas"
+              Command="{Binding ReenviarFalhasCommand}"
+              Background="{StaticResource BgCardBrush}"
+              Foreground="{StaticResource TextMainBrush}"
+              CornerRadius="{StaticResource RadiusMedium}"
+              Padding="16,8" Margin="8,0,0,0"
+              ToolTip.Tip="Devolve à fila de envio os clientes que falharam ou desistiram"
+              AutomationProperties.Name="Reenviar clientes com falha" />
     </Grid>
 
-    <TabControl Grid.Row="2" Background="Transparent">
+    <TextBlock Grid.Row="2"
+               Text="{Binding MensagemReenvio}"
+               Foreground="{StaticResource TextMutedBrush}"
+               Margin="0,0,0,8"
+               IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+    <TabControl Grid.Row="3" Background="Transparent">
 
       <TabItem Header="👥 Clientes">
         <Grid RowDefinitions="Auto,Auto,*" Margin="0,12,0,0">

@@ -33,15 +33,20 @@ public class CatalogSyncService
     private readonly SoftcomApiClient apiClient;
     private readonly SegredoProtector segredoProtector;
     private readonly SoftcomAuthService authService;
+    private readonly TimeProvider timeProvider;
 
     public CatalogSyncService(
-        Func<AppDbContext> contextFactory, SoftcomApiClient apiClient, SegredoProtector segredoProtector, SoftcomAuthService authService)
+        Func<AppDbContext> contextFactory, SoftcomApiClient apiClient, SegredoProtector segredoProtector, SoftcomAuthService authService,
+        TimeProvider? timeProvider = null)
     {
         this.contextFactory = contextFactory;
         this.apiClient = apiClient;
         this.segredoProtector = segredoProtector;
         this.authService = authService;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    private DateTime AgoraUtc => timeProvider.GetUtcNow().UtcDateTime;
 
     public async Task<ResultadoSincronizacaoRecurso> SincronizarFormasPagamentoAsync(string accessToken, CancellationToken ct = default)
     {
@@ -371,6 +376,7 @@ public class CatalogSyncService
 
         cliente.IdExterno = dados.Id;
         cliente.SyncStatus = SyncStatus.Sincronizado;
+        PoliticaRetentativa.Zerar(cliente);
         cliente.UltimoErroSync = null;
         await context.SaveChangesAsync(ct);
         return ResultadoSincronizacaoRecurso.ComSucesso(1);
@@ -386,6 +392,7 @@ public class CatalogSyncService
         {
             clienteIds = await context.Clientes
                 .Where(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado)
+                .Where(PoliticaRetentativa.Elegivel<Cliente>(AgoraUtc))   // espera crescente/teto (PoliticaRetentativa)
                 .Select(c => c.Id)
                 .ToListAsync(ct);
         }
@@ -410,13 +417,16 @@ public class CatalogSyncService
         return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizados);
     }
 
-    private static Task<ResultadoSincronizacaoRecurso> MarcarFalhaClienteAsync(
-        AppDbContext context, Cliente cliente, string mensagem, CancellationToken ct) =>
-        OutboxHelper.MarcarFalhaAsync(context, cliente, mensagem, (c, m) =>
+    private Task<ResultadoSincronizacaoRecurso> MarcarFalhaClienteAsync(
+        AppDbContext context, Cliente cliente, string mensagem, CancellationToken ct)
+    {
+        var agora = AgoraUtc;
+        return OutboxHelper.MarcarFalhaAsync(context, cliente, mensagem, (c, m) =>
         {
             c.SyncStatus = SyncStatus.FalhaSync;
-            c.UltimoErroSync = m;
+            c.UltimoErroSync = PoliticaRetentativa.RegistrarFalha(c, agora, m);
         }, ct);
+    }
 
     // Único método que lida com dado sensível (certificado digital + senha) — a
     // restrição de plataforma (SegredoProtector é Windows-only) fica só aqui, não na

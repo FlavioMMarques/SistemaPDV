@@ -23,12 +23,16 @@ public class VendaSyncService
 {
     private readonly Func<AppDbContext> contextFactory;
     private readonly SoftcomApiClient apiClient;
+    private readonly TimeProvider timeProvider;
 
-    public VendaSyncService(Func<AppDbContext> contextFactory, SoftcomApiClient apiClient)
+    public VendaSyncService(Func<AppDbContext> contextFactory, SoftcomApiClient apiClient, TimeProvider? timeProvider = null)
     {
         this.contextFactory = contextFactory;
         this.apiClient = apiClient;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    private DateTime AgoraUtc => timeProvider.GetUtcNow().UtcDateTime;
 
     public async Task<ResultadoSincronizacaoRecurso> SincronizarVendaAsync(Guid vendaId, string accessToken, CancellationToken ct = default)
     {
@@ -139,6 +143,7 @@ public class VendaSyncService
         if (resultado.Tipo == ResultadoEnvioTipo.Conflito)
         {
             venda.SyncStatus = SyncStatus.Sincronizado;
+            PoliticaRetentativa.Zerar(venda);
             venda.UltimoErroSync = null;
             await context.SaveChangesAsync(ct);
             return ResultadoSincronizacaoRecurso.ComSucesso(1);
@@ -153,6 +158,7 @@ public class VendaSyncService
 
         venda.VendaIdExterno = dados.Id;
         venda.SyncStatus = SyncStatus.Sincronizado;
+        PoliticaRetentativa.Zerar(venda);
         venda.UltimoErroSync = null;
         await context.SaveChangesAsync(ct);
         return ResultadoSincronizacaoRecurso.ComSucesso(1);
@@ -168,8 +174,10 @@ public class VendaSyncService
         List<Guid> vendaIds;
         await using (var context = contextFactory())
         {
+            // Elegivel: em espera crescente (ou já desistiu) fica de fora — ver PoliticaRetentativa.
             vendaIds = await context.Vendas
                 .Where(v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync)
+                .Where(PoliticaRetentativa.Elegivel<Venda>(AgoraUtc))
                 .Select(v => v.Id)
                 .ToListAsync(ct);
         }
@@ -200,11 +208,13 @@ public class VendaSyncService
         return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizadas);
     }
 
-    private static Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(AppDbContext context, Venda venda, string mensagem, CancellationToken ct) =>
-        OutboxHelper.MarcarFalhaAsync(context, venda, mensagem, (v, m) =>
+    private Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(AppDbContext context, Venda venda, string mensagem, CancellationToken ct)
+    {
+        var agora = AgoraUtc;
+        return OutboxHelper.MarcarFalhaAsync(context, venda, mensagem, (v, m) =>
         {
             v.SyncStatus = SyncStatus.FalhaSync;
-            v.UltimoErroSync = m;
-            v.TentativasEnvio += 1;
+            v.UltimoErroSync = PoliticaRetentativa.RegistrarFalha(v, agora, m);   // também conta TentativasEnvio
         }, ct);
+    }
 }
