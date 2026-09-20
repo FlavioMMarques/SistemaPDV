@@ -197,10 +197,11 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 
 **Sincronização automática**
 - [x] Task 50: `SincronizacaoBackgroundService` (timer 30s outbox / 5min catálogo)
+- [x] Task 51: `FecharCaixaViewModel`/`FecharCaixaView` (lacuna descoberta em 2026-09-20: o fluxo "… → fechar caixa" não tinha tela)
 
 ### Checkpoint: pdv-ui completo
-- [ ] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
-- [ ] Revisão com o usuário
+- [x] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
+- [x] Revisão com o usuário (2026-09-20)
 
 ## Risks and Mitigations
 

@@ -1464,5 +1464,5 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 ---
 
 ### Checkpoint: pdv-ui completo
-- [ ] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
-- [ ] Revisão com o usuário
+- [x] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
+- [x] Revisão com o usuário (2026-09-20: atalhos de teclado e venda offline conferidos manualmente; fluxo real contra a API — vincular, sincronizar, logar, abrir caixa, vender, fechar — validado com venda 333/334 e caixa 28)

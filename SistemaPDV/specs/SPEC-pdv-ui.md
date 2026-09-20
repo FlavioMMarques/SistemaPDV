@@ -121,13 +121,16 @@ Estas três coisas não existiam nos módulos já construídos e precisam ser ad
 
 ## Success Criteria
 
-- [ ] Fluxo login → (se `ExigirAberturaCaixa`) abrir caixa → vender → fechar caixa navegável de ponta a ponta
-- [ ] Toggle `ExigirAberturaCaixa` em Configurações muda o fluxo pós-login de verdade (testável nos dois estados)
-- [ ] Indicadores de sincronização (🟢/🟡/🔴) refletem o estado real do banco local
-- [ ] Vender offline funciona e a venda aparece como pendente até sincronizar
-- [ ] Timer de background sincroniza outbox (caixa/venda/cliente) a cada 30s e catálogo a cada 5min, sem travar a UI e sem crashar em falha de rede
-- [ ] Cadastrar cliente simples (nome + CPF/CNPJ) grava local na hora e sincroniza sozinho quando o timer rodar, aparecendo disponível na tela de venda só depois de ter `IdExterno`
-- [ ] Atalhos de teclado do protótipo (F2 novo, F4 buscar, F10 pagar, Esc cancelar) funcionam na tela de venda
+- [x] Fluxo login → (se `ExigirAberturaCaixa`) abrir caixa → vender → fechar caixa navegável de ponta a ponta
+- [x] Toggle `ExigirAberturaCaixa` em Configurações muda o fluxo pós-login de verdade (testável nos dois estados)
+- [x] Indicadores de sincronização (🟢/🟡/🔴) refletem o estado real do banco local
+- [x] Vender offline funciona e a venda aparece como pendente até sincronizar
+- [x] Timer de background sincroniza outbox (caixa/venda/cliente) a cada 30s e catálogo a cada 5min, sem travar a UI e sem crashar em falha de rede
+- [x] Cadastrar cliente simples (nome + CPF/CNPJ) grava local na hora e sincroniza sozinho quando o timer rodar, aparecendo disponível na tela de venda só depois de ter `IdExterno`
+- [x] Atalhos de teclado do protótipo (F2 novo, F4 buscar, F10 pagar, Esc cancelar) funcionam na tela de venda
+
+
+_Todos conferidos em 2026-09-20 (automatizado + conferência manual do usuário: atalhos de teclado e venda offline)._
 
 ## Open Questions
 
