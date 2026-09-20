@@ -51,7 +51,7 @@ public class VendaSyncService
 
         var funcionario = await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct);
         if (funcionario?.IdExterno is not { } operadorId)
-            return ResultadoSincronizacaoRecurso.ComFalha("Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.");
+            return await AguardarAsync(context, venda, "Funcionário do caixa ainda não sincronizou — sincronize funcionários antes.", ct);
 
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Configuração de sincronização não encontrada.");
@@ -65,24 +65,35 @@ public class VendaSyncService
             ? empresas.FirstOrDefault()
             : empresas.FirstOrDefault(e => DocumentoValidator.SoDigitos(e.Cnpj) == cnpjDoDispositivo);
         if (empresa?.IdExterno is not { } empresaId)
-            return ResultadoSincronizacaoRecurso.ComFalha("Empresa deste dispositivo ainda não sincronizou — sincronize a empresa antes.");
+            return await AguardarAsync(context, venda, "Empresa deste dispositivo ainda não sincronizou — sincronize a empresa antes.", ct);
 
         int clienteIdExterno;
         if (venda.ClienteId is { } clienteIdLocal)
         {
             var cliente = await context.Clientes.FindAsync(new object[] { clienteIdLocal }, ct);
             if (cliente?.IdExterno is not { } idExterno)
-                return ResultadoSincronizacaoRecurso.ComFalha("Cliente da venda ainda não sincronizou.");
+                return await AguardarAsync(context, venda, "Cliente da venda ainda não sincronizou.", ct);
 
             clienteIdExterno = idExterno;
         }
         else if (configuracao.ClienteConsumidorFinalIdExterno is { } consumidorFinalId)
         {
-            clienteIdExterno = consumidorFinalId;
+            clienteIdExterno = consumidorFinalId;   // configurado à mão: tem prioridade
         }
         else
         {
-            return ResultadoSincronizacaoRecurso.ComFalha("Id do cliente \"Consumidor Final\" não configurado — configure antes de sincronizar vendas avulsas.");
+            // Sem configuração manual: o Consumidor Final é o cliente que a API marca com
+            // indicador_finalidade = 1 (na API real: id 1, "CONSUMIDOR"). Exigir configuração à mão
+            // deixava toda venda avulsa 🟡 pra sempre.
+            var consumidorFinal = await context.Clientes
+                .Where(c => c.IdExterno != null && c.IndicadorFinalidade == 1)
+                .OrderBy(c => c.IdExterno)
+                .Select(c => c.IdExterno)
+                .FirstOrDefaultAsync(ct);
+            if (consumidorFinal is not { } consumidorFinalDetectado)
+                return await AguardarAsync(context, venda, "Cliente \"Consumidor Final\" ainda não foi encontrado — aguarde a sincronização de clientes ou informe o id em Configurações.", ct);
+
+            clienteIdExterno = consumidorFinalDetectado;
         }
 
         var produtoIdsLocais = venda.Itens.Select(i => i.ProdutoId).Distinct().ToList();
@@ -95,13 +106,13 @@ public class VendaSyncService
         foreach (var item in venda.Itens)
         {
             if (!produtos.TryGetValue(item.ProdutoId, out var produto) || produto.IdExterno is not { } produtoIdExterno)
-                return ResultadoSincronizacaoRecurso.ComFalha("Um dos produtos da venda ainda não sincronizou.");
+                return await AguardarAsync(context, venda, "Um dos produtos da venda ainda não sincronizou.", ct);
 
             // O produto tem DOIS ids na API. Sem o produto_id guardado (produto sincronizado antes de o
             // app guardar isso), mandar o `id` no lugar registraria OUTRO produto na venda — espera a
             // próxima sincronização de produtos, que preenche (e fica PendenteSync, sem marcar falha).
             if (produto.ProdutoIdApi is not { } produtoIdApi)
-                return ResultadoSincronizacaoRecurso.ComFalha("Um dos produtos da venda ainda não tem o id-base da API — aguarde a próxima sincronização de produtos.");
+                return await AguardarAsync(context, venda, "Um dos produtos da venda ainda não tem o id-base da API — aguarde a próxima sincronização de produtos.", ct);
 
             produtosDto.Add(new VendaProdutoRequestDto
             {
@@ -119,7 +130,7 @@ public class VendaSyncService
         foreach (var pagamento in venda.Pagamentos)
         {
             if (!formasPagamento.TryGetValue(pagamento.FormaPagamentoId, out var forma) || forma.IdExterno is not { } formaIdExterno)
-                return ResultadoSincronizacaoRecurso.ComFalha("Uma das formas de pagamento da venda ainda não sincronizou.");
+                return await AguardarAsync(context, venda, "Uma das formas de pagamento da venda ainda não sincronizou.", ct);
 
             pagamentosDto.Add(new VendaPagamentoRequestDto
             {
@@ -232,6 +243,21 @@ public class VendaSyncService
         }
 
         return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizadas);
+    }
+
+    // Espera por uma dependência (funcionário, empresa, cliente, produto…): NÃO é falha da venda — continua
+    // PendenteSync e não gasta tentativa —, mas o motivo fica gravado em UltimoErroSync pra a lista de pedidos
+    // mostrar. Antes era totalmente silencioso: a venda ficava 🟡 pra sempre sem ninguém saber o que faltava.
+    // O motivo some sozinho quando a venda é enviada (SincronizarVendaAsync zera UltimoErroSync).
+    private static async Task<ResultadoSincronizacaoRecurso> AguardarAsync(AppDbContext context, Venda venda, string motivo, CancellationToken ct)
+    {
+        if (venda.UltimoErroSync != motivo)
+        {
+            venda.UltimoErroSync = motivo;
+            await context.SaveChangesAsync(ct);
+        }
+
+        return ResultadoSincronizacaoRecurso.ComFalha(motivo);
     }
 
     private Task<ResultadoSincronizacaoRecurso> MarcarFalhaAsync(AppDbContext context, Venda venda, string mensagem, CancellationToken ct)
