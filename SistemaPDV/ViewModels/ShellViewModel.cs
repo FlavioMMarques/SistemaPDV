@@ -105,9 +105,8 @@ public class ShellViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref caixaAberto, value);
     }
 
-    // Sem infraestrutura de log ainda no projeto — pelo menos isso dá pra tela
-    // mostrar alguma coisa quando ExecutarComTratamentoDeErroAsync captura uma
-    // falha, em vez de travar em silêncio (ver o método).
+    // Mensagem mostra na tela o erro que ExecutarComTratamentoDeErroAsync capturou (o detalhe vai pro log), em vez
+    // de travar em silêncio (ver o método).
     public string? Mensagem
     {
         get => mensagem;
@@ -333,9 +332,7 @@ public class ShellViewModel : ViewModelBase
     // dados, reagir a login) sem o chamador esperar — sem esse try/catch, qualquer
     // exceção nesse trabalho vira uma task nunca observada e desaparece
     // silenciosamente, travando a tela sem explicação nenhuma (achado numa revisão
-    // de código, 2026-09-18). Sem infraestrutura de log ainda no projeto, o mínimo
-    // é nunca deixar isso sumir em silêncio — Mensagem ao menos dá pra tela mostrar
-    // alguma coisa em vez de nada.
+    // de código, 2026-09-18). Nunca deixa isso sumir em silêncio: o detalhe vai pro log e a Mensagem mostra algo na tela.
     private async Task ExecutarComTratamentoDeErroAsync(Func<Task> operacao)
     {
         try
@@ -344,6 +341,7 @@ public class ShellViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            Registro.Erro("Interface", "Erro inesperado numa operação em segundo plano", ex);
             Mensagem = $"Ocorreu um erro inesperado: {ex.Message}";
         }
     }

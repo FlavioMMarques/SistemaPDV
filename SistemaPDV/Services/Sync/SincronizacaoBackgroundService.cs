@@ -69,6 +69,8 @@ public class SincronizacaoBackgroundService : IDisposable
 
     private readonly SemaphoreSlim cicloEmAndamento = new(1, 1);
     private readonly BehaviorSubject<EstadoConexao> estado = new(EstadoConexao.Desconhecida);
+    private readonly object travaEstadoRegistrado = new();
+    private EstadoConexao? ultimoEstadoRegistrado;   // só pro log: ver RegistrarMudancaDeEstado
     private readonly Subject<Unit> dadosAlterados = new();
 
     private bool catalogoSincronizado;
@@ -194,6 +196,7 @@ public class SincronizacaoBackgroundService : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Registro.Erro("Sincronização", "Exceção no ciclo do catálogo", ex);
             Publicar(EstadoConexao.Offline, ex.Message);
         }
         finally
@@ -238,6 +241,7 @@ public class SincronizacaoBackgroundService : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Registro.Erro("Sincronização", "Exceção no ciclo de envio", ex);
             Publicar(EstadoConexao.Offline, ex.Message);
         }
         finally
@@ -248,9 +252,7 @@ public class SincronizacaoBackgroundService : IDisposable
 
     // Uma etapa que falha (mesmo lançando) não impede as seguintes: um cliente rejeitado
     // não pode travar o caixa que o operador está esperando confirmar. A entidade
-    // simplesmente continua pendente/falha e é tentada de novo no próximo ciclo. (Sem
-    // infraestrutura de log ainda no projeto — mesma limitação registrada nos lotes de
-    // VendaSyncService/CatalogSyncService.)
+    // simplesmente continua pendente/falha e é tentada de novo no próximo ciclo. A exceção vai pro log (Registro).
     private static async Task ExecutarEtapaAsync(Func<Task> etapa)
     {
         try
@@ -259,6 +261,7 @@ public class SincronizacaoBackgroundService : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            Registro.Erro("Sincronização", "Exceção numa etapa do envio (as outras etapas seguem)", ex);
         }
     }
 
@@ -347,7 +350,29 @@ public class SincronizacaoBackgroundService : IDisposable
     private void Publicar(EstadoConexao novoEstado, string? mensagem)
     {
         MensagemUltimoCiclo = mensagem is { Length: > TamanhoMaximoMensagem } longa ? longa[..TamanhoMaximoMensagem] : mensagem;
+        RegistrarMudancaDeEstado(novoEstado, mensagem);
         estado.OnNext(novoEstado);
+    }
+
+    // Só quando o estado MUDA: um PDV sem internet publica "Offline" a cada 30 s, e uma linha por ciclo encheria o
+    // arquivo sem dizer nada de novo. Assim o log conta a história ("caiu às 14:02, voltou às 14:20").
+    private void RegistrarMudancaDeEstado(EstadoConexao novoEstado, string? mensagem)
+    {
+        EstadoConexao? anterior;
+        lock (travaEstadoRegistrado)
+        {
+            anterior = ultimoEstadoRegistrado;
+            ultimoEstadoRegistrado = novoEstado;
+        }
+
+        if (anterior == novoEstado)
+            return;
+
+        var texto = $"Conexão com a API: {anterior?.ToString() ?? "início"} → {novoEstado}" + (string.IsNullOrEmpty(mensagem) ? "" : $" ({mensagem})");
+        if (novoEstado is EstadoConexao.Offline or EstadoConexao.OnlineComFalhas)
+            Registro.Aviso("Sincronização", texto);
+        else
+            Registro.Info("Sincronização", texto);
     }
 
     // Fora da thread de UI (ver comentário da classe) e sem deixar nada escapar: um
@@ -362,10 +387,12 @@ public class SincronizacaoBackgroundService : IDisposable
             {
                 await ciclo(token);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // Os ciclos já tratam suas próprias falhas; isto é só a última rede de
-                // segurança contra derrubar o processo.
+                // segurança contra derrubar o processo. (O cancelamento de Parar() é esperado: não é erro.)
+                if (ex is not OperationCanceledException)
+                    Registro.Erro("Sincronização", "Exceção que escapou de um ciclo", ex);
             }
         }, CancellationToken.None);
     }

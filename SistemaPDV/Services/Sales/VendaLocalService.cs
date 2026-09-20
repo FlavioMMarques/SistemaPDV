@@ -47,7 +47,10 @@ public class VendaLocalService
 
         var supervisor = await AutenticarSupervisorAsync(context, chaveSupervisor, ct);
         if (supervisor is null)
+        {
+            Registro.Aviso("Auditoria", $"Descarte da venda {venda.Id} (#{venda.NumeroPedido}) recusado: chave de supervisor inválida (pedido por funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}).");
             return ResultadoDescarte.Falha("Chave de supervisor inválida — o descarte precisa da chave de um supervisor.");
+        }
 
         venda.SyncStatus = SyncStatus.Descartada;
         venda.DescartadaEm = DateTime.UtcNow;
@@ -55,6 +58,7 @@ public class VendaLocalService
         venda.SolicitadaPorId = solicitadaPorFuncionarioId;
         venda.MotivoDescarte = motivoLimpo;
         await context.SaveChangesAsync(ct);
+        Registro.Info("Auditoria", $"Venda {venda.Id} (#{venda.NumeroPedido}) descartada pelo supervisor {supervisor.Id} a pedido do funcionário {solicitadaPorFuncionarioId?.ToString() ?? "?"}. Motivo: {motivoLimpo}");
         return ResultadoDescarte.Ok();
     }
 

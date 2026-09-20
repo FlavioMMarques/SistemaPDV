@@ -1,5 +1,7 @@
 ﻿using System.Runtime.Versioning;
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using System.Reactive.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -30,6 +32,9 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Antes de qualquer serviço: se a criação do banco/migração falhar, o motivo já vai pro arquivo.
+        IniciarLog();
+
         Services = new AppServices();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -67,9 +72,36 @@ public partial class App : Application
                 Dispatcher.UIThread.Post(shellViewModel.NotificarDadosSincronizados));
             shellViewModel.DispositivoVinculado.Subscribe(_ => sincronizacao.SolicitarAgora());
             sincronizacao.Iniciar();
-            desktop.Exit += (_, _) => sincronizacao.Dispose();
+            desktop.Exit += (_, _) =>
+            {
+                sincronizacao.Dispose();
+                Registro.Info("App", "Aplicativo encerrado");
+            };
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    // Log em %LOCALAPPDATA%\SistemaPDV\logs — pasta do usuário (sempre gravável, mesmo com o app instalado em
+    // Program Files) e fora do diretório do executável. Falhar aqui só deixa o app sem log: nunca impede de abrir.
+    private static void IniciarLog()
+    {
+        try
+        {
+            var pasta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SistemaPDV", "logs");
+            Registro.Destino = new LogArquivo(pasta);
+
+            // Só registram (não impedem o crash): uma exceção fatal ou de tarefa esquecida ao menos deixa rastro.
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+                Registro.Erro("App", "Exceção fatal não tratada", e.ExceptionObject as Exception);
+            TaskScheduler.UnobservedTaskException += (_, e) =>
+                Registro.Erro("App", "Exceção de tarefa não observada", e.Exception);
+
+            Registro.Info("App", $"Aplicativo iniciado (versão {typeof(App).Assembly.GetName().Version}).");
+        }
+        catch (Exception)
+        {
+            // Sem log, mas o app abre.
+        }
     }
 }

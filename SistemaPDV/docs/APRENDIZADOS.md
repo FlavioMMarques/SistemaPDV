@@ -496,3 +496,18 @@ Detalhes que valem lembrar: (a) o **`#N` da tela continua o sequencial simples**
 Dúvida: se o catálogo passa de uma página (`per_page=200`), a sincronização pega tudo? Em vez de chamar a API real (que exigiria token e segredo), contei os produtos numa **cópia** do `pdv.db`: **201**. Como uma página tem 200, o 201º só chegou se a segunda página foi seguida — a paginação já funciona no mundo real, com custo zero e sem tocar em credencial. Lição: dado que o próprio sistema já gravou costuma ser prova mais barata (e mais segura) que uma nova chamada.
 
 O que a evidência **não** cobre é o caso ruim: uma API que devolve a mesma `next_page_url` para sempre prenderia o ciclo de sincronização num laço infinito, baixando a mesma página. O laço agora guarda as URLs já visitadas e falha com mensagem clara ao repetir uma. Dois testes novos: cinco páginas encadeadas lidas na ordem, e o caso do laço (para em 2 chamadas).
+
+
+## 66. Log: o que registrar, o que NUNCA registrar, e o log que não pode derrubar o app
+
+**Onde:** `LogArquivo`, `Registro`, ganchos em `OutboxHelper`, `SincronizacaoBackgroundService`, `TratamentoDeErros`, `App`
+
+O app engolia falhas de propósito (um cliente que falha não trava o lote; uma exceção de comando vira banner) e todos os comentários diziam "sem infraestrutura de log ainda". Em campo isso significa "deu erro" sem ninguém saber por quê. O log resolve isso — mas é também o lugar mais fácil de vazar segredo e de derrubar o app, então as regras vieram antes do código:
+
+1. **Nunca lança.** Disco cheio, pasta sem permissão, arquivo aberto por outro programa: tudo é engolido dentro do próprio log. Um log que causa crash na hora da venda é pior que não ter log. Teste: uma pasta impossível de criar não lança.
+2. **Nunca grava segredo nem dado pessoal.** As mensagens de erro da API trazem o corpo da resposta, que pode ter token, CPF, etc. Tudo passa por `Mascarar` antes de ir pro arquivo (token, `client_secret`, `pdv_key`, hash bcrypt, `Bearer …`, CPF e CNPJ). O teste de `Authorization: Bearer <token>` **pegou um vazamento real** na 1ª versão: a regra de chave/valor mascarava só a palavra "Bearer" e deixava o token — foi preciso aceitar o `Bearer ` opcional antes do valor. Lição: teste a máscara com o formato exato em que o segredo aparece, não só com o caso feliz.
+3. **Tem limite.** 5 MB por dia (passou, avisa uma vez e para) e 14 dias de retenção: o log não pode encher o disco de um PDV.
+4. **Registra mudança, não repetição.** Um PDV sem internet publica "Offline" a cada 30 s; uma linha por ciclo encheria o arquivo sem dizer nada de novo. O estado da conexão só vai ao log quando **muda** — o arquivo conta a história ("caiu às 14:02, voltou às 14:20").
+5. **`Registro` estático, `LogArquivo` por instância.** Os serviços já eram construídos em dezenas de testes; passar um logger por construtor mudaria todas essas assinaturas. `Registro` (mesmo padrão de `TratamentoDeErros`) fica em no-op até o `App` definir o destino — então a suíte de testes nunca escreve arquivo por acidente, e o `LogArquivo` em si é testável isolado.
+
+Onde ficam: `%LOCALAPPDATA%\SistemaPDV\logs\pdv-AAAAMMDD.log` (pasta do usuário: sempre gravável, mesmo com o app em Program Files). Limite conhecido: a máscara é por padrão (regex); um dado pessoal em formato inesperado (ex: nome do cliente dentro de uma mensagem da API) não seria reconhecido — por isso o log não grava corpo de requisição, só mensagens de erro.
