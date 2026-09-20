@@ -6,6 +6,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using ReactiveUI;
+using SistemaPDV.Services;
 using SistemaPDV.Services.Caixa;
 
 namespace SistemaPDV.ViewModels;
@@ -29,7 +30,7 @@ public class AbrirCaixaViewModel : ViewModelBase
         this.funcionarioId = funcionarioId;
 
         var podeAbrir = this.WhenAnyValue(vm => vm.TrocoInicial,
-            troco => decimal.TryParse(troco, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor) && valor >= 0);
+            troco => ValorMonetario.TentarLer(troco, out var valor) && valor >= 0);
         AbrirCommand = ReactiveCommand.CreateFromTask(AbrirAsync, podeAbrir);
     }
 
@@ -61,7 +62,7 @@ public class AbrirCaixaViewModel : ViewModelBase
     {
         Mensagem = null;
 
-        var trocoValor = decimal.Parse(TrocoInicial, NumberStyles.Number, CultureInfo.InvariantCulture);
+        ValorMonetario.TentarLer(TrocoInicial, out var trocoValor);   // já validado pelo CanExecute do comando
         var dataCaixa = DateOnly.FromDateTime(DateTime.Now);
 
         var resultado = await caixaService.AbrirCaixaLocalAsync(funcionarioId, dataCaixa, Turno, trocoValor);

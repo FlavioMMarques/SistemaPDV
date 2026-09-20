@@ -166,7 +166,7 @@ public class PdvViewModel : ViewModelBase
 
     public void AdicionarItem(Produto produto)
     {
-        var quantidade = decimal.TryParse(QuantidadeAdicionar, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor) && valor > 0
+        var quantidade = ValorMonetario.TentarLer(QuantidadeAdicionar, out var valor, casasDecimais: 3) && valor > 0
             ? valor
             : 1m;
 
@@ -181,7 +181,7 @@ public class PdvViewModel : ViewModelBase
         // sensato de 1): dinheiro não tem default sensato nenhum — um valor
         // inválido/vazio tem que rejeitar a ação, não adicionar um pagamento de
         // R$ 0,00 silencioso (achado numa revisão de código, 2026-09-18).
-        if (!decimal.TryParse(ValorPagamentoAdicionar, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor) || valor <= 0)
+        if (!ValorMonetario.TentarLer(ValorPagamentoAdicionar, out var valor) || valor <= 0)
         {
             Mensagem = "Informe um valor válido pra adicionar o pagamento.";
             return;
