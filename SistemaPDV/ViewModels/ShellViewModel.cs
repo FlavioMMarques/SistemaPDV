@@ -1,6 +1,7 @@
 using System;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using ReactiveUI;
@@ -34,6 +35,7 @@ public class ShellViewModel : ViewModelBase
     private bool vendaEmAndamento;
     private EstadoConexao conexao;
     private string? detalheConexao;
+    private readonly Subject<Unit> dispositivoVinculado = new();
 
     public ShellViewModel(
         ConfiguracaoService configuracaoService,
@@ -134,6 +136,10 @@ public class ShellViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref detalheConexao, value);
     }
 
+    // Emite quando o dispositivo acabou de ser vinculado com sucesso (App liga isso ao
+    // serviço de sincronização pra rodar já, sem esperar os 30 s).
+    public IObservable<Unit> DispositivoVinculado => dispositivoVinculado;
+
     public void DefinirConexao(EstadoConexao estado, string? detalhe)
     {
         DetalheConexao = estado == EstadoConexao.Offline ? detalhe : null;
@@ -168,6 +174,18 @@ public class ShellViewModel : ViewModelBase
     private void IrParaConfiguracoes()
     {
         var viewModel = new ConfiguracoesViewModel(configuracaoService);
+
+        // Vincular com sucesso é o que destrava o resto (login, sincronização): leva ao
+        // Login sem reabrir o app e avisa quem quiser sincronizar já, em vez de esperar o
+        // próximo tick do timer — sem funcionários locais a chave do operador não passa.
+        viewModel.VincularCommand
+            .Where(vinculou => vinculou)
+            .Subscribe(_ =>
+            {
+                // Avisa ANTES de navegar: quem espera a troca de tela já encontra o aviso feito.
+                dispositivoVinculado.OnNext(Unit.Default);
+                IrParaLogin();
+            });
         // CurrentViewModel antes de TelaAtual de propósito: quem observa TelaAtual
         // (ex: um teste com WhenAnyValue) só deve acordar depois que o resto do
         // estado da navegação já está pronto — inverter a ordem cria uma corrida

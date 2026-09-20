@@ -478,6 +478,25 @@ public class SincronizacaoBackgroundServiceTests
     }
 
     [Fact]
+    public async Task SolicitarAgoraRodaOCicloRapidoSemEsperarOTimer()
+    {
+        // Usado logo depois de vincular o dispositivo: sem isso, o Login recusaria a
+        // chave por até 30 s (os funcionários ainda não foram baixados).
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var api = new ApiFake();
+        var service = CriarService(fixture, api.CriarHttpClient());
+
+        service.SolicitarAgora();
+
+        var limite = DateTime.UtcNow.AddSeconds(10);
+        while (service.Estado != EstadoConexao.Online && DateTime.UtcNow < limite)
+            await Task.Delay(20);
+        Assert.Equal(EstadoConexao.Online, service.Estado);
+        Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
+    }
+
+    [Fact]
     public void PararSemTerIniciadoNaoQuebra()
     {
         using var fixture = new SqliteInMemoryFixture();

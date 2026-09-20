@@ -110,6 +110,10 @@ public class SincronizacaoBackgroundService : IDisposable
         Disparar(ExecutarCicloRapidoAsync);
     }
 
+    // Roda o ciclo rápido já (catálogo inicial + outbox) fora do timer — usado logo depois
+    // de vincular o dispositivo, pra os funcionários chegarem antes do operador tentar logar.
+    public void SolicitarAgora() => Disparar(ExecutarCicloRapidoAsync);
+
     public void Parar()
     {
         timerOutbox?.Stop();

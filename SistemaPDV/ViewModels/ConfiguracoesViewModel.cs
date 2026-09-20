@@ -75,7 +75,9 @@ public class ConfiguracoesViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref mensagem, value);
     }
 
-    public ReactiveCommand<Unit, Unit> VincularCommand { get; }
+    // Devolve se vinculou: o Shell escuta pra levar ao Login (e avisar a sincronização)
+    // só quando deu certo — com falha, a tela fica pro operador corrigir o link.
+    public ReactiveCommand<Unit, bool> VincularCommand { get; }
     public ReactiveCommand<Unit, Unit> SalvarCommand { get; }
 
     public async Task IniciarAsync()
@@ -90,10 +92,11 @@ public class ConfiguracoesViewModel : ViewModelBase
     // Único método que chama VincularDispositivoAsync (DPAPI, Windows-only) —
     // mesma granularidade de todo o resto do projeto (ver AppServices).
     [SupportedOSPlatform("windows")]
-    private async Task VincularAsync()
+    private async Task<bool> VincularAsync()
     {
         var (sucesso, mensagemResultado) = await configuracaoService.VincularDispositivoAsync(LinkCadastro, NomeDispositivo);
         Mensagem = mensagemResultado;
+        return sucesso;
     }
 
     private async Task SalvarAsync()

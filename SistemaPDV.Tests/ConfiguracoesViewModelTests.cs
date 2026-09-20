@@ -75,6 +75,32 @@ public class ConfiguracoesViewModelTests
     }
 
     [Fact]
+    public async Task VincularDevolveTrueQuandoDeuCertoEFalseQuandoFalhou()
+    {
+        using var okFixture = new SqliteInMemoryFixture();
+        var comSucesso = CriarViewModel(okFixture, FakeHttpMessageHandler.CriarHttpClient(_ =>
+            RespostaJson(HttpStatusCode.OK, """{ "data": { "client_secret": "abc" } }""")));
+        comSucesso.LinkCadastro = "https://exemplo.softcomshop.com.br/registrar?client_id=7";
+        comSucesso.NomeDispositivo = "PDV-01";
+
+        using var falhaFixture = new SqliteInMemoryFixture();
+        var comFalha = CriarViewModel(falhaFixture, FakeHttpMessageHandler.CriarHttpClient(_ =>
+            RespostaJson(HttpStatusCode.BadRequest, """{ "message": "device_id invalido" }""")));
+        comFalha.LinkCadastro = "https://exemplo.softcomshop.com.br/registrar?client_id=7";
+        comFalha.NomeDispositivo = "PDV-01";
+
+        await comSucesso.IniciarAsync();
+        await comFalha.IniciarAsync();
+        comSucesso.LinkCadastro = "https://exemplo.softcomshop.com.br/registrar?client_id=7";
+        comSucesso.NomeDispositivo = "PDV-01";
+        comFalha.LinkCadastro = "https://exemplo.softcomshop.com.br/registrar?client_id=7";
+        comFalha.NomeDispositivo = "PDV-01";
+
+        Assert.True(await comSucesso.VincularCommand.Execute());
+        Assert.False(await comFalha.VincularCommand.Execute());
+    }
+
+    [Fact]
     public async Task SalvarCommandPersisteTogglesSemPrecisarVincularDeNovo()
     {
         using var fixture = new SqliteInMemoryFixture();
