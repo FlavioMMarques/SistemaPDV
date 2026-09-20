@@ -6,6 +6,7 @@ using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Services;
+using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.ViewModels;
 
@@ -21,6 +22,7 @@ public class ConfiguracoesViewModel : ViewModelBase
     private string linkCadastro = string.Empty;
     private string nomeDispositivo = string.Empty;
     private string clienteConsumidorFinalIdExterno = string.Empty;
+    private string codigoPdv = string.Empty;
     private bool exigirAberturaCaixa = true;
     private string? mensagem;
 
@@ -63,6 +65,13 @@ public class ConfiguracoesViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref clienteConsumidorFinalIdExterno, value);
     }
 
+    // Prefixo do numero_documento (ver NumeroDocumento): cada PDV da mesma empresa precisa de um código diferente.
+    public string CodigoPdv
+    {
+        get => codigoPdv;
+        set => this.RaiseAndSetIfChanged(ref codigoPdv, value);
+    }
+
     public bool ExigirAberturaCaixa
     {
         get => exigirAberturaCaixa;
@@ -86,6 +95,7 @@ public class ConfiguracoesViewModel : ViewModelBase
         LinkCadastro = configuracao.UrlApi ?? string.Empty;
         NomeDispositivo = configuracao.NomeDispositivo ?? string.Empty;
         ClienteConsumidorFinalIdExterno = configuracao.ClienteConsumidorFinalIdExterno?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        CodigoPdv = configuracao.CodigoPdv ?? string.Empty;
         ExigirAberturaCaixa = configuracao.ExigirAberturaCaixa;
     }
 
@@ -101,6 +111,13 @@ public class ConfiguracoesViewModel : ViewModelBase
 
     private async Task SalvarAsync()
     {
+        // Código inválido não salva nada: melhor avisar do que gravar meio salvo e o operador achar que valeu.
+        if (!NumeroDocumento.TentarNormalizarCodigo(CodigoPdv, out var codigo))
+        {
+            Mensagem = $"O código do PDV aceita até {NumeroDocumento.TamanhoMaximoCodigo} letras ou números, sem espaço nem hífen.";
+            return;
+        }
+
         var clienteConsumidorFinalId = int.TryParse(ClienteConsumidorFinalIdExterno, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
             ? id
             : (int?)null;
@@ -109,7 +126,9 @@ public class ConfiguracoesViewModel : ViewModelBase
         {
             c.ExigirAberturaCaixa = ExigirAberturaCaixa;
             c.ClienteConsumidorFinalIdExterno = clienteConsumidorFinalId;
+            c.CodigoPdv = codigo;
         });
+        CodigoPdv = codigo ?? string.Empty;   // mostra como ficou (maiúsculo, sem espaços)
 
         Mensagem = "Configurações salvas.";
     }

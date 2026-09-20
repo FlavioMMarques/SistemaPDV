@@ -82,6 +82,21 @@
                      TabIndex="4" />
           </StackPanel>
 
+          <StackPanel Spacing="4">
+            <TextBlock Text="Código deste PDV" Foreground="{StaticResource TextMutedBrush}" />
+            <TextBox Text="{Binding CodigoPdv, Mode=TwoWay}"
+                     MaxLength="6"
+                     PlaceholderText="ex: 01"
+                     Background="{StaticResource BgInputBrush}"
+                     BorderBrush="{StaticResource BorderColorBrush}"
+                     Foreground="{StaticResource TextMainBrush}"
+                     CornerRadius="{StaticResource RadiusSmall}"
+                     AutomationProperties.Name="Código deste PDV"
+                     TabIndex="5" />
+            <TextBlock Text="Prefixo do número da venda enviado à API (ex: 01-000045). Se a empresa tem mais de um PDV, cada um precisa de um código diferente — senão os números podem se repetir."
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="12" TextWrapping="Wrap" />
+          </StackPanel>
+
           <Button Content="Salvar"
                   Command="{Binding SalvarCommand}"
                   Background="{StaticResource AccentGreenBrush}"
@@ -89,7 +104,7 @@
                   FontWeight="Bold"
                   CornerRadius="{StaticResource RadiusMedium}"
                   Padding="16,8"
-                  TabIndex="5"
+                  TabIndex="6"
                   AutomationProperties.Name="Salvar configurações" />
         </StackPanel>
       </Border>

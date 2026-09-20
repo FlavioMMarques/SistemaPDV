@@ -474,3 +474,16 @@ Depois de exigir "fechar caixa só sem venda pendente" (#62), uma venda que a AP
 4. **Trata como cancelada:** fora do "esperado" do fechamento, do faturamento e da contagem de pendentes. Em vez de repetir `SyncStatus != Sincronizado && != Descartada` em cada serviço (e esquecer um), os dois filtros moraram num só lugar, `VendaFiltros.NaoEnviada` e `VendaFiltros.Valida`. Adicionar outro estado terminal no futuro é mexer em um arquivo.
 
 Lição geral: **toda regra que bloqueia precisa de uma saída auditável** — senão o operador acaba pedindo acesso ao banco pra "resolver". E o envio (`VendaSyncService`) recusa explicitamente uma `Descartada`, mesmo que o filtro do lote já a ignore: defesa em profundidade contra um dia alguém chamar o envio individual.
+
+
+## 64. Número único por empresa com vários PDVs offline: prefixo por dispositivo, não contador central
+
+**Onde:** `NumeroDocumento`, `ConfiguracaoSincronizacao.CodigoPdv`, `VendaSyncService`, tela de Configurações
+
+A API exige `numero_documento` único **por empresa**, e cada PDV gera o número sozinho, offline. Com o `NumeroPedido` sequencial de cada dispositivo (1, 2, 3…), dois PDVs da mesma empresa colidiriam já na primeira venda. As três saídas (e por que ficou a primeira, escolha do usuário):
+
+1. **Prefixo por dispositivo** (escolhida): `02-000045`. Funciona 100% offline, sem depender da API e sem coordenar nada em tempo de venda — a coordenação acontece **uma vez**, quando alguém dá um código a cada PDV.
+2. Faixa numérica reservada por PDV: continua só dígitos, mas a faixa acaba e alguém precisa controlar quem tem qual.
+3. Número dado pelo servidor: sem buracos, mas **não funciona offline** — quebra o princípio central do app.
+
+Detalhes que valem lembrar: (a) o **`#N` da tela continua o sequencial simples** — o balcão fala "venda 45", não "02-000045"; o número composto só existe no envio, montado na hora (`Formatar`), então mudar o código não mexe no banco de vendas. (b) O **hífen é proibido no código**: é o separador, e assim dois pares (código, número) diferentes nunca produzem o mesmo texto. (c) Sem código configurado o número segue puro — uma empresa com um PDV só não precisa mudar nada, e as vendas já enviadas (`1`, `2`) não colidem com as novas (`01-000003`). (d) Limite honesto: **o app não tem como saber que outro PDV usa o mesmo código** — a unicidade entre dispositivos depende de quem configura, por isso a tela avisa. Código inválido não salva nada (nem o resto do formulário), para o operador não achar que valeu.

@@ -15,6 +15,10 @@ public class ConfiguracaoSincronizacao
     public string? ApiClienteSecretProtegido { get; set; }
     public string? NomeDispositivo { get; set; }
 
+    // Código curto deste PDV (até 6 letras/dígitos) que prefixa o numero_documento enviado à API — a API exige
+    // número único por empresa e cada PDV numera offline. Vazio = sem prefixo (empresa com um PDV só).
+    public string? CodigoPdv { get; set; }
+
     public DateTimeOffset? UltimaSincronizacaoProdutos { get; set; }
     public DateTimeOffset? UltimaSincronizacaoClientes { get; set; }
     public DateTimeOffset? UltimaSincronizacaoFormasPagamento { get; set; }
