@@ -393,6 +393,59 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public async Task NotificarDadosSincronizadosAtualizaATelaAberta()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao
+            {
+                UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1",
+                ExigirAberturaCaixa = false,
+            });
+            await context.SaveChangesAsync();
+        }
+        await SemearFuncionarioAsync(fixture, "1234");
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+        await shell.IniciarAsync();
+        var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.PdvKeyDigitada = "1234";
+        var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
+        await loginViewModel.EntrarCommand.Execute();
+        await chegouNoDashboard;
+        var chegouEmCadastros = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Dashboard).FirstAsync().ToTask();
+        await shell.IrParaCadastrosCommand.Execute();
+        await chegouEmCadastros;
+        var cadastros = (CadastrosViewModel)shell.CurrentViewModel!;
+        await cadastros.IniciarAsync();
+        Assert.Empty(cadastros.Clientes);
+
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Clientes.Add(new Cliente { Nome = "Chegou do servidor", SyncStatus = SyncStatus.Sincronizado, IdExterno = 9 });
+            await context.SaveChangesAsync();
+        }
+        var recarregou = cadastros.WhenAnyValue(c => c.Clientes).Where(l => l.Count > 0).FirstAsync().ToTask();
+        shell.NotificarDadosSincronizados();
+        await recarregou;
+
+        Assert.Equal("Chegou do servidor", cadastros.Clientes.Single().Nome);
+    }
+
+    [Fact]
+    public void NotificarDadosSincronizadosEmTelaQueNaoAtualizaNaoFazNada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+
+        shell.NotificarDadosSincronizados(); // sem tela nenhuma ainda
+
+        Assert.Null(shell.Mensagem);
+    }
+
+    [Fact]
     public async Task CadastrosFicaDisponivelComOperadorLogadoMesmoSemCaixaAberto()
     {
         using var fixture = new SqliteInMemoryFixture();

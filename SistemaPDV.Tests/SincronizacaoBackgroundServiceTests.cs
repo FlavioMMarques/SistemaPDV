@@ -423,6 +423,83 @@ public class SincronizacaoBackgroundServiceTests
         Assert.Equal(EstadoConexao.Online, service.Estado);
         Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
     }
+    // ---- aviso de dados alterados (as listas se atualizam sozinhas) ----
+
+    [Fact]
+    public async Task OutboxQueEnviouAlgoAvisaQueOsDadosMudaram()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        await SemearClientePendenteAsync(fixture);
+        var service = CriarService(fixture, new ApiFake().CriarHttpClient());
+        var avisos = 0;
+        using var inscricao = service.DadosAlterados.Subscribe(_ => avisos++);
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Equal(1, avisos);
+    }
+
+    [Fact]
+    public async Task OutboxQueFalhouTambemAvisaPoisOStatusMudouParaFalha()
+    {
+        // 🟡 -> 🔴 também é mudança que a tela precisa mostrar.
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        await SemearClientePendenteAsync(fixture);
+        var api = new ApiFake
+        {
+            Sobrescrever = r => r.RequestUri!.AbsolutePath.EndsWith("/clientes/clientes")
+                ? Json(HttpStatusCode.UnprocessableEntity, """{ "errors": { "nome": ["invalido"] } }""")
+                : null,
+        };
+        var service = CriarService(fixture, api.CriarHttpClient());
+        var avisos = 0;
+        using var inscricao = service.DadosAlterados.Subscribe(_ => avisos++);
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Equal(1, avisos);
+    }
+
+    [Fact]
+    public async Task OutboxOciosoNaoAvisaNada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var service = CriarService(fixture, new ApiFake().CriarHttpClient());
+        var avisos = 0;
+        using var inscricao = service.DadosAlterados.Subscribe(_ => avisos++);
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Equal(0, avisos);
+    }
+
+    [Fact]
+    public async Task CatalogoSoAvisaQuandoTrouxeAlgumItem()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var comItem = false;
+        var api = new ApiFake
+        {
+            Sobrescrever = r => comItem && r.RequestUri!.AbsolutePath.EndsWith("/clientes/clientes") && r.Method == HttpMethod.Get
+                ? Json(HttpStatusCode.OK, """{ "current_page": 1, "data": [ { "id": 5, "nome": "Novo Cliente", "pessoa": "FISICA", "bloqueado": "0" } ], "next_page_url": null, "total": 1, "date_sync": 1758000000 }""")
+                : null,
+        };
+        var service = CriarService(fixture, api.CriarHttpClient());
+        var avisos = 0;
+        using var inscricao = service.DadosAlterados.Subscribe(_ => avisos++);
+
+        await service.ExecutarCicloCatalogoAsync();
+        Assert.Equal(0, avisos);
+
+        comItem = true;
+        await service.ExecutarCicloCatalogoAsync();
+        Assert.Equal(1, avisos);
+    }
+
 
     // ---- concorrência ----
 

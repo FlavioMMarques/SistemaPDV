@@ -8,10 +8,10 @@ using SistemaPDV.Services.Sales;
 namespace SistemaPDV.ViewModels;
 
 // Lista as vendas do caixa atual. "Atualiza sozinha sem F5" (Success Criterion da
-// spec) depende de algo rodando em background sincronizando (Task 50, que ainda
-// não existe) — por enquanto AtualizarCommand é manual, decisão confirmada com o
-// usuário (2026-09-18). Revisitar quando SincronizacaoBackgroundService existir.
-public class ListaPedidosViewModel : ViewModelBase
+// spec) vem do SincronizacaoBackgroundService (Task 50): quando um ciclo mexe no banco,
+// o Shell chama AtualizarAposSincronizacaoAsync. AtualizarCommand segue como botão manual
+// (decisão de 2026-09-18, mantido de apoio).
+public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     private readonly VendaLocalService vendaLocalService;
     private readonly int caixaId;
@@ -35,6 +35,10 @@ public class ListaPedidosViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> AtualizarCommand { get; }
 
     public Task IniciarAsync() => CarregarAsync();
+
+    // Chamado pelo Shell quando um ciclo de sincronização mexeu no banco (o "atualiza
+    // sozinha sem F5" da spec) — o botão Atualizar continua valendo.
+    public Task AtualizarAposSincronizacaoAsync() => CarregarAsync();
 
     private async Task CarregarAsync()
     {
