@@ -10,8 +10,8 @@
 
   <DockPanel>
 
-    <!-- Header: operador + caixa (protótipo mockado) — indicador de conexão/pendências
-         só fica ligado de verdade na Task 50 (SincronizacaoBackgroundService). -->
+    <!-- Header: operador + caixa (protótipo mockado) + indicador de conexão (Task 50) —
+         pendências ainda não têm indicador. -->
     <Border DockPanel.Dock="Top"
             Background="{StaticResource BgCardBrush}"
             BorderBrush="{StaticResource BorderColorBrush}"
@@ -25,6 +25,13 @@
                    VerticalAlignment="Center" />
 
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+          <!-- Indicador de conexão (Task 50): ícone + texto, nunca só cor. A dica mostra o
+               motivo quando está offline (ex: URL sem HTTPS). -->
+          <TextBlock Text="{Binding Conexao, Converter={StaticResource EstadoConexaoParaTextoConverter}}"
+                     Foreground="{Binding Conexao, Converter={StaticResource EstadoConexaoParaCorConverter}}"
+                     VerticalAlignment="Center"
+                     ToolTip.Tip="{Binding DetalheConexao}"
+                     AutomationProperties.Name="Estado da conexão com a API" />
           <TextBlock Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center">
             <TextBlock.Text>
               <MultiBinding StringFormat="{}{0} • Cx {1}">

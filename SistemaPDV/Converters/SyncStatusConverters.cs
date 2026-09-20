@@ -3,6 +3,7 @@ using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using SistemaPDV.Models;
+using SistemaPDV.Services.Sync;
 
 namespace SistemaPDV.Converters;
 
@@ -37,6 +38,38 @@ public class SyncStatusParaCorConverter : IValueConverter
         SyncStatus.Sincronizado => new SolidColorBrush(Color.Parse("#10B981")),
         SyncStatus.PendenteSync => new SolidColorBrush(Color.Parse("#FED400")),
         SyncStatus.FalhaSync => new SolidColorBrush(Color.Parse("#F43F5E")),
+        _ => new SolidColorBrush(Color.Parse("#94A3B8")),
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+// Indicador de conexão do header (Task 50) — como nos converters de SyncStatus, nunca só
+// cor: cada estado combina ícone + texto.
+public class EstadoConexaoParaTextoConverter : IValueConverter
+{
+    public static readonly EstadoConexaoParaTextoConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        EstadoConexao.Online => "🟢 Online",
+        EstadoConexao.Offline => "🔴 Offline",
+        _ => "⚪ Conexão não verificada",
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public class EstadoConexaoParaCorConverter : IValueConverter
+{
+    public static readonly EstadoConexaoParaCorConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        EstadoConexao.Online => new SolidColorBrush(Color.Parse("#10B981")),
+        EstadoConexao.Offline => new SolidColorBrush(Color.Parse("#F43F5E")),
         _ => new SolidColorBrush(Color.Parse("#94A3B8")),
     };
 

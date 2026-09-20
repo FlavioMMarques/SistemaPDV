@@ -1385,15 +1385,15 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 **Description:** Timer em background com dois ritmos, usando `DispatcherTimer` do Avalonia (decisão do usuário, 2026-09-18 — integrado ao loop de UI, dispara na thread certa sem precisar de `Dispatcher.UIThread.Post` manual): a cada 30s tenta `CaixaSyncService.SincronizarCaixaPendenteAsync`, `VendaSyncService.SincronizarVendasPendentesAsync` e `CatalogSyncService.SincronizarClienteNovoAsync` (outbox); a cada 5min tenta `CatalogSyncService.SincronizarTudoAsync` (catálogo completo). Cada ciclo isolado em try/catch próprio — falha nunca vira exceção não tratada nem crash, só atualiza o indicador de conexão do Shell pra "offline" e tenta de novo no próximo ciclo. Pausado enquanto `ConfiguracaoSincronizacao` não estiver preenchida.
 
 **Acceptance criteria:**
-- [ ] Usa `DispatcherTimer` (não `System.Threading.Timer`/`Task.Delay` cru) — decisão confirmada com o usuário (2026-09-18)
-- [ ] Roda os dois ritmos (30s/5min) de forma independente, sem bloquear a UI
-- [ ] Uma falha de rede num ciclo não derruba o app nem os ciclos seguintes
-- [ ] Atualiza o indicador online/offline do `ShellViewModel` conforme sucesso/falha do ciclo mais recente
-- [ ] Não faz nada enquanto não há `ConfiguracaoSincronizacao` preenchida (sem URL/credenciais)
+- [x] Usa `DispatcherTimer` (não `System.Threading.Timer`/`Task.Delay` cru) — decisão confirmada com o usuário (2026-09-18)
+- [x] Roda os dois ritmos (30s/5min) de forma independente, sem bloquear a UI
+- [x] Uma falha de rede num ciclo não derruba o app nem os ciclos seguintes
+- [x] Atualiza o indicador online/offline do `ShellViewModel` conforme sucesso/falha do ciclo mais recente
+- [x] Não faz nada enquanto não há `ConfiguracaoSincronizacao` preenchida (sem URL/credenciais)
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter SincronizacaoBackground`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter SincronizacaoBackground` (21 testes; 289 no total)
+- [x] Build: `dotnet build` (0 avisos)
 - [ ] Manual check: `dotnet run`, observar o indicador de sync mudando sozinho com a rede ligada/desligada
 
 **Dependencies:** Task 38, Task 42, Task 48
@@ -1405,6 +1405,10 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 - `SistemaPDV.Tests/SincronizacaoBackgroundServiceTests.cs`
 
 **Estimated scope:** M (4 arquivos)
+
+**Como ficou (2026-09-20):** dois `DispatcherTimer` (30 s / 5 min) só disparam `Task.Run` de ciclos públicos e testáveis (`ExecutarCicloRapidoAsync` = catálogo inicial se ainda não veio + outbox; `ExecutarCicloOutboxAsync`; `ExecutarCicloCatalogoAsync`). Ciclos nunca sobrepõem (semáforo sem fila), cada etapa do outbox é isolada, outbox só pede token se há pendência, e o estado (`EstadoConexao` Desconhecida/Online/Offline + motivo) vai pro header do Shell via `DefinirConexao`.
+
+**Pendente / decidir depois:** (1) 🔎 conferência manual do indicador com rede ligada/desligada; (2) teto de retentativas/backoff (achado #3 da revisão de segurança) — hoje um item com erro permanente é reenviado a cada 30 s; a SPEC diz "sempre retenta", mudar exige decisão do usuário; (3) `ListaPedidos`/`Cadastros` ainda não atualizam sozinhas quando um ciclo sincroniza algo (só pelo botão); (4) depois de vincular o dispositivo, a tela de Configurações não leva ao Login (é preciso reabrir o app).
 
 ---
 
