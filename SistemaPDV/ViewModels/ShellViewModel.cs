@@ -284,7 +284,7 @@ public class ShellViewModel : ViewModelBase
 
     private async Task IrParaListaPedidosAsync(int caixaId)
     {
-        var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId);
+        var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId, OperadorLogado?.Id);
         await viewModel.IniciarAsync();
         CurrentViewModel = viewModel;
         TelaAtual = Tela.ListaPedidos;

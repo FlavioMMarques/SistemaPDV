@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reactive;
 using System.Threading.Tasks;
 using ReactiveUI;
+using SistemaPDV.Models;
 using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.ViewModels;
@@ -15,17 +16,29 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     private readonly VendaLocalService vendaLocalService;
     private readonly int caixaId;
+    private readonly int? operadorId;
 
     private IReadOnlyList<VendaResumo> vendas = Array.Empty<VendaResumo>();
     private string? mensagemReenvio;
+    private VendaResumo? vendaSelecionada;
+    private string motivoDescarte = string.Empty;
+    private string chaveSupervisor = string.Empty;
+    private string? mensagemDescarte;
 
-    public ListaPedidosViewModel(VendaLocalService vendaLocalService, int caixaId)
+    // operadorId = quem PEDE o descarte (o operador logado); quem AUTORIZA é o supervisor, pela chave.
+    public ListaPedidosViewModel(VendaLocalService vendaLocalService, int caixaId, int? operadorId = null)
     {
         this.vendaLocalService = vendaLocalService;
         this.caixaId = caixaId;
+        this.operadorId = operadorId;
 
         AtualizarCommand = ReactiveCommand.CreateFromTask(CarregarAsync);
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
+
+        // Descartar: precisa de uma venda EM FALHA selecionada, do motivo e da chave do supervisor.
+        var podeDescartar = this.WhenAnyValue(vm => vm.VendaSelecionada, vm => vm.MotivoDescarte, vm => vm.ChaveSupervisor,
+            (venda, motivo, chave) => venda is { SyncStatus: SyncStatus.FalhaSync } && !string.IsNullOrWhiteSpace(motivo) && !string.IsNullOrEmpty(chave));
+        DescartarCommand = ReactiveCommand.CreateFromTask(DescartarAsync, podeDescartar);
     }
 
     public IReadOnlyList<VendaResumo> Vendas
@@ -45,11 +58,64 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         private set => this.RaiseAndSetIfChanged(ref mensagemReenvio, value);
     }
 
+    public VendaResumo? VendaSelecionada
+    {
+        get => vendaSelecionada;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref vendaSelecionada, value);
+            this.RaisePropertyChanged(nameof(PodeDescartar));
+        }
+    }
+
+    // O painel de descarte só aparece com uma venda EM FALHA selecionada (a pendente comum ainda vai ser enviada).
+    public bool PodeDescartar => VendaSelecionada is { SyncStatus: SyncStatus.FalhaSync };
+
+    public string MotivoDescarte
+    {
+        get => motivoDescarte;
+        set => this.RaiseAndSetIfChanged(ref motivoDescarte, value);
+    }
+
+    // Chave do supervisor: campo de senha, LIMPO depois de cada tentativa (certa ou errada).
+    public string ChaveSupervisor
+    {
+        get => chaveSupervisor;
+        set => this.RaiseAndSetIfChanged(ref chaveSupervisor, value);
+    }
+
+    public string? MensagemDescarte
+    {
+        get => mensagemDescarte;
+        private set => this.RaiseAndSetIfChanged(ref mensagemDescarte, value);
+    }
+
+    public ReactiveCommand<Unit, Unit> DescartarCommand { get; }
+
     public Task IniciarAsync() => CarregarAsync();
 
     // Chamado pelo Shell quando um ciclo de sincronização mexeu no banco (o "atualiza
     // sozinha sem F5" da spec) — o botão Atualizar continua valendo.
     public Task AtualizarAposSincronizacaoAsync() => CarregarAsync();
+
+    private async Task DescartarAsync()
+    {
+        var venda = VendaSelecionada!;
+        var chave = ChaveSupervisor;
+        ChaveSupervisor = string.Empty;   // some da tela antes mesmo de conferir
+
+        var resultado = await vendaLocalService.DescartarVendaAsync(venda.Id, chave, MotivoDescarte, operadorId);
+        if (!resultado.Sucesso)
+        {
+            MensagemDescarte = resultado.Mensagem;   // o motivo digitado fica: o operador tenta de novo só com a chave certa
+            return;
+        }
+
+        MotivoDescarte = string.Empty;
+        MensagemDescarte = venda.Numero is { } numero ? $"Venda #{numero} descartada." : "Venda descartada.";
+        await CarregarAsync();
+        VendaSelecionada = null;
+    }
 
     private async Task ReenviarFalhasAsync()
     {

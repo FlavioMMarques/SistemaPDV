@@ -10,7 +10,7 @@
              x:DataType="vm:ListaPedidosViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <Grid RowDefinitions="Auto,Auto,*" Margin="24">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24">
 
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <TextBlock Grid.Column="0" Text="📋 Listagem de Pedidos" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
@@ -33,11 +33,16 @@
       </StackPanel>
     </Grid>
 
-    <TextBlock Grid.Row="1"
-               Text="{Binding MensagemReenvio}"
-               Foreground="{StaticResource TextMutedBrush}"
-               Margin="0,0,0,8"
-               IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
+      <TextBlock Text="{Binding MensagemReenvio}"
+                 Foreground="{StaticResource TextMutedBrush}"
+                 IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <!-- Resultado do descarte (também quando deu certo e o painel some). -->
+      <TextBlock Text="{Binding MensagemDescarte}"
+                 Foreground="{StaticResource TextMutedBrush}"
+                 TextWrapping="Wrap"
+                 IsVisible="{Binding MensagemDescarte, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </StackPanel>
 
     <Border Grid.Row="2"
             Background="{StaticResource BgCardBrush}"
@@ -45,7 +50,7 @@
             BorderThickness="1"
             CornerRadius="{StaticResource RadiusCard}"
             Padding="8">
-      <ListBox ItemsSource="{Binding Vendas}" Background="Transparent">
+      <ListBox ItemsSource="{Binding Vendas}" SelectedItem="{Binding VendaSelecionada, Mode=TwoWay}" Background="Transparent">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="sales:VendaResumo">
             <StackPanel Margin="4">
@@ -67,6 +72,54 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
+    </Border>
+
+    <!-- Descarte de venda EM FALHA (só aparece com uma delas selecionada): só supervisor, com motivo. A venda continua
+         na lista como "⚫ Descartada" (auditoria) e deixa de travar o fechamento do caixa. -->
+    <Border Grid.Row="3"
+            Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusCard}"
+            Padding="16" Margin="0,12,0,0"
+            IsVisible="{Binding PodeDescartar}">
+      <StackPanel Spacing="8">
+        <TextBlock Text="🗑 Descartar venda em falha" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
+        <TextBlock Text="Use quando a API nunca vai aceitar esta venda. Precisa da chave de um supervisor; a venda não é apagada, fica registrada."
+                   Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
+          <TextBox Grid.Column="0"
+                   Text="{Binding MotivoDescarte, Mode=TwoWay}"
+                   PlaceholderText="Motivo do descarte (obrigatório)"
+                   MaxLength="300"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   CornerRadius="{StaticResource RadiusSmall}"
+                   AutomationProperties.Name="Motivo do descarte" />
+          <TextBox Grid.Column="1"
+                   Text="{Binding ChaveSupervisor, Mode=TwoWay}"
+                   PasswordChar="●"
+                   PlaceholderText="Chave do supervisor"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   CornerRadius="{StaticResource RadiusSmall}"
+                   AutomationProperties.Name="Chave do supervisor">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding DescartarCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <Button Grid.Column="2"
+                  Content="Descartar"
+                  Command="{Binding DescartarCommand}"
+                  Background="{StaticResource AccentRedDimBrush}"
+                  Foreground="{StaticResource AccentRedBrush}"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  Padding="16,8"
+                  AutomationProperties.Name="Descartar venda" />
+        </Grid>
+      </StackPanel>
     </Border>
 
   </Grid>

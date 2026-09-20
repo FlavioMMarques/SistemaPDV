@@ -19,6 +19,7 @@ public class SyncStatusParaTextoConverter : IValueConverter
         SyncStatus.Sincronizado => "🟢 Sincronizado",
         SyncStatus.PendenteSync => "🟡 Pendente",
         SyncStatus.FalhaSync => "🔴 Falha",
+        SyncStatus.Descartada => "⚫ Descartada",
         _ => string.Empty,
     };
 
@@ -38,6 +39,7 @@ public class SyncStatusParaCorConverter : IValueConverter
         SyncStatus.Sincronizado => new SolidColorBrush(Color.Parse("#10B981")),
         SyncStatus.PendenteSync => new SolidColorBrush(Color.Parse("#FED400")),
         SyncStatus.FalhaSync => new SolidColorBrush(Color.Parse("#F43F5E")),
+        SyncStatus.Descartada => new SolidColorBrush(Color.Parse("#64748B")),
         _ => new SolidColorBrush(Color.Parse("#94A3B8")),
     };
 

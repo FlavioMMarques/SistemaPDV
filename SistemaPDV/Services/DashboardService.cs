@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SistemaPDV.Data;
 using SistemaPDV.Models;
+using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.Services;
 
@@ -32,6 +33,7 @@ public class DashboardService
             var vendasDoCaixa = await context.Vendas
                 .Include(v => v.Itens)
                 .Where(v => v.CaixaId == id)
+                .Where(VendaFiltros.Valida)   // a descartada é tratada como cancelada
                 .ToListAsync(ct);
             faturamentoHoje = vendasDoCaixa.Sum(v =>
                 v.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.DescontoItem + i.AcrescimoItem) - v.Desconto);
@@ -40,7 +42,7 @@ public class DashboardService
         var estoqueTotal = await context.Produtos.SumAsync(p => p.EstoqueAtual, ct);
 
         var caixasPendentes = await context.Caixas.CountAsync(c => c.SyncStatus != SyncStatus.Sincronizado, ct);
-        var vendasPendentes = await context.Vendas.CountAsync(v => v.SyncStatus != SyncStatus.Sincronizado, ct);
+        var vendasPendentes = await context.Vendas.Where(VendaFiltros.NaoEnviada).CountAsync(ct);
         var clientesPendentes = await context.Clientes.CountAsync(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado, ct);
         var pendentesOutbox = caixasPendentes + vendasPendentes + clientesPendentes;
 

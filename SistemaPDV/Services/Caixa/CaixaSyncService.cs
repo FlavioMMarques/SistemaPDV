@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SistemaPDV.Data;
 using SistemaPDV.Models;
+using SistemaPDV.Services.Sales;
 using SistemaPDV.Services.Caixa.Dtos;
 using SistemaPDV.Services.Sync;
 using SistemaPDV.Services;
@@ -147,7 +148,7 @@ public class CaixaSyncService
 
         // O fechamento resume o caixa: com venda dele ainda não enviada, a API o fecharia sem ela. (A tela já impede
         // fechar assim; isto cobre caixa fechado antes da regra e vendas que voltaram a falhar.)
-        var vendasNaoEnviadas = await context.Vendas.CountAsync(v => v.CaixaId == caixa.Id && v.SyncStatus != SyncStatus.Sincronizado, ct);
+        var vendasNaoEnviadas = await context.Vendas.Where(v => v.CaixaId == caixa.Id).Where(VendaFiltros.NaoEnviada).CountAsync(ct);
         if (vendasNaoEnviadas > 0)
             return await AguardarAsync(context, caixa, MensagemVendasNaoEnviadas(vendasNaoEnviadas), ct);
 

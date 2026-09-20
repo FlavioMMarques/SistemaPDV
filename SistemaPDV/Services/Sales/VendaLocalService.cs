@@ -21,11 +21,62 @@ public class VendaLocalService
         this.contextFactory = contextFactory;
     }
 
+    private const int TamanhoMaximoMotivo = 300;
+
+    // Descarta uma venda que a API nunca aceita (erro permanente) pra ela não travar o fechamento do caixa. Decisões do
+    // usuário (2026-09-20): só SUPERVISOR, com a chave dele; só venda EM FALHA (a pendente comum ainda vai sair);
+    // motivo obrigatório. Fica tudo registrado (quem autorizou, quem pediu, quando, por quê) e a venda continua
+    // visível na lista de pedidos como trilha de auditoria — nunca é apagada.
+    public async Task<ResultadoDescarte> DescartarVendaAsync(
+        Guid vendaId, string? chaveSupervisor, string? motivo, int? solicitadaPorFuncionarioId, CancellationToken ct = default)
+    {
+        var motivoLimpo = motivo?.Trim() ?? string.Empty;
+        if (motivoLimpo.Length == 0)
+            return ResultadoDescarte.Falha("Informe o motivo do descarte.");
+        if (motivoLimpo.Length > TamanhoMaximoMotivo)
+            return ResultadoDescarte.Falha($"O motivo pode ter no máximo {TamanhoMaximoMotivo} caracteres.");
+
+        await using var context = contextFactory();
+
+        var venda = await context.Vendas.FirstOrDefaultAsync(v => v.Id == vendaId, ct);
+        if (venda is null)
+            return ResultadoDescarte.Falha("Venda não encontrada.");
+
+        if (venda.SyncStatus != SyncStatus.FalhaSync)
+            return ResultadoDescarte.Falha("Só uma venda em falha pode ser descartada (a pendente ainda vai ser enviada).");
+
+        var supervisor = await AutenticarSupervisorAsync(context, chaveSupervisor, ct);
+        if (supervisor is null)
+            return ResultadoDescarte.Falha("Chave de supervisor inválida — o descarte precisa da chave de um supervisor.");
+
+        venda.SyncStatus = SyncStatus.Descartada;
+        venda.DescartadaEm = DateTime.UtcNow;
+        venda.DescartadaPorId = supervisor.Id;
+        venda.SolicitadaPorId = solicitadaPorFuncionarioId;
+        venda.MotivoDescarte = motivoLimpo;
+        await context.SaveChangesAsync(ct);
+        return ResultadoDescarte.Ok();
+    }
+
+    // Uma mensagem só pra chave errada e pra chave de quem não é supervisor: não revela se a chave existe. bcrypt é
+    // lento de propósito, então a conferência roda fora da thread de UI.
+    private static async Task<Funcionario?> AutenticarSupervisorAsync(AppDbContext context, string? chave, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(chave))
+            return null;
+
+        var supervisores = await context.Funcionarios
+            .Where(f => f.Supervisor && !f.Desativado && f.PdvKeyHash != null)
+            .ToListAsync(ct);
+
+        return await Task.Run(() => supervisores.FirstOrDefault(f => PdvKeyHasher.Verificar(chave, f.PdvKeyHash)), ct);
+    }
+
     // Vendas do caixa que ainda não chegaram à API (pendentes, com falha ou em espera): impedem o fechamento.
     public async Task<int> ContarNaoEnviadasAsync(int caixaId, CancellationToken ct = default)
     {
         await using var context = contextFactory();
-        return await context.Vendas.CountAsync(v => v.CaixaId == caixaId && v.SyncStatus != SyncStatus.Sincronizado, ct);
+        return await context.Vendas.Where(v => v.CaixaId == caixaId).Where(VendaFiltros.NaoEnviada).CountAsync(ct);
     }
 
     // Quanto as vendas deste caixa somam em cada forma de pagamento — o "esperado" que a tela de fechar caixa mostra
@@ -36,6 +87,7 @@ public class VendaLocalService
 
         var pagamentos = await context.Vendas
             .Where(v => v.CaixaId == caixaId)
+            .Where(VendaFiltros.Valida)   // descartada = cancelada: não entra no esperado
             .SelectMany(v => v.Pagamentos)
             .Select(p => new { p.FormaPagamentoId, p.Valor })
             .ToListAsync(ct);
@@ -88,6 +140,10 @@ public class VendaLocalService
             .OrderByDescending(v => v.DataHora)
             .ToListAsync(ct);
 
+        // Trilha de auditoria: a venda descartada continua na lista, dizendo quem autorizou e por quê.
+        var autorizadoresIds = vendas.Where(v => v.DescartadaPorId.HasValue).Select(v => v.DescartadaPorId!.Value).Distinct().ToList();
+        var autorizadores = await context.Funcionarios.Where(f => autorizadoresIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Nome, ct);
+
         var clienteIds = vendas.Where(v => v.ClienteId.HasValue).Select(v => v.ClienteId!.Value).Distinct().ToList();
         var clientes = await context.Clientes.Where(c => clienteIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
 
@@ -103,7 +159,9 @@ public class VendaLocalService
             v.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.DescontoItem + i.AcrescimoItem) - v.Desconto,
             string.Join(", ", v.Pagamentos.Select(p => formas.TryGetValue(p.FormaPagamentoId, out var forma) ? forma.Nome : "?").Distinct()),
             v.SyncStatus,
-            v.UltimoErroSync))
+            v.SyncStatus == SyncStatus.Descartada
+                ? $"Descartada por {(v.DescartadaPorId is { } porId && autorizadores.TryGetValue(porId, out var nomeSupervisor) ? nomeSupervisor : "?")}: {v.MotivoDescarte}"
+                : v.UltimoErroSync))
             .ToList();
     }
 }
