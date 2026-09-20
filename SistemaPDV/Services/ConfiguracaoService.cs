@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,6 +49,11 @@ public class ConfiguracaoService
     public async Task<(bool Sucesso, string Mensagem)> VincularDispositivoAsync(
         string linkCadastro, string nomeDispositivo, CancellationToken ct = default)
     {
+        // Antes de qualquer chamada à API: um vínculo a OUTRA empresa com caixas/vendas ainda no banco local misturaria os
+        // dados das duas (vendas pendentes seriam enviadas à empresa nova e o catálogo se sobreporia ao antigo).
+        if (await MisturariaEmpresasAsync(linkCadastro, ct))
+            return (false, "Este dispositivo já tem caixas ou vendas de outra empresa — vincular a uma empresa diferente misturaria os dados. Use um dispositivo (banco) novo para a outra empresa.");
+
         var (sucesso, mensagem, clienteSecret) = await authService.ObterClienteSecretAsync(linkCadastro, nomeDispositivo, ct);
         if (!sucesso || clienteSecret is null)
             return (false, mensagem);
@@ -90,6 +96,22 @@ public class ConfiguracaoService
 
         aplicar(configuracao);
         await context.SaveChangesAsync(ct);
+    }
+
+    // true = o novo link é de uma empresa (CNPJ) diferente da atual E já existem caixas/vendas locais. Só recusa quando dá
+    // pra PROVAR a diferença: link sem CNPJ (vínculo antigo) ou primeira vinculação não bloqueiam. Revincular à MESMA
+    // empresa (ex: novo segredo) continua livre.
+    private async Task<bool> MisturariaEmpresasAsync(string novoLink, CancellationToken ct)
+    {
+        await using var context = contextFactory();
+
+        var linkAtual = await context.ConfiguracoesSincronizacao.Select(c => c.UrlApi).FirstOrDefaultAsync(ct);
+        var cnpjAtual = SoftcomAuthService.ExtrairEmpresaCnpj(linkAtual);
+        var cnpjNovo = SoftcomAuthService.ExtrairEmpresaCnpj(novoLink);
+        if (cnpjAtual is null || cnpjNovo is null || cnpjAtual == cnpjNovo)
+            return false;
+
+        return await context.Caixas.AnyAsync(ct) || await context.Vendas.AnyAsync(ct);
     }
 
     // client_id vem embutido na query string do link de cadastro (junto com
