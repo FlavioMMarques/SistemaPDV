@@ -51,6 +51,9 @@ public class EmpresaDoDispositivoTests
     [InlineData("https://x.com/registrar?client_id=1", null)]
     [InlineData("https://x.com/registrar?empresa_cnpj=", null)]
     [InlineData("https://x.com/registrar?empresa_cnpj=abc", null)]
+    [InlineData("https://x.com/registrar?empresa_cnpj=123", null)]                      // tamanho impossível
+    [InlineData("https://x.com/registrar?empresa_cnpj=112223330001811", null)]          // 15 dígitos
+    [InlineData("https://x.com/registrar?empresa_cnpj=529.982.247-25", "52998224725")]  // CPF (11) também é aceito
     [InlineData("isto-nao-e-url", null)]
     [InlineData(null, null)]
     public void ExtrairEmpresaCnpjDoLinkDeVinculo(string? link, string? esperado)

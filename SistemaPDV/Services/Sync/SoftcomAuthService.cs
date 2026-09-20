@@ -120,7 +120,9 @@ public class SoftcomAuthService
                 continue;
 
             var digitos = DocumentoValidator.SoDigitos(Uri.UnescapeDataString(partes[1]));
-            return digitos.Length > 0 ? digitos : null;
+            // Só 11 (CPF) ou 14 (CNPJ) dígitos: um valor truncado/malformado não pode virar "a empresa do
+            // dispositivo" — ela decide o que a limpeza de empresas locais apaga.
+            return digitos.Length is 11 or 14 ? digitos : null;
         }
 
         return null;
