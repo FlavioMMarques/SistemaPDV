@@ -34,6 +34,13 @@ public class Venda : ISincronizavel<Guid>, IOutboxRetentavel
     // já aparece na listagem offline. Antes a lista mostrava "—" até a API devolver o id da venda.
     public int NumeroPedido { get; set; }
 
+    // Auditoria do descarte (SyncStatus = Descartada): quando, quem autorizou (supervisor), quem pediu (operador
+    // logado) e o motivo. Guardado como ids (sem FK): a trilha não pode sumir se um funcionário mudar.
+    public DateTime? DescartadaEm { get; set; }
+    public int? DescartadaPorId { get; set; }
+    public int? SolicitadaPorId { get; set; }
+    public string? MotivoDescarte { get; set; }
+
     public ICollection<ItemVenda> Itens { get; set; } = new List<ItemVenda>();
     public ICollection<PagamentoVenda> Pagamentos { get; set; } = new List<PagamentoVenda>();
 }

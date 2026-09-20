@@ -149,6 +149,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 - **Login:** a `pdv_key` que a API devolve é **hash bcrypt** (`$2y$10$…`); `PdvKeyHasher` guarda como veio e `LoginOperadorService` confere com BCrypt (fora da thread de UI).
 - **Empresa do dispositivo:** o CNPJ do **link de vínculo** (`SoftcomAuthService.ExtrairEmpresaCnpj`) diz qual das empresas da API é a deste PDV; só ela é gravada e usada na venda.
 - **Venda:** `numero_documento` = `Venda.NumeroPedido` (sequencial local, gerado offline); produto tem 3 ids — `produto_id` = `Produto.ProdutoIdApi`, `produto_empresa_grade_id` = `Produto.IdExterno`; item e pagamento levam os campos que a API grava (`preco_compra`, `api_nome_pagamento`, parcela única). Venda avulsa usa o cliente com `indicador_finalidade = 1`.
+- **Descarte de venda:** venda em `FalhaSync` pode ser descartada na tela de Pedidos por um **supervisor** (chave dele + motivo). Vira `Descartada` (não apagada; auditoria em `Venda`), não é enviada e sai do esperado/faturamento/pendentes — `VendaFiltros` concentra essa regra e destrava o fechamento do caixa.
 - **Esperas visíveis:** dependência não sincronizada deixa a venda `PendenteSync` mas grava o motivo em `UltimoErroSync` (a lista mostra).
 
 ---

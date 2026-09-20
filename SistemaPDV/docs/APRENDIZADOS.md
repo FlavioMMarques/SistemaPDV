@@ -460,3 +460,17 @@ Faltava a **tela de fechar caixa**: o 1º critério de sucesso da spec ("… ven
 **Onde:** "só fecha o caixa sem venda pendente" — `CaixaService`, `FecharCaixaViewModel`, `CaixaSyncService`
 
 Decisão do usuário: o fechamento **só pode acontecer sem venda pendente** (o fechamento resume o caixa na API; venda que ainda não chegou ficaria de fora). Aplicar a regra num lugar só deixa furos: (1) **o serviço** (`FecharCaixaLocalAsync`) é a fonte da verdade — recusa e devolve o motivo, então nenhuma tela futura consegue fechar "por engano"; (2) **a tela** só antecipa: avisa quantas vendas faltam, diz o que fazer ("Reenviar falhas") e bloqueia o botão, e se **atualiza sozinha** quando a sincronização em background termina (o operador não precisa sair e voltar) — mais um botão "Verificar de novo"; (3) **o envio do fechamento** também espera, cobrindo o caixa que já estava fechado antes da regra e a venda que voltou a falhar depois. A ordem do outbox (abrir → vendas → fechar) só garante a *sequência*, não que as vendas *deram certo*. Um teste por camada (o da tela chama `Execute()` mesmo com o botão desabilitado, pra provar que o serviço segura). Consequência que fica registrada: uma venda com erro **permanente** passa a travar o fechamento — falta uma forma auditável de descartá-la.
+
+
+## 63. Descartar uma venda que nunca vai ser aceita: auditoria em vez de DELETE, e a autorização é de quem responde por ela
+
+**Onde:** `VendaLocalService.DescartarVendaAsync`, `VendaFiltros`, `ListaPedidosViewModel`/`View` — consequência direta do aprendizado #62
+
+Depois de exigir "fechar caixa só sem venda pendente" (#62), uma venda que a API **nunca** aceita passou a travar o caixa para sempre. A saída óbvia seria apagar a linha — mas apagar venda é destruir registro fiscal/financeiro sem rastro. Decisões (do usuário, com o porquê):
+
+1. **Não apaga: muda de estado.** Novo `SyncStatus.Descartada` + quatro colunas de auditoria (`DescartadaEm`, `DescartadaPorId`, `SolicitadaPorId`, `MotivoDescarte`). A venda segue na lista como "⚫ Descartada por Fulano: motivo". Como o enum é gravado como texto, o valor novo não precisou de migração — só as colunas.
+2. **Só supervisor autoriza, digitando a chave dele.** Quem *pede* é o operador logado (`SolicitadaPorId`); quem *autoriza* é o supervisor (`DescartadaPorId`), conferido por bcrypt fora da thread de UI. Chave errada, chave de não-supervisor e supervisor desativado dão **a mesma mensagem** — não dá pra descobrir quem é supervisor testando chaves. O campo de senha é limpo depois de toda tentativa; o motivo digitado fica (o operador não redigita).
+3. **Só em falha (`FalhaSync`).** Uma venda `PendenteSync` ainda vai ser enviada — descartá-la seria perder dinheiro por engano.
+4. **Trata como cancelada:** fora do "esperado" do fechamento, do faturamento e da contagem de pendentes. Em vez de repetir `SyncStatus != Sincronizado && != Descartada` em cada serviço (e esquecer um), os dois filtros moraram num só lugar, `VendaFiltros.NaoEnviada` e `VendaFiltros.Valida`. Adicionar outro estado terminal no futuro é mexer em um arquivo.
+
+Lição geral: **toda regra que bloqueia precisa de uma saída auditável** — senão o operador acaba pedindo acesso ao banco pra "resolver". E o envio (`VendaSyncService`) recusa explicitamente uma `Descartada`, mesmo que o filtro do lote já a ignore: defesa em profundidade contra um dia alguém chamar o envio individual.

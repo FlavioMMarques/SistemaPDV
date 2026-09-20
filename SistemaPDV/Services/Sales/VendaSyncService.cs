@@ -46,6 +46,10 @@ public class VendaSyncService
         if (venda is null)
             return ResultadoSincronizacaoRecurso.ComFalha("Venda não encontrada.");
 
+        // Descartada por um supervisor: nunca mais é enviada (o lote já a ignora; isto cobre o envio direto por id).
+        if (venda.SyncStatus == SyncStatus.Descartada)
+            return ResultadoSincronizacaoRecurso.ComFalha("Venda descartada — não é enviada à API.");
+
         var caixa = await context.Caixas.FindAsync(new object[] { venda.CaixaId }, ct)
             ?? throw new InvalidOperationException("Caixa da venda não encontrado.");
 

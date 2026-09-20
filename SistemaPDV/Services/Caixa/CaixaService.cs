@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SistemaPDV.Data;
 using SistemaPDV.Models;
+using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.Services.Caixa;
 
@@ -135,7 +136,7 @@ public class CaixaService
 
         // Regra de negócio (usuário, 2026-09-20): só fecha se NÃO há venda pendente. O fechamento resume o caixa na API;
         // uma venda que ainda não chegou (pendente, com falha ou em espera crescente) ficaria de fora.
-        var naoEnviadas = await context.Vendas.CountAsync(v => v.CaixaId == caixaId && v.SyncStatus != SyncStatus.Sincronizado, ct);
+        var naoEnviadas = await context.Vendas.Where(v => v.CaixaId == caixaId).Where(VendaFiltros.NaoEnviada).CountAsync(ct);
         if (naoEnviadas > 0)
             return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha(MensagemVendasNaoEnviadas(naoEnviadas));
 
