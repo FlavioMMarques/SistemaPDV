@@ -108,6 +108,7 @@ public class VendaSyncService
                 ProdutoId = produtoIdApi,
                 ProdutoEmpresaGradeId = produtoIdExterno,
                 Preco = item.PrecoUnitario,
+                PrecoCompra = produto.PrecoCompra ?? 0m,
                 Quantidade = item.Quantidade,
                 DescontoValorItem = item.DescontoItem,
                 AcrescimoValorItem = item.AcrescimoItem,
@@ -120,7 +121,15 @@ public class VendaSyncService
             if (!formasPagamento.TryGetValue(pagamento.FormaPagamentoId, out var forma) || forma.IdExterno is not { } formaIdExterno)
                 return ResultadoSincronizacaoRecurso.ComFalha("Uma das formas de pagamento da venda ainda não sincronizou.");
 
-            pagamentosDto.Add(new VendaPagamentoRequestDto { FormaPagamentoId = formaIdExterno, ValorPagamento = pagamento.Valor });
+            pagamentosDto.Add(new VendaPagamentoRequestDto
+            {
+                FormaPagamentoId = formaIdExterno,
+                ApiNomePagamento = forma.Nome,
+                ApiCodigoPagamento = forma.CodigoNfce ?? string.Empty,
+                ValorPagamento = pagamento.Valor,
+                ValorParcela = pagamento.Valor,
+                ValorRecebido = pagamento.Valor,
+            });
         }
 
         var payload = new VendaRequestDto

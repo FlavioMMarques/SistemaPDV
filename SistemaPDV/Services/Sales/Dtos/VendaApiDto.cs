@@ -43,6 +43,16 @@ public class VendaProdutoRequestDto
     [JsonPropertyName("produto_id")] public int ProdutoId { get; set; }
     [JsonPropertyName("produto_empresa_grade_id")] public int ProdutoEmpresaGradeId { get; set; }
     [JsonPropertyName("preco")] public decimal Preco { get; set; }
+
+    // A API real deu 500 ao gravar o item ("Column 'preco_compra' cannot be null"): os campos que o
+    // Swagger não marca como nullable precisam ir sempre — com valor neutro quando o PDV não tem o dado.
+    [JsonPropertyName("preco_compra")] public decimal PrecoCompra { get; set; }
+    [JsonPropertyName("comissao")] public decimal Comissao { get; set; }
+    [JsonPropertyName("comissao_atendente")] public decimal ComissaoAtendente { get; set; }
+    [JsonPropertyName("percentual_comissao_venda")] public decimal PercentualComissaoVenda { get; set; }
+    [JsonPropertyName("composicao_automatica")] public bool ComposicaoAutomatica { get; set; }
+    [JsonPropertyName("promocao_aplicada")] public bool PromocaoAplicada { get; set; }
+
     [JsonPropertyName("quantidade")] public decimal Quantidade { get; set; }
     [JsonPropertyName("desconto_valor_item")] public decimal DescontoValorItem { get; set; }
     [JsonPropertyName("acrescimo_valor_item")] public decimal AcrescimoValorItem { get; set; }
@@ -50,8 +60,20 @@ public class VendaProdutoRequestDto
 
 public class VendaPagamentoRequestDto
 {
+    // A API real deu 500 no financeiro ("Undefined index: api_nome_pagamento"): ela lê nome e código da
+    // forma de pagamento no próprio item, além do id.
+    [JsonPropertyName("api_nome_pagamento")] public string ApiNomePagamento { get; set; } = string.Empty;
+    [JsonPropertyName("api_codigo_pagamento")] public string ApiCodigoPagamento { get; set; } = string.Empty;
     [JsonPropertyName("forma_pagamento_id")] public int FormaPagamentoId { get; set; }
     [JsonPropertyName("valor_pagamento")] public decimal ValorPagamento { get; set; }
+
+    // Pagamento à vista = uma parcela com o valor total. A API real lê estes campos ao gravar a parcela
+    // ("Undefined index: valor_parcela"); os demais campos de parcela/cartão do Swagger ficam de fora até
+    // ela pedir.
+    [JsonPropertyName("valor_parcela")] public decimal ValorParcela { get; set; }
+    [JsonPropertyName("valor_recebido")] public decimal ValorRecebido { get; set; }
+    [JsonPropertyName("parcelas")] public int Parcelas { get; set; } = 1;
+    [JsonPropertyName("numero_parcela")] public string NumeroParcela { get; set; } = "1";
 }
 
 public class VendaRespostaDto
