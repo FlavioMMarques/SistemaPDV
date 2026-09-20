@@ -1145,7 +1145,7 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 **Description:** Casca de navegação: troca entre as telas (Login/Configurações/AbrirCaixa/Dashboard/Pdv/ListaPedidos/Cadastros), mostra operador+caixa logado, indicador online/offline e contador de pendências (outbox). É quem decide, com base em `ExigirAberturaCaixa` e no estado local, se navega pra `AbrirCaixaView` ou direto pro Dashboard depois do login.
 
 **Acceptance criteria:**
-- [ ] Navegação entre as telas funciona sem recriar estado perdido — **não aplicável ainda**: não existe menu de navegação livre nessa task (só o fluxo linear login→config→[AbrirCaixa/Dashboard]); revisitar quando `CadastrosView`/`DashboardView` (com menu de verdade) existirem
+- [x] Navegação entre as telas funciona sem recriar estado perdido — a barra Painel/Nova Venda/Pedidos (Task 47) fica **bloqueada enquanto há venda em andamento** (carrinho ou pagamento já digitado), decisão do usuário (2026-09-20): cada `IrPara*` cria um ViewModel novo, então navegar descartaria o carrinho; agora o operador precisa finalizar ou cancelar (Esc) antes de sair. `PdvViewModel.TemVendaEmAndamento` → `ShellViewModel.VendaEmAndamento` → `CanExecute` dos 3 comandos
 - [x] Sem `ConfiguracaoSincronizacao.UrlApi` preenchida (dispositivo nunca vinculado), o Shell abre direto em `ConfiguracoesView`, antes até da `LoginView` — critério que ficou pendente da Task 41
 - [x] Header mostra operador + caixa (quando aberto) — igual ao protótipo mockado
 - [ ] Indicador de pendências e de conexão existem (ligados de verdade só na Task 50)
@@ -1173,7 +1173,7 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 
 **Acceptance criteria:**
 - [x] `ExigirAberturaCaixa = true` sem caixa aberto → Shell força essa tela antes de liberar Dashboard/PDV
-- [x] `ExigirAberturaCaixa = false` → Shell libera Dashboard direto — a parte de "vira opcional no menu" fica **pendente**: ainda não existe menu de navegação livre no Shell (mesma pendência já registrada na Task 42)
+- [x] `ExigirAberturaCaixa = false` → Shell libera Dashboard direto — a parte de "vira opcional no menu" fica **pendente**: a barra de navegação (Task 47) só cobre Painel/Nova Venda/Pedidos e só fica habilitada COM caixa aberto; ainda não existe um jeito de abrir caixa depois, a partir do menu, quando `ExigirAberturaCaixa = false` e o operador entrou sem caixa
 - [x] Sucesso navega pro Dashboard (placeholder até Task 46); falha (ex: já existe caixa aberto pra hoje) mostra a mensagem de `ResultadoOperacaoCaixa`
 
 **Verification:**
@@ -1245,7 +1245,8 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 ---
 
 ### Checkpoint: Vender offline funciona ponta a ponta
-- [ ] Manual check: desligar a rede, vender, venda aparece `PendenteSync` na lista de pedidos — a navegação real até `PdvView` já existe (Task 46: login → abrir caixa → Dashboard → "Nova Venda"); falta só `ListaPedidosView` (Task 47) pra ver o resultado — a lógica em si já está coberta por testes de ponta a ponta (`PdvViewModelTests`, `ShellViewModelTests`)
+- [x] Fluxo completo agora existe no código: login → abrir caixa → Dashboard → Nova Venda → Pedidos (venda aparece com 🟡 Pendente) — coberto por testes de ponta a ponta (`PdvViewModelTests`, `ShellViewModelTests`, `ListaPedidosViewModelTests`)
+- [ ] Manual check em uso real (vender de verdade, com a rede desligada, e ver a venda na lista) — fica a cargo do usuário rodar: não tenho como digitar/clicar numa sessão headless
 
 ## Task 46: DashboardViewModel / DashboardView
 
@@ -1290,21 +1291,24 @@ Testes: 153 → 159. Build limpo, 0 avisos.
 **Description:** Lista as vendas do caixa atual (ou período, a definir na implementação) com número, data/hora, cliente, operador, total, forma de pagamento e `SyncStatus`.
 
 **Acceptance criteria:**
-- [ ] Reflete o `SyncStatus` real de cada venda com indicador visual
-- [ ] Atualiza sozinha quando uma venda muda de status (ex: depois que o background service sincroniza) — via binding reativo, sem precisar de F5 manual
+- [x] Reflete o `SyncStatus` real de cada venda com indicador visual — via `SyncStatusIndicator` (reaproveitado da Task 45)
+- [ ] Atualiza sozinha quando uma venda muda de status (ex: depois que o background service sincroniza) — via binding reativo, sem precisar de F5 manual — **adiado pra Task 50**, decisão confirmada com o usuário (2026-09-18): depende de algo rodando em background que ainda não existe; por ora `AtualizarCommand` (botão "🔄 Atualizar") recarrega manualmente
 
 **Verification:**
-- [ ] Tests pass: `dotnet test --filter ListaPedidos`
-- [ ] Build: `dotnet build`
+- [x] Tests pass: `dotnet test --filter ListaPedidos` — 2 testes de `ListaPedidosViewModel` + 4 de `VendaLocalService` + 2 novos de navegação em `ShellViewModelTests`, 167 no total
+- [x] Build: `dotnet build` — 0 avisos, 0 erros
+- [x] Manual check: `dotnet run` roda sem exceção
 
 **Dependencies:** Task 38, Task 42
 
 **Files likely touched:**
-- `SistemaPDV/ViewModels/ListaPedidosViewModel.cs`
+- `SistemaPDV/Services/Sales/VendaLocalService.cs`, `VendaResumo.cs` (novos — leitura com cliente/operador/formas resolvidos em lote, sem N+1)
+- `SistemaPDV/ViewModels/ListaPedidosViewModel.cs`, `Tela.cs`
 - `SistemaPDV/Views/ListaPedidosView.axaml` (+ `.cs`)
-- `SistemaPDV.Tests/ListaPedidosViewModelTests.cs`
+- `SistemaPDV/ViewModels/ShellViewModel.cs`, `Views/ShellView.axaml` — **barra de navegação persistente** (Painel / Nova Venda / Pedidos), habilitada só com caixa aberto: resolve a pendência antiga das Tasks 42/43/45 ("não tem como voltar depois de sair do Dashboard"); Cadastros entra na Task 49
+- `SistemaPDV.Tests/ListaPedidosViewModelTests.cs`, `VendaLocalServiceTests.cs`, `ShellViewModelTests.cs`, `DashboardViewModelTests.cs` (correção de teste flaky pré-existente)
 
-**Estimated scope:** M (3 arquivos)
+**Estimated scope:** M (3 arquivos) — na prática L (12 arquivos)
 
 ---
 

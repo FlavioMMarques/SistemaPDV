@@ -1,4 +1,5 @@
 using System;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
@@ -21,12 +22,14 @@ public class ShellViewModel : ViewModelBase
     private readonly DashboardService dashboardService;
     private readonly VendaService vendaService;
     private readonly CatalogoLocalService catalogoLocalService;
+    private readonly VendaLocalService vendaLocalService;
 
     private Tela telaAtual;
     private ViewModelBase? currentViewModel;
     private Funcionario? operadorLogado;
     private Models.Caixa? caixaAberto;
     private string? mensagem;
+    private bool vendaEmAndamento;
 
     public ShellViewModel(
         ConfiguracaoService configuracaoService,
@@ -34,7 +37,8 @@ public class ShellViewModel : ViewModelBase
         CaixaService caixaService,
         DashboardService dashboardService,
         VendaService vendaService,
-        CatalogoLocalService catalogoLocalService)
+        CatalogoLocalService catalogoLocalService,
+        VendaLocalService vendaLocalService)
     {
         this.configuracaoService = configuracaoService;
         this.loginOperadorService = loginOperadorService;
@@ -42,6 +46,24 @@ public class ShellViewModel : ViewModelBase
         this.dashboardService = dashboardService;
         this.vendaService = vendaService;
         this.catalogoLocalService = catalogoLocalService;
+        this.vendaLocalService = vendaLocalService;
+
+        // Navegação persistente entre as 3 telas pós-caixa-aberto (Dashboard/Pdv/
+        // ListaPedidos) — só habilitada com CaixaAberto preenchido, já que nenhuma
+        // delas faz sentido sem caixa. Resolve o que ficou pendente nas Tasks 42/43
+        // ("navegação entre as telas sem menu"), pelo menos pra essas três (Cadastros
+        // ainda não existe — Task 48).
+        //
+        // Também bloqueada enquanto há venda em andamento (decisão do usuário,
+        // 2026-09-20): cada IrPara* cria um ViewModel novo, então sair da tela de
+        // venda com o carrinho cheio — ou clicar em "Nova Venda" estando nela —
+        // descartaria o que o operador já montou. Obriga a finalizar ou cancelar.
+        var temCaixaAberto = this.WhenAnyValue(vm => vm.CaixaAberto).Select(caixa => caixa is not null);
+        var semVendaEmAndamento = this.WhenAnyValue(vm => vm.VendaEmAndamento).Select(emAndamento => !emAndamento);
+        var podeNavegar = temCaixaAberto.CombineLatest(semVendaEmAndamento, (temCaixa, semVenda) => temCaixa && semVenda);
+        IrParaDashboardCommand = ReactiveCommand.Create(() => IrParaDashboard(), podeNavegar);
+        IrParaPdvCommand = ReactiveCommand.Create(() => IrParaPdv(CaixaAberto!.Id), podeNavegar);
+        IrParaListaPedidosCommand = ReactiveCommand.Create(() => IrParaListaPedidos(CaixaAberto!.Id), podeNavegar);
     }
 
     public Tela TelaAtual
@@ -76,6 +98,16 @@ public class ShellViewModel : ViewModelBase
         get => mensagem;
         private set => this.RaiseAndSetIfChanged(ref mensagem, value);
     }
+
+    public bool VendaEmAndamento
+    {
+        get => vendaEmAndamento;
+        private set => this.RaiseAndSetIfChanged(ref vendaEmAndamento, value);
+    }
+
+    public ReactiveCommand<Unit, Unit> IrParaDashboardCommand { get; }
+    public ReactiveCommand<Unit, Unit> IrParaPdvCommand { get; }
+    public ReactiveCommand<Unit, Unit> IrParaListaPedidosCommand { get; }
 
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
     // pode chegar em IrParaConfiguracoes, que constrói ConfiguracoesViewModel
@@ -172,8 +204,17 @@ public class ShellViewModel : ViewModelBase
     private void IrParaPdv(int caixaId)
     {
         var viewModel = new PdvViewModel(vendaService, catalogoLocalService, caixaId);
+        viewModel.WhenAnyValue(vm => vm.TemVendaEmAndamento).Subscribe(emAndamento => VendaEmAndamento = emAndamento);
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Pdv;
+        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
+    }
+
+    private void IrParaListaPedidos(int caixaId)
+    {
+        var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId);
+        CurrentViewModel = viewModel;
+        TelaAtual = Tela.ListaPedidos;
         _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 

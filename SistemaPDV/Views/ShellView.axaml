@@ -37,6 +37,34 @@
       </Grid>
     </Border>
 
+    <!-- Navegação persistente entre Dashboard/Nova Venda/Pedidos — só habilitada com
+         caixa aberto (ver ShellViewModel). Resolve o que ficou pendente nas Tasks
+         42/43/45 sobre não ter como voltar depois de sair do Dashboard; Cadastros
+         ainda não entra aqui (Task 48). -->
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,8">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="📊 Painel"
+                Command="{Binding IrParaDashboardCommand}"
+                Background="Transparent"
+                Foreground="{StaticResource TextMainBrush}"
+                AutomationProperties.Name="Ir para o painel" />
+        <Button Content="🛒 Nova Venda"
+                Command="{Binding IrParaPdvCommand}"
+                Background="Transparent"
+                Foreground="{StaticResource TextMainBrush}"
+                AutomationProperties.Name="Ir para nova venda" />
+        <Button Content="📋 Pedidos"
+                Command="{Binding IrParaListaPedidosCommand}"
+                Background="Transparent"
+                Foreground="{StaticResource TextMainBrush}"
+                AutomationProperties.Name="Ir para lista de pedidos" />
+      </StackPanel>
+    </Border>
+
     <!-- Falha inesperada de navegação (fire-and-forget capturado, ver
          docs/APRENDIZADOS.md e ShellViewModel.ExecutarComTratamentoDeErroAsync) —
          sem isso a tela travava sem nenhum aviso quando algo dava errado. -->

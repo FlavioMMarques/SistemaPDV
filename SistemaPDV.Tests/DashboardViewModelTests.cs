@@ -1,4 +1,5 @@
 using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 using SistemaPDV.Models;
 using SistemaPDV.Services;
 using SistemaPDV.ViewModels;
@@ -76,10 +77,16 @@ public class DashboardViewModelTests
         var caixaId = await SemearCaixaAsync(fixture);
         var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), caixaId);
 
-        var disparou = false;
-        viewModel.NovaVendaCommand.Subscribe(_ => disparou = true);
+        // Assinar antes de disparar e esperar a emissão de verdade (FirstAsync) em
+        // vez de um bool setado via Subscribe — um bool checado logo após o await
+        // corre risco de checar antes da notificação chegar, dependendo de qual
+        // scheduler o ReactiveCommand usa (achado: esse teste ficou flaky só de
+        // rodar em paralelo com mais testes, 2026-09-18 — mesmo padrão de
+        // "esperar o sinal de saída" já usado em ShellViewModelTests).
+        var disparouTask = viewModel.NovaVendaCommand.FirstAsync().ToTask();
         await viewModel.NovaVendaCommand.Execute();
+        await disparouTask;
 
-        Assert.True(disparou);
+        Assert.True(disparouTask.IsCompletedSuccessfully);
     }
 }

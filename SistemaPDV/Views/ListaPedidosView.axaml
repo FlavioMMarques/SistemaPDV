@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:sales="using:SistemaPDV.Services.Sales"
+             xmlns:controls="using:SistemaPDV.Views.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+             x:Class="SistemaPDV.Views.ListaPedidosView"
+             x:DataType="vm:ListaPedidosViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <Grid RowDefinitions="Auto,*" Margin="24">
+
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <TextBlock Grid.Column="0" Text="📋 Listagem de Pedidos" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
+      <Button Grid.Column="1"
+              Content="🔄 Atualizar"
+              Command="{Binding AtualizarCommand}"
+              Background="{StaticResource BgCardBrush}"
+              Foreground="{StaticResource TextMainBrush}"
+              CornerRadius="{StaticResource RadiusMedium}"
+              Padding="16,8"
+              AutomationProperties.Name="Atualizar lista de pedidos" />
+    </Grid>
+
+    <Border Grid.Row="1"
+            Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusCard}"
+            Padding="8">
+      <ListBox ItemsSource="{Binding Vendas}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="sales:VendaResumo">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="4">
+              <TextBlock Grid.Column="0" Text="{Binding Numero, StringFormat='#{0}', TargetNullValue='—'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMutedBrush}" Width="60" />
+              <TextBlock Grid.Column="1" Text="{Binding DataHora, StringFormat='{}{0:dd/MM HH:mm}'}" Foreground="{StaticResource TextMutedBrush}" Width="110" />
+              <TextBlock Grid.Column="2" Text="{Binding ClienteNome}" Foreground="{StaticResource TextMainBrush}" Margin="8,0" />
+              <TextBlock Grid.Column="3" Text="{Binding OperadorNome}" Foreground="{StaticResource TextMutedBrush}" Width="120" />
+              <TextBlock Grid.Column="4" Text="{Binding FormasPagamento}" Foreground="{StaticResource TextMutedBrush}" Width="120" />
+              <TextBlock Grid.Column="5" Text="{Binding Total, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMainBrush}" Width="90" />
+              <controls:SyncStatusIndicator Grid.Column="6" Status="{Binding SyncStatus}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+  </Grid>
+
+</UserControl>

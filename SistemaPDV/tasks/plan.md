@@ -189,7 +189,7 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 
 **Dashboard e pedidos**
 - [x] Task 46: `DashboardViewModel`
-- [ ] Task 47: `ListaPedidosViewModel`/`ListaPedidosView`
+- [x] Task 47: `ListaPedidosViewModel`/`ListaPedidosView`
 
 **Cadastros e push de cliente**
 - [ ] Task 48: `CatalogSyncService.SincronizarClienteNovoAsync` (outbox de cliente novo)
