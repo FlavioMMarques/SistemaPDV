@@ -20,7 +20,7 @@
     <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
       <TextBox Grid.Column="0"
                Text="{Binding Busca, Mode=TwoWay}"
-               Watermark="Buscar por nome, CPF/CNPJ ou código de barras…"
+               PlaceholderText="Buscar por nome, CPF/CNPJ ou código de barras…"
                Background="{StaticResource BgInputBrush}"
                BorderBrush="{StaticResource BorderColorBrush}"
                Foreground="{StaticResource TextMainBrush}"
@@ -74,7 +74,7 @@
               <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
                 <TextBox Grid.Column="0"
                          Text="{Binding NovoNome, Mode=TwoWay}"
-                         Watermark="Nome"
+                         PlaceholderText="Nome"
                          MaxLength="150"
                          Background="{StaticResource BgInputBrush}"
                          BorderBrush="{StaticResource BorderColorBrush}"
@@ -84,7 +84,7 @@
                          TabIndex="1" />
                 <TextBox Grid.Column="1"
                          Text="{Binding NovoCpfCnpj, Mode=TwoWay}"
-                         Watermark="CPF/CNPJ (opcional)"
+                         PlaceholderText="CPF/CNPJ (opcional)"
                          MaxLength="18"
                          Background="{StaticResource BgInputBrush}"
                          BorderBrush="{StaticResource BorderColorBrush}"

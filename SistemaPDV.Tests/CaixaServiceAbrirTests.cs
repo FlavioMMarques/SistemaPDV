@@ -57,4 +57,58 @@ public class CaixaServiceAbrirTests
         Assert.True(turno1.Sucesso);
         Assert.True(turno2.Sucesso);
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public async Task AceitaOsSeisTurnosDoSoftcomShop(int turno)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var service = new CaixaService(fixture.CriarContexto);
+
+        var resultado = await service.AbrirCaixaLocalAsync(funcionarioId, new DateOnly(2026, 9, 18), turno, 10m);
+
+        Assert.True(resultado.Sucesso);
+        Assert.Equal(turno, resultado.Valor!.Turno);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(7)]
+    public async Task TurnoForaDeUmASeisNaoGravaNada(int turno)
+    {
+        // A API só conhece 1-6; um turno fora disso viraria 422 depois, com o caixa já
+        // gravado como pendente pra sempre.
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var service = new CaixaService(fixture.CriarContexto);
+
+        var resultado = await service.AbrirCaixaLocalAsync(funcionarioId, new DateOnly(2026, 9, 18), turno, 10m);
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("turno", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Caixas);
+    }
+
+    [Fact]
+    public async Task MesmoFuncionarioPodeTerCaixaEmTurnosDiferentesNoMesmoDia()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var service = new CaixaService(fixture.CriarContexto);
+        var dia = new DateOnly(2026, 9, 18);
+
+        var turno4 = await service.AbrirCaixaLocalAsync(funcionarioId, dia, 4, 10m);
+        await service.FecharCaixaLocalAsync(turno4.Valor!.Id, 10m, Array.Empty<(int, decimal)>(), Array.Empty<(string, decimal)>());
+        var turno6 = await service.AbrirCaixaLocalAsync(funcionarioId, dia, 6, 10m);
+
+        Assert.True(turno6.Sucesso);
+    }
 }

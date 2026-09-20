@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -30,6 +32,10 @@ public class AbrirCaixaViewModel : ViewModelBase
             troco => decimal.TryParse(troco, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor) && valor >= 0);
         AbrirCommand = ReactiveCommand.CreateFromTask(AbrirAsync, podeAbrir);
     }
+
+    // 1..6, os turnos do SoftcomShop — a tela lista isso em vez de itens fixos no XAML.
+    public IReadOnlyList<int> Turnos { get; } =
+        Enumerable.Range(CaixaService.TurnoMinimo, CaixaService.TurnoMaximo - CaixaService.TurnoMinimo + 1).ToList();
 
     public string TrocoInicial
     {

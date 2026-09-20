@@ -16,6 +16,10 @@ public class CaixaService
     // aqui também pra devolver ComFalha em vez de deixar o SaveChanges estourar.
     private const int TamanhoMaximoBandeira = 30;
 
+    // O SoftcomShop tem até 6 turnos por dia (o app tinha só 3 fixos na tela).
+    public const int TurnoMinimo = 1;
+    public const int TurnoMaximo = 6;
+
     private readonly Func<AppDbContext> contextFactory;
 
     public CaixaService(Func<AppDbContext> contextFactory)
@@ -37,6 +41,11 @@ public class CaixaService
     public async Task<ResultadoOperacaoCaixa<Models.Caixa>> AbrirCaixaLocalAsync(
         int funcionarioId, DateOnly dataCaixa, int turno, decimal trocoInicial, CancellationToken ct = default)
     {
+        // A API só conhece os turnos 1-6: um valor fora disso viraria 422 depois, com o caixa
+        // já gravado local como pendente pra sempre.
+        if (turno < TurnoMinimo || turno > TurnoMaximo)
+            return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha($"Turno inválido — o SoftcomShop aceita de {TurnoMinimo} a {TurnoMaximo}.");
+
         await using var context = contextFactory();
 
         // Mesma chave natural do índice único em CaixaConfiguration — checa antes de
