@@ -25,7 +25,7 @@ public static class ErroApiExtractor
                 json.RootElement.TryGetProperty("errors", out var errors))
             {
                 var mensagens = new List<string>();
-                ColetarMensagens(errors, mensagens);
+                ColetarMensagens(errors, mensagens, null);
 
                 if (mensagens.Count > 0)
                     return Limitar(string.Join(" ", mensagens));
@@ -42,21 +42,21 @@ public static class ErroApiExtractor
     // Aceita os formatos que a API pode devolver em "errors": objeto de arrays
     // (o esperado), objeto com texto solto, array direto ou texto — qualquer coisa
     // fora disso é simplesmente ignorada, nunca vira exceção.
-    private static void ColetarMensagens(JsonElement elemento, List<string> mensagens)
+    private static void ColetarMensagens(JsonElement elemento, List<string> mensagens, string? campo)
     {
         switch (elemento.ValueKind)
         {
             case JsonValueKind.String:
                 if (elemento.GetString() is { Length: > 0 } texto)
-                    mensagens.Add(texto);
+                    mensagens.Add(campo is null ? texto : $"{campo}: {texto}");
                 break;
             case JsonValueKind.Array:
                 foreach (var item in elemento.EnumerateArray())
-                    ColetarMensagens(item, mensagens);
+                    ColetarMensagens(item, mensagens, campo);
                 break;
             case JsonValueKind.Object:
-                foreach (var campo in elemento.EnumerateObject())
-                    ColetarMensagens(campo.Value, mensagens);
+                foreach (var propriedade in elemento.EnumerateObject())
+                    ColetarMensagens(propriedade.Value, mensagens, propriedade.Name == "message" ? campo : propriedade.Name);
                 break;
         }
     }
