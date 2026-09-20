@@ -29,6 +29,8 @@ public class CaixaSyncService
         this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    private static string MensagemVendasNaoEnviadas(int n) => CaixaService.MensagemVendasNaoEnviadas(n);
+
     private DateTime AgoraUtc => timeProvider.GetUtcNow().UtcDateTime;
 
     // Elegível: abertura ainda não confirmada com o servidor — inclui PendenteSync
@@ -142,6 +144,12 @@ public class CaixaSyncService
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Configuração de sincronização não encontrada.");
         var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
+
+        // O fechamento resume o caixa: com venda dele ainda não enviada, a API o fecharia sem ela. (A tela já impede
+        // fechar assim; isto cobre caixa fechado antes da regra e vendas que voltaram a falhar.)
+        var vendasNaoEnviadas = await context.Vendas.CountAsync(v => v.CaixaId == caixa.Id && v.SyncStatus != SyncStatus.Sincronizado, ct);
+        if (vendasNaoEnviadas > 0)
+            return await AguardarAsync(context, caixa, MensagemVendasNaoEnviadas(vendasNaoEnviadas), ct);
 
         // A API identifica a forma de pagamento pelo SEU id (ex: 5), não pelo id local (ex: 1): mandar o local
         // registraria a apuração na forma errada.

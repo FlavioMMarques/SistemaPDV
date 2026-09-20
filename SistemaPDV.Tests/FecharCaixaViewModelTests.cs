@@ -33,6 +33,14 @@ public class FecharCaixaViewModelTests
         var vendaService = new VendaService(fixture.CriarContexto);
         await vendaService.RegistrarVendaLocalAsync(caixa.Id, null, new[] { (produtoId, 1m, 30m, 0m, 0m) }, new[] { (especieId, 30m) });
         await vendaService.RegistrarVendaLocalAsync(caixa.Id, null, new[] { (produtoId, 1m, 20m, 0m, 0m) }, new[] { (especieId, 5m), (pixId, 15m) });
+
+        // Só fecha sem venda pendente (regra de negócio): aqui as vendas já foram enviadas.
+        await using (var context = fixture.CriarContexto())
+        {
+            foreach (var venda in context.Vendas)
+                venda.SyncStatus = SyncStatus.Sincronizado;
+            await context.SaveChangesAsync();
+        }
         return (caixa.Id, especieId, pixId);
     }
 

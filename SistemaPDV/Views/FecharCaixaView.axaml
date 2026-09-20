@@ -64,6 +64,20 @@
                    AutomationProperties.Name="Troco final" />
         </StackPanel>
 
+        <!-- Regra: só fecha sem venda pendente. Aviso + "Verificar de novo" (a sincronização roda sozinha). -->
+        <StackPanel Spacing="8" IsVisible="{Binding AvisoVendasPendentes, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="{Binding AvisoVendasPendentes}"
+                     Foreground="{StaticResource BrandYellowBrush}"
+                     TextWrapping="Wrap" />
+          <Button Content="🔄 Verificar de novo"
+                  Command="{Binding AtualizarCommand}"
+                  Background="{StaticResource BgInputBrush}"
+                  Foreground="{StaticResource TextMainBrush}"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  Padding="16,8"
+                  AutomationProperties.Name="Verificar de novo as vendas pendentes" />
+        </StackPanel>
+
         <TextBlock Text="{Binding Mensagem}"
                    Foreground="{StaticResource AccentRedBrush}"
                    TextWrapping="Wrap"

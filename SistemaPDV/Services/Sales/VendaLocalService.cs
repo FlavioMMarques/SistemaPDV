@@ -21,6 +21,13 @@ public class VendaLocalService
         this.contextFactory = contextFactory;
     }
 
+    // Vendas do caixa que ainda não chegaram à API (pendentes, com falha ou em espera): impedem o fechamento.
+    public async Task<int> ContarNaoEnviadasAsync(int caixaId, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        return await context.Vendas.CountAsync(v => v.CaixaId == caixaId && v.SyncStatus != SyncStatus.Sincronizado, ct);
+    }
+
     // Quanto as vendas deste caixa somam em cada forma de pagamento — o "esperado" que a tela de fechar caixa mostra
     // pra o operador conferir contra o que apurou. Soma em memória (o SQLite não soma decimal no servidor).
     public async Task<IReadOnlyList<TotalFormaPagamento>> TotaisPorFormaPagamentoAsync(int caixaId, CancellationToken ct = default)
