@@ -486,7 +486,7 @@ public class ShellViewModelTests
     }
 
     [Fact]
-    public async Task CadastrosFicaDisponivelNoDashboardQuandoAAberturaDeCaixaNaoEExigida()
+    public async Task CadastrosFicaBloqueadoSemCaixaAbertoMesmoQuandoAAberturaNaoEExigida()
     {
         using var fixture = new SqliteInMemoryFixture();
         await using (var context = fixture.CriarContexto())
@@ -512,7 +512,7 @@ public class ShellViewModelTests
 
         var podeCadastros = await shell.IrParaCadastrosCommand.CanExecute.FirstAsync();
 
-        Assert.True(podeCadastros);   // sem a exigência, dá pra cadastrar sem caixa aberto
+        Assert.False(podeCadastros);   // igual aos outros botões: só com caixa aberto
     }
 
     [Fact]
