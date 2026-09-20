@@ -342,6 +342,57 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public async Task VincularComSucessoNaTelaDeConfiguracoesLevaAoLoginEAvisaOQueOuve()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+            RespostaJson(HttpStatusCode.OK, """{ "data": { "client_secret": "abc" } }"""));
+        var segredoProtector = new SegredoProtector();
+        var authService = new SoftcomAuthService(httpClient, segredoProtector);
+        var (_, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var configuracao = new ConfiguracaoService(fixture.CriarContexto, authService, segredoProtector);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+        var avisos = 0;
+        using var inscricao = shell.DispositivoVinculado.Subscribe(_ => avisos++);
+        await shell.IniciarAsync();
+        var configuracoes = (ConfiguracoesViewModel)shell.CurrentViewModel!;
+        configuracoes.LinkCadastro = "https://exemplo.softcomshop.com.br/registrar?client_id=7";
+        configuracoes.NomeDispositivo = "PDV-01";
+
+        var chegouNoLogin = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Configuracoes).FirstAsync().ToTask();
+        await configuracoes.VincularCommand.Execute();
+        await chegouNoLogin;
+
+        Assert.Equal(Tela.Login, shell.TelaAtual);
+        Assert.IsType<LoginViewModel>(shell.CurrentViewModel);
+        Assert.Equal(1, avisos);
+    }
+
+    [Fact]
+    public async Task VincularComFalhaContinuaNaTelaDeConfiguracoes()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+            RespostaJson(HttpStatusCode.BadRequest, """{ "message": "device_id invalido" }"""));
+        var segredoProtector = new SegredoProtector();
+        var authService = new SoftcomAuthService(httpClient, segredoProtector);
+        var (_, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var configuracao = new ConfiguracaoService(fixture.CriarContexto, authService, segredoProtector);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+        var avisos = 0;
+        using var inscricao = shell.DispositivoVinculado.Subscribe(_ => avisos++);
+        await shell.IniciarAsync();
+        var configuracoes = (ConfiguracoesViewModel)shell.CurrentViewModel!;
+        configuracoes.LinkCadastro = "https://exemplo.softcomshop.com.br/registrar?client_id=7";
+        configuracoes.NomeDispositivo = "PDV-01";
+
+        await configuracoes.VincularCommand.Execute();
+
+        Assert.Equal(Tela.Configuracoes, shell.TelaAtual);
+        Assert.Equal(0, avisos);
+    }
+
+    [Fact]
     public async Task CadastrosFicaDisponivelComOperadorLogadoMesmoSemCaixaAberto()
     {
         using var fixture = new SqliteInMemoryFixture();

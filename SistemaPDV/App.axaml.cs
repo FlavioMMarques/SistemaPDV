@@ -59,6 +59,7 @@ public partial class App : Application
             var sincronizacao = Services.SincronizacaoBackgroundService;
             sincronizacao.EstadoConexaoAlterada.Subscribe(estado =>
                 Dispatcher.UIThread.Post(() => shellViewModel.DefinirConexao(estado, sincronizacao.MensagemUltimoCiclo)));
+            shellViewModel.DispositivoVinculado.Subscribe(_ => sincronizacao.SolicitarAgora());
             sincronizacao.Iniciar();
             desktop.Exit += (_, _) => sincronizacao.Dispose();
         }
