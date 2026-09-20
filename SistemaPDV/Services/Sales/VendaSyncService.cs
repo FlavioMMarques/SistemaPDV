@@ -130,7 +130,7 @@ public class VendaSyncService
 
         var dominio = SoftcomAuthService.ExtrairDominio(configuracao.UrlApi);
 
-        var resultado = await apiClient.EnviarAsync(HttpMethod.Post, $"{dominio}/api/v2/vendas", payload, accessToken, ct);
+        var resultado = await apiClient.EnviarAsync(HttpMethod.Post, SoftcomRotas.Vendas(dominio), payload, accessToken, ct);
 
         // Problema de configuração, não da venda: continua PendenteSync, sem contar
         // tentativa (TentativasEnvio) nem gravar erro — ver ResultadoEnvioTipo.ConexaoInsegura.

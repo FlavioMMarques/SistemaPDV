@@ -68,7 +68,7 @@ public class CaixaSyncService
         };
 
         var resultado = await apiClient.EnviarAsync(
-            HttpMethod.Post, $"{dominio}/api/v2/financeiro/caixa-funcoes/abrir", corpo, accessToken, ct);
+            HttpMethod.Post, SoftcomRotas.CaixaAbrir(dominio), corpo, accessToken, ct);
 
         // URL não segura é problema de configuração, não do caixa: nada saiu daqui,
         // então o caixa continua exatamente como estava (sem FalhaSync).
@@ -157,7 +157,7 @@ public class CaixaSyncService
         };
 
         var resultado = await apiClient.EnviarAsync(
-            HttpMethod.Post, $"{dominio}/api/v2/financeiro/caixa-funcoes/fechar", corpo, accessToken, ct);
+            HttpMethod.Post, SoftcomRotas.CaixaFechar(dominio), corpo, accessToken, ct);
 
         // Sem esta linha, ConexaoInsegura cairia no "else" abaixo e o fechamento seria
         // marcado Sincronizado sem nunca ter saído da máquina (só Falha/TokenExpirado

@@ -20,11 +20,11 @@ public class EmpresaApiDto
     [JsonPropertyName("empresa_uf")] public string? EmpresaUf { get; set; }
 
     [JsonPropertyName("empresa_modulo_fiscal")] public bool EmpresaModuloFiscal { get; set; }
-    [JsonPropertyName("empresa_nfce_serie")] public int EmpresaNfceSerie { get; set; }
-    [JsonPropertyName("empresa_nfce_numero_caixa")] public int EmpresaNfceNumeroCaixa { get; set; }
-    [JsonPropertyName("empresa_nfce_ambiente")] public int EmpresaNfceAmbiente { get; set; }
-    [JsonPropertyName("empresa_nfce_modelo")] public int EmpresaNfceModelo { get; set; }
-    [JsonPropertyName("empresa_nfce_proximo_numero")] public int EmpresaNfceProximoNumero { get; set; }
+    [JsonPropertyName("empresa_nfce_serie")] public int? EmpresaNfceSerie { get; set; }
+    [JsonPropertyName("empresa_nfce_numero_caixa")] public int? EmpresaNfceNumeroCaixa { get; set; }
+    [JsonPropertyName("empresa_nfce_ambiente")] public int? EmpresaNfceAmbiente { get; set; }
+    [JsonPropertyName("empresa_nfce_modelo")] public int? EmpresaNfceModelo { get; set; }
+    [JsonPropertyName("empresa_nfce_proximo_numero")] public int? EmpresaNfceProximoNumero { get; set; }
 
     // Sensíveis — nunca chegam a ser gravados como vieram (ver
     // CatalogSyncService.SincronizarEmpresaAsync e docs/APRENDIZADOS.md).

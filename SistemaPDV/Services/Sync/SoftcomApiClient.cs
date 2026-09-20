@@ -58,7 +58,7 @@ public class SoftcomApiClient
             PaginaApiDto<T>? pagina;
             try
             {
-                pagina = JsonSerializer.Deserialize<PaginaApiDto<T>>(conteudo, SoftcomJson.Opcoes);
+                pagina = LerPagina<T>(conteudo);
             }
             catch (JsonException ex)
             {
@@ -112,6 +112,25 @@ public class SoftcomApiClient
         {
             return ResultadoEnvio.Criar(ResultadoEnvioTipo.Falha, $"Falha de conexão: {ex.Message}");
         }
+    }
+
+    // A API real devolve a página como objeto na maioria dos endpoints, mas o de formas de
+    // pagamento (".../forma-pagamento/page/1") a embrulha num array: [ { "data": [...] } ].
+    // Aceita as duas formas; array vazio = página sem itens.
+    private static PaginaApiDto<T>? LerPagina<T>(string conteudo)
+    {
+        using var documento = JsonDocument.Parse(conteudo);
+        var raiz = documento.RootElement;
+
+        if (raiz.ValueKind == JsonValueKind.Array)
+        {
+            if (raiz.GetArrayLength() == 0)
+                return new PaginaApiDto<T>();
+
+            raiz = raiz[0];
+        }
+
+        return raiz.Deserialize<PaginaApiDto<T>>(SoftcomJson.Opcoes);
     }
 
     private static string MontarUrlInicial(string dominio, string caminho, long? ultimaSincronizacao)

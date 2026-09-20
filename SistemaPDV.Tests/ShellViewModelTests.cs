@@ -49,7 +49,7 @@ public class ShellViewModelTests
     private static async Task<int> SemearFuncionarioAsync(SqliteInMemoryFixture fixture, string pdvKey)
     {
         await using var context = fixture.CriarContexto();
-        var funcionario = new Funcionario { Nome = "Carlos Silva", PdvKeyHash = PdvKeyHasher.Hash(pdvKey) };
+        var funcionario = new Funcionario { Nome = "Carlos Silva", PdvKeyHash = PdvKeyTeste.Hash(pdvKey) };
         context.Funcionarios.Add(funcionario);
         await context.SaveChangesAsync();
         return funcionario.Id;

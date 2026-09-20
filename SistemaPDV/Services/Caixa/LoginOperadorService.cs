@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -7,8 +8,13 @@ using SistemaPDV.Models;
 
 namespace SistemaPDV.Services.Caixa;
 
-// Login local, sem rede: compara o hash da chave digitada contra o PdvKeyHash já
-// sincronizado por catalog-sync — nunca guarda nem recebe a chave em claro de volta.
+// Login local, sem rede: confere a chave digitada contra os hashes bcrypt de pdv_key que
+// catalog-sync já baixou — nunca guarda nem recebe a chave em claro de volta.
+//
+// O login não pede usuário (só a chave), então não há "o" funcionário pra conferir: tenta-se
+// cada funcionário ativo com hash. bcrypt é lento DE PROPÓSITO (custo 10 ≈ dezenas de ms cada;
+// dezenas de operadores = até ~1 s no pior caso), por isso a conferência roda fora da thread
+// de UI — o login não pode congelar a janela.
 public class LoginOperadorService
 {
     private readonly Func<AppDbContext> contextFactory;
@@ -20,11 +26,16 @@ public class LoginOperadorService
 
     public async Task<Funcionario?> AutenticarAsync(string pdvKeyDigitado, CancellationToken ct = default)
     {
-        var hash = PdvKeyHasher.Hash(pdvKeyDigitado);
-        if (hash is null)
+        if (string.IsNullOrEmpty(pdvKeyDigitado))
             return null;
 
         await using var context = contextFactory();
-        return await context.Funcionarios.FirstOrDefaultAsync(f => f.PdvKeyHash == hash && !f.Desativado, ct);
+        var candidatos = await context.Funcionarios
+            .Where(f => !f.Desativado && f.PdvKeyHash != null)
+            .ToListAsync(ct);
+
+        return await Task.Run(
+            () => candidatos.FirstOrDefault(f => PdvKeyHasher.Verificar(pdvKeyDigitado, f.PdvKeyHash)),
+            ct);
     }
 }

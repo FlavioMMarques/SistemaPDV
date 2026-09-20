@@ -1413,6 +1413,15 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 
 **Pendente:** conferência manual do indicador com rede ligada/desligada e do "Reenviar falhas" na tela.
 
+### Correções descobertas ao testar contra a API real (2026-09-20)
+
+O usuário viu "Chave inválida"; investigar levou a descobrir que a sincronização **nunca tinha funcionado** contra a API real. Corrigido (346 testes; o mesmo código sincroniza os 5 recursos numa cópia do banco): rotas sob `softauth/api/v2/` (`SoftcomRotas`), página de formas de pagamento embrulhada em array, `bloqueado`/`vender` booleanos, `estoque` textual, campos nulos da empresa, e login com **bcrypt** (a `pdv_key` da API é hash `$2y$10$`). Ver APRENDIZADOS #53 e #54.
+
+**A conferir/decidir (não verificado):**
+- POST de **caixa (abrir/fechar), venda e criar cliente** agora usam `softauth/api/v2/`, por inferência — não foi testado com POST real (criaria dado). Conferir no primeiro caixa/venda de teste.
+- O sync trouxe **4 empresas** de `empresa/empresas/1`; a venda usa `Empresas.FirstOrDefault()` — confirmar qual é a empresa deste dispositivo (o `empresa_id` do vínculo?) antes de vender de verdade.
+- Produtos: vieram 200 (uma página cheia) — conferir se há mais páginas a seguir e o total real.
+
 ---
 
 ### Checkpoint: pdv-ui completo
