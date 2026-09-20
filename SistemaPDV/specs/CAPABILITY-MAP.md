@@ -15,7 +15,7 @@ PDV (ponto de venda) offline-first em C#/.NET 8 + Avalonia + MVVM, com SQLite lo
 ## Fora de escopo (adiado)
 
 - **Sangria / Suprimento** (`POST /api/v2/financeiro/sangria` e `/suprimento`) — endpoints já documentados no contrato da API, mas o fluxo de UI/domínio fica para depois do protótipo inicial.
-- **Emissão de NFC-e** — os campos fiscais da empresa (`empresa_certificado`, config de NFC-e) são sincronizados por completude, mas a emissão em si não faz parte do escopo do protótipo.
+- **Emissão de NFC-e** — os campos fiscais da empresa (`empresa_certificado`, config de NFC-e) são sincronizados por completude, mas a emissão em si não faz parte do escopo do protótipo. **Decisão do usuário (2026-09-20): o app não vai focar em emissão de NFC-e por enquanto** — só sincroniza os dados fiscais; nada da emissão entra no backlog até o usuário reabrir o assunto.
 
 ## Contrato externo (referência)
 
