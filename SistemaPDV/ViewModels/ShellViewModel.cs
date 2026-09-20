@@ -69,12 +69,12 @@ public class ShellViewModel : ViewModelBase
         var temCaixaAberto = this.WhenAnyValue(vm => vm.CaixaAberto).Select(caixa => caixa is not null);
         var semVendaEmAndamento = this.WhenAnyValue(vm => vm.VendaEmAndamento).Select(emAndamento => !emAndamento);
         var podeNavegar = temCaixaAberto.CombineLatest(semVendaEmAndamento, (temCaixa, semVenda) => temCaixa && semVenda);
-        IrParaDashboardCommand = ReactiveCommand.Create(() => IrParaDashboard(), podeNavegar);
-        IrParaPdvCommand = ReactiveCommand.Create(() => IrParaPdv(CaixaAberto!.Id), podeNavegar);
-        IrParaListaPedidosCommand = ReactiveCommand.Create(() => IrParaListaPedidos(CaixaAberto!.Id), podeNavegar);
+        IrParaDashboardCommand = ReactiveCommand.CreateFromTask(IrParaDashboardAsync, podeNavegar);
+        IrParaPdvCommand = ReactiveCommand.CreateFromTask(() => IrParaPdvAsync(CaixaAberto!.Id), podeNavegar);
+        IrParaListaPedidosCommand = ReactiveCommand.CreateFromTask(() => IrParaListaPedidosAsync(CaixaAberto!.Id), podeNavegar);
         // Fechar caixa: mesma regra de navegação (precisa de caixa aberto; bloqueado com venda em andamento —
         // fechar com o carrinho cheio descartaria a venda).
-        IrParaFecharCaixaCommand = ReactiveCommand.Create(() => IrParaFecharCaixa(CaixaAberto!.Id), podeNavegar);
+        IrParaFecharCaixaCommand = ReactiveCommand.CreateFromTask(() => IrParaFecharCaixaAsync(CaixaAberto!.Id), podeNavegar);
 
         // Cadastros não depende de caixa (é só leitura/cadastro local), só de haver
         // operador logado — assim continua acessível com ExigirAberturaCaixa desligado
@@ -82,7 +82,7 @@ public class ShellViewModel : ViewModelBase
         // o carrinho.
         var temOperador = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null);
         var podeAbrirCadastros = temOperador.CombineLatest(semVendaEmAndamento, (temLogin, semVenda) => temLogin && semVenda);
-        IrParaCadastrosCommand = ReactiveCommand.Create(() => IrParaCadastros(), podeAbrirCadastros);
+        IrParaCadastrosCommand = ReactiveCommand.CreateFromTask(IrParaCadastrosAsync, podeAbrirCadastros);
     }
 
     public Tela TelaAtual
@@ -236,72 +236,79 @@ public class ShellViewModel : ViewModelBase
 
         if (CaixaAberto is not null || !configuracao.ExigirAberturaCaixa)
         {
-            IrParaDashboard();
+            await IrParaDashboardAsync();
             return;
         }
 
-        IrParaAbrirCaixa(funcionario.Id);
+        await IrParaAbrirCaixaAsync(funcionario.Id);
     }
 
-    private void IrParaAbrirCaixa(int funcionarioId)
+    // Carrega ANTES de mostrar a tela (e não em segundo plano depois): o turno sugerido já é o certo quando ela
+    // aparece (sem piscar "Turno 1" e trocar) e nada mexe no banco em paralelo com o que o operador faz a seguir.
+    private async Task IrParaAbrirCaixaAsync(int funcionarioId)
     {
         var viewModel = new AbrirCaixaViewModel(caixaService, funcionarioId);
+        await viewModel.IniciarAsync();   // sugere o 1º turno ainda livre hoje
 
         viewModel.AbrirCommand
             .Where(caixa => caixa is not null)
             .Subscribe(caixa =>
             {
                 CaixaAberto = caixa;
-                IrParaDashboard();
+                _ = ExecutarComTratamentoDeErroAsync(IrParaDashboardAsync);
             });
 
         CurrentViewModel = viewModel;
         TelaAtual = Tela.AbrirCaixa;
     }
 
-    private void IrParaDashboard()
+    // IrPara*Async: carregam os dados ANTES de mostrar a tela (e não em segundo plano depois). Tela vazia que se enche
+    // sozinha é pior pro operador, e o carregamento em paralelo mexia no banco ao mesmo tempo que a ação seguinte.
+    private async Task IrParaDashboardAsync()
     {
         var viewModel = new DashboardViewModel(dashboardService, CaixaAberto?.Id);
+        await viewModel.IniciarAsync();
 
         // Nova Venda não navega sozinho — só emite (fica desabilitado sem caixa
         // aberto, ver DashboardViewModel), o Shell decide o que fazer com isso.
-        viewModel.NovaVendaCommand.Subscribe(_ => IrParaPdv(CaixaAberto!.Id));
+        viewModel.NovaVendaCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(() => IrParaPdvAsync(CaixaAberto!.Id)));
 
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Dashboard;
-        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
-    private void IrParaPdv(int caixaId)
+    private async Task IrParaPdvAsync(int caixaId)
     {
         var viewModel = new PdvViewModel(vendaService, catalogoLocalService, caixaId);
+        await viewModel.IniciarAsync();
         viewModel.WhenAnyValue(vm => vm.TemVendaEmAndamento).Subscribe(emAndamento => VendaEmAndamento = emAndamento);
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Pdv;
-        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
-    private void IrParaListaPedidos(int caixaId)
+    private async Task IrParaListaPedidosAsync(int caixaId)
     {
         var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId);
+        await viewModel.IniciarAsync();
         CurrentViewModel = viewModel;
         TelaAtual = Tela.ListaPedidos;
-        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
-    private void IrParaFecharCaixa(int caixaId)
+    // Também carrega antes de mostrar: com a apuração ainda vazia o operador poderia clicar em "Fechar caixa" e fechar
+    // SEM conferir nada (a lista de formas ainda não tinha chegado).
+    private async Task IrParaFecharCaixaAsync(int caixaId)
     {
         var viewModel = new FecharCaixaViewModel(caixaService, vendaLocalService, caixaId);
+        await viewModel.IniciarAsync();
 
         // ConfirmarCommand devolve o Caixa fechado (ou null se a regra recusou — a própria tela mostra o motivo).
         viewModel.ConfirmarCommand
             .Where(fechado => fechado is not null)
             .Subscribe(fechado => _ = ExecutarComTratamentoDeErroAsync(AposFecharCaixaAsync));
-        viewModel.CancelarCommand.Subscribe(_ => IrParaDashboard());
+        viewModel.CancelarCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(IrParaDashboardAsync));
 
         CurrentViewModel = viewModel;
         TelaAtual = Tela.FecharCaixa;
-        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
     // Sem caixa aberto não há mais o que fazer no Dashboard/Venda: com ExigirAberturaCaixa, volta pra abrir o próximo
@@ -313,17 +320,17 @@ public class ShellViewModel : ViewModelBase
 
         var configuracao = await configuracaoService.ObterOuCriarAsync();
         if (configuracao.ExigirAberturaCaixa && OperadorLogado is { } operador)
-            IrParaAbrirCaixa(operador.Id);
+            await IrParaAbrirCaixaAsync(operador.Id);
         else
-            IrParaDashboard();
+            await IrParaDashboardAsync();
     }
 
-    private void IrParaCadastros()
+    private async Task IrParaCadastrosAsync()
     {
         var viewModel = new CadastrosViewModel(cadastroLocalService);
+        await viewModel.IniciarAsync();
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Cadastros;
-        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
     }
 
     // "Fire-and-forget seguro": IrPara* dispara trabalho assíncrono (carregar

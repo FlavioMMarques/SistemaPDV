@@ -80,7 +80,6 @@ public class ShellFecharCaixaTests
         var shell = await LogarComCaixaAbertoAsync(fixture, exigirAberturaCaixa: true);
         await IrParaFecharCaixaAsync(shell);
         var fechar = (FecharCaixaViewModel)shell.CurrentViewModel!;
-        await fechar.IniciarAsync();
 
         var saiu = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.FecharCaixa).FirstAsync().ToTask();
         await fechar.ConfirmarCommand.Execute();
@@ -99,7 +98,6 @@ public class ShellFecharCaixaTests
         var shell = await LogarComCaixaAbertoAsync(fixture, exigirAberturaCaixa: false);
         await IrParaFecharCaixaAsync(shell);
         var fechar = (FecharCaixaViewModel)shell.CurrentViewModel!;
-        await fechar.IniciarAsync();
 
         var saiu = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.FecharCaixa).FirstAsync().ToTask();
         await fechar.ConfirmarCommand.Execute();
@@ -144,5 +142,21 @@ public class ShellFecharCaixaTests
         await bloqueou;
 
         Assert.False(pode);   // fechar o caixa com carrinho cheio descartaria a venda
+    }
+
+    [Fact]
+    public async Task DepoisDeFecharATelaDeAberturaJaSugereOProximoTurnoLivre()
+    {
+        // Reproduz o que o usuário viu: fechou o turno 1, voltou pra "Abrir caixa" e a tela sugeria "Turno 1" de novo.
+        using var fixture = new SqliteInMemoryFixture();
+        var shell = await LogarComCaixaAbertoAsync(fixture, exigirAberturaCaixa: true);
+        await IrParaFecharCaixaAsync(shell);
+        var fechar = (FecharCaixaViewModel)shell.CurrentViewModel!;
+        var saiu = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t == Tela.AbrirCaixa).FirstAsync().ToTask();
+        await fechar.ConfirmarCommand.Execute();
+        await saiu;
+        var abrir = (AbrirCaixaViewModel)shell.CurrentViewModel!;
+
+        Assert.Equal(2, abrir.Turno);   // já carregado quando a tela aparece: sem piscar "Turno 1"
     }
 }

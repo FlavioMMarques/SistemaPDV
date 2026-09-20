@@ -58,6 +58,16 @@ public class AbrirCaixaViewModel : ViewModelBase
 
     public ReactiveCommand<Unit, Models.Caixa?> AbrirCommand { get; }
 
+    // Sugere o primeiro turno de hoje ainda não usado por este operador: depois de fechar o turno 1, a tela voltava
+    // sugerindo "Turno 1" e a abertura era recusada. Se todos já foram usados, mantém o turno atual (a mensagem explica).
+    public async Task IniciarAsync()
+    {
+        var usados = await caixaService.TurnosUsadosAsync(funcionarioId, DateOnly.FromDateTime(DateTime.Now));
+        var livre = Turnos.Where(t => !usados.Contains(t)).Cast<int?>().FirstOrDefault();
+        if (livre is { } proximo)
+            Turno = proximo;
+    }
+
     private async Task<Models.Caixa?> AbrirAsync()
     {
         Mensagem = null;

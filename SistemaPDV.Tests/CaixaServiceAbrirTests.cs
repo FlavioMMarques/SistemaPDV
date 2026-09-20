@@ -41,7 +41,7 @@ public class CaixaServiceAbrirTests
         var segundaTentativa = await service.AbrirCaixaLocalAsync(funcionarioId, new DateOnly(2026, 9, 18), 1, 10m);
 
         Assert.False(segundaTentativa.Sucesso);
-        Assert.Contains("já existe", segundaTentativa.Mensagem, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("já foi usado", segundaTentativa.Mensagem, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -110,5 +110,49 @@ public class CaixaServiceAbrirTests
         var turno6 = await service.AbrirCaixaLocalAsync(funcionarioId, dia, 6, 10m);
 
         Assert.True(turno6.Sucesso);
+    }
+
+    [Fact]
+    public async Task TurnosUsadosListaOsDoOperadorNaquelaDataInclusiveOsJaFechados()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        int outroId;
+        await using (var context = fixture.CriarContexto())
+        {
+            var outro = new Funcionario { Nome = "Outro" };
+            context.Funcionarios.Add(outro);
+            await context.SaveChangesAsync();
+            outroId = outro.Id;
+        }
+        var service = new CaixaService(fixture.CriarContexto);
+        var dia = new DateOnly(2026, 9, 20);
+        var turno1 = await service.AbrirCaixaLocalAsync(funcionarioId, dia, 1, 10m);
+        await service.FecharCaixaLocalAsync(turno1.Valor!.Id, 0m, Array.Empty<(int, decimal)>(), Array.Empty<(string, decimal)>());
+        await service.AbrirCaixaLocalAsync(funcionarioId, dia, 3, 10m);
+        await service.AbrirCaixaLocalAsync(funcionarioId, dia.AddDays(1), 2, 10m);   // outro dia: não conta
+        await service.AbrirCaixaLocalAsync(outroId, dia, 5, 10m);                     // outro operador: não conta
+
+        var usados = await service.TurnosUsadosAsync(funcionarioId, dia);
+
+        Assert.Equal(new[] { 1, 3 }, usados.OrderBy(t => t).ToArray());
+    }
+
+    [Fact]
+    public async Task ReabrirOMesmoTurnoExplicaQueEleJaFoiUsadoEPedeOutro()
+    {
+        // "Já existe um caixa local para esse funcionário, data e turno." não dizia o que fazer.
+        using var fixture = new SqliteInMemoryFixture();
+        var funcionarioId = await SemearFuncionarioAsync(fixture);
+        var service = new CaixaService(fixture.CriarContexto);
+        var dia = new DateOnly(2026, 9, 20);
+        var primeiro = await service.AbrirCaixaLocalAsync(funcionarioId, dia, 1, 10m);
+        await service.FecharCaixaLocalAsync(primeiro.Valor!.Id, 0m, Array.Empty<(int, decimal)>(), Array.Empty<(string, decimal)>());
+
+        var segundo = await service.AbrirCaixaLocalAsync(funcionarioId, dia, 1, 10m);
+
+        Assert.False(segundo.Sucesso);
+        Assert.Contains("turno 1", segundo.Mensagem, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("outro turno", segundo.Mensagem, StringComparison.OrdinalIgnoreCase);
     }
 }

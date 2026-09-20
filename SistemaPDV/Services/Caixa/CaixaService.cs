@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,20 @@ public class CaixaService
             c => c.FuncionarioId == funcionarioId && c.Status == StatusCaixa.Aberto, ct);
     }
 
+    // Turnos que este operador já usou na data (abertos OU já fechados): cada combinação operador+data+turno só pode
+    // ter UM caixa (a API tem a mesma regra), então um turno fechado não reabre — a tela sugere o próximo livre.
+    public async Task<IReadOnlyList<int>> TurnosUsadosAsync(int funcionarioId, DateOnly dataCaixa, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        return await context.Caixas
+            .Where(c => c.FuncionarioId == funcionarioId && c.DataCaixa == dataCaixa)
+            .Select(c => c.Turno)
+            .ToListAsync(ct);
+    }
+
+    private static string MensagemTurnoJaUsado(int turno) =>
+        $"O turno {turno} de hoje já foi usado por este operador (mesmo com o caixa fechado, ele não reabre) — escolha outro turno.";
+
     public async Task<ResultadoOperacaoCaixa<Models.Caixa>> AbrirCaixaLocalAsync(
         int funcionarioId, DateOnly dataCaixa, int turno, decimal trocoInicial, CancellationToken ct = default)
     {
@@ -59,7 +74,7 @@ public class CaixaService
             c => c.FuncionarioId == funcionarioId && c.DataCaixa == dataCaixa && c.Turno == turno, ct);
 
         if (jaExisteLocal)
-            return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha("Já existe um caixa local para esse funcionário, data e turno.");
+            return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha(MensagemTurnoJaUsado(turno));
 
         var caixa = new Models.Caixa
         {
@@ -87,7 +102,7 @@ public class CaixaService
             // amigável. O índice único do banco (CaixaConfiguration) continua sendo
             // a proteção de verdade; esse catch só traduz a violação dele pra mesma
             // mensagem que o caminho comum já devolve.
-            return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha("Já existe um caixa local para esse funcionário, data e turno.");
+            return ResultadoOperacaoCaixa<Models.Caixa>.ComFalha(MensagemTurnoJaUsado(turno));
         }
 
         return ResultadoOperacaoCaixa<Models.Caixa>.ComSucesso(caixa);
