@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using ReactiveUI.Avalonia;
 using System;
+using SistemaPDV.Services;
 using System.Runtime.Versioning;
 
 namespace SistemaPDV;
@@ -29,5 +30,5 @@ sealed class Program
 #endif
             .WithInterFont()
             .LogToTrace()
-            .UseReactiveUI(_ => { });
+            .UseReactiveUI(builder => builder.WithExceptionHandler(TratamentoDeErros.Observador));
 }

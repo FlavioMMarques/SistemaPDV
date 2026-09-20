@@ -149,6 +149,10 @@ public class ShellViewModel : ViewModelBase
             _ = ExecutarComTratamentoDeErroAsync(tela.AtualizarAposSincronizacaoAsync);
     }
 
+    // Erro inesperado de um comando (ver TratamentoDeErros): vira o banner em vez de derrubar o app.
+    // Chamar na thread de UI (o App faz o Post).
+    public void ReportarErro(Exception excecao) => Mensagem = $"Ocorreu um erro inesperado: {excecao.Message}";
+
     public void DefinirConexao(EstadoConexao estado, string? detalhe)
     {
         DetalheConexao = estado == EstadoConexao.Desconhecida ? null : detalhe;

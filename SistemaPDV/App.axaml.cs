@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using SistemaPDV.Services;
 using SistemaPDV.ViewModels;
 using SistemaPDV.Views;
 
@@ -51,6 +52,9 @@ public partial class App : Application
             // aparece quando IniciarAsync termina, e a janela não pode ficar travada
             // esperando isso — ShellViewModel.CurrentViewModel é reativo, então a UI
             // atualiza sozinha assim que a decisão de navegação estiver pronta.
+            // Rede de segurança: exceção de comando vira o banner do Shell, não crash (ver TratamentoDeErros).
+            TratamentoDeErros.Destino = excecao => Dispatcher.UIThread.Post(() => shellViewModel.ReportarErro(excecao));
+
             _ = shellViewModel.IniciarAsync();
 
             // Sincronização automática (30 s outbox / 5 min catálogo). O serviço roda os

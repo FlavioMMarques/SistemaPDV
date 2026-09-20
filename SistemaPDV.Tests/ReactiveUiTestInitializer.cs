@@ -15,6 +15,8 @@ internal static class ReactiveUiTestInitializer
     public static void Inicializar()
     {
         RxAppBuilder.CreateReactiveUIBuilder()
+            // Mesmo registro do Program.cs: exceção de comando vai pro TratamentoDeErros em vez de derrubar o processo.
+            .WithExceptionHandler(SistemaPDV.Services.TratamentoDeErros.Observador)
             .WithCoreServices()
             .BuildApp();
     }

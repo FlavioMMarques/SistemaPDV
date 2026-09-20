@@ -551,4 +551,16 @@ public class ShellViewModelTests
         await voltouAoDashboard;
         Assert.Equal(Tela.Dashboard, shell.TelaAtual);
     }
+
+    [Fact]
+    public void ReportarErroMostraNoBannerEmVezDeDerrubarOApp()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+
+        shell.ReportarErro(new InvalidOperationException("banco travado"));
+
+        Assert.Contains("banco travado", shell.Mensagem);
+    }
 }
