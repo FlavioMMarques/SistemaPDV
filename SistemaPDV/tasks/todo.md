@@ -1442,6 +1442,24 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 
 ---
 
+## Task 51: FecharCaixaViewModel / FecharCaixaView (lacuna descoberta em 2026-09-20)
+
+**Description:** O critério de sucesso "login → abrir caixa → vender → **fechar caixa**" não tinha tela (só o back-end da Fase 3). Tela de conferência: total vendido, apuração por forma de pagamento (pré-preenchida com o esperado, o operador ajusta) e troco final; fechar só grava local (offline-first) e o outbox envia depois.
+
+**Acceptance criteria:**
+- [x] Botão "Fechar caixa" na barra (só com caixa aberto; bloqueado com venda em andamento) leva à tela
+- [x] Esperado por forma vem das vendas do caixa; valores aceitam vírgula ou ponto (`ValorMonetario`); inválido desabilita o botão
+- [x] Confirmar fecha local (`FecharCaixaLocalAsync`); depois: com `ExigirAberturaCaixa` -> Abrir caixa, senão Dashboard, sem caixa aberto; Cancelar volta ao Dashboard
+- [x] Fechamento envia o id da API da forma de pagamento (não o local) e espera com motivo visível se a forma ainda não tem id
+- [x] Outbox envia abrir -> vendas -> fechar (o fechamento resume o caixa)
+- [x] Corrigido junto: leitura de valores com vírgula (`10,50` era lido como 1050)
+
+**Verification:** [x] 440 testes; build 0 avisos. [ ] Conferência manual da tela + fechamento real contra a API (fecha o caixa de verdade no SoftcomShop — só com autorização).
+
+**Fica de fora do v1:** apuração de bandeiras de cartão (`digitacao_bandeiras`, envia vazia); campos que a API real ainda pedir no POST de fechar (só aparecem no 1º envio real).
+
+---
+
 ### Checkpoint: pdv-ui completo
 - [ ] Todos os Success Criteria de `specs/SPEC-pdv-ui.md` atendidos
 - [ ] Revisão com o usuário

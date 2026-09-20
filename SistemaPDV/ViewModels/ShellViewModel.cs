@@ -72,6 +72,9 @@ public class ShellViewModel : ViewModelBase
         IrParaDashboardCommand = ReactiveCommand.Create(() => IrParaDashboard(), podeNavegar);
         IrParaPdvCommand = ReactiveCommand.Create(() => IrParaPdv(CaixaAberto!.Id), podeNavegar);
         IrParaListaPedidosCommand = ReactiveCommand.Create(() => IrParaListaPedidos(CaixaAberto!.Id), podeNavegar);
+        // Fechar caixa: mesma regra de navegação (precisa de caixa aberto; bloqueado com venda em andamento —
+        // fechar com o carrinho cheio descartaria a venda).
+        IrParaFecharCaixaCommand = ReactiveCommand.Create(() => IrParaFecharCaixa(CaixaAberto!.Id), podeNavegar);
 
         // Cadastros não depende de caixa (é só leitura/cadastro local), só de haver
         // operador logado — assim continua acessível com ExigirAberturaCaixa desligado
@@ -163,6 +166,7 @@ public class ShellViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> IrParaPdvCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaListaPedidosCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaCadastrosCommand { get; }
+    public ReactiveCommand<Unit, Unit> IrParaFecharCaixaCommand { get; }
 
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
     // pode chegar em IrParaConfiguracoes, que constrói ConfiguracoesViewModel
@@ -283,6 +287,35 @@ public class ShellViewModel : ViewModelBase
         CurrentViewModel = viewModel;
         TelaAtual = Tela.ListaPedidos;
         _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
+    }
+
+    private void IrParaFecharCaixa(int caixaId)
+    {
+        var viewModel = new FecharCaixaViewModel(caixaService, vendaLocalService, caixaId);
+
+        // ConfirmarCommand devolve o Caixa fechado (ou null se a regra recusou — a própria tela mostra o motivo).
+        viewModel.ConfirmarCommand
+            .Where(fechado => fechado is not null)
+            .Subscribe(fechado => _ = ExecutarComTratamentoDeErroAsync(AposFecharCaixaAsync));
+        viewModel.CancelarCommand.Subscribe(_ => IrParaDashboard());
+
+        CurrentViewModel = viewModel;
+        TelaAtual = Tela.FecharCaixa;
+        _ = ExecutarComTratamentoDeErroAsync(viewModel.IniciarAsync);
+    }
+
+    // Sem caixa aberto não há mais o que fazer no Dashboard/Venda: com ExigirAberturaCaixa, volta pra abrir o próximo
+    // (o operador continua logado); sem a exigência, cai no Dashboard (Nova Venda fica desabilitada sem caixa).
+    // O fechamento em si só vai à API depois, pelo serviço de sincronização (outbox).
+    private async Task AposFecharCaixaAsync()
+    {
+        CaixaAberto = null;
+
+        var configuracao = await configuracaoService.ObterOuCriarAsync();
+        if (configuracao.ExigirAberturaCaixa && OperadorLogado is { } operador)
+            IrParaAbrirCaixa(operador.Id);
+        else
+            IrParaDashboard();
     }
 
     private void IrParaCadastros()

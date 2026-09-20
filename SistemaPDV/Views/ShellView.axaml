@@ -74,6 +74,11 @@
                 Background="Transparent"
                 Foreground="{StaticResource TextMainBrush}"
                 AutomationProperties.Name="Ir para cadastros" />
+        <Button Content="🔒 Fechar caixa"
+                Command="{Binding IrParaFecharCaixaCommand}"
+                Background="Transparent"
+                Foreground="{StaticResource TextMainBrush}"
+                AutomationProperties.Name="Ir para fechar caixa" />
       </StackPanel>
     </Border>
 

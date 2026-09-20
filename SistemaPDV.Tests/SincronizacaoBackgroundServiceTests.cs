@@ -327,6 +327,51 @@ public class SincronizacaoBackgroundServiceTests
     }
 
     [Fact]
+    public async Task OutboxEnviaAberturaDepoisVendasEPorUltimoOFechamentoDoCaixa()
+    {
+        // O fechamento resume o caixa: se ele chegar à API ANTES das vendas, a API fecha um caixa "sem vendas".
+        // Ordem certa: abrir -> vendas -> fechar (o caixa aberto é o que as vendas referenciam).
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        int caixaId, produtoId, formaId;
+        await using (var context = fixture.CriarContexto())
+        {
+            var configuracao = context.ConfiguracoesSincronizacao.Single();
+            configuracao.ClienteConsumidorFinalIdExterno = 1;
+            var funcionario = new Funcionario { Nome = "Carlos", IdExterno = 2 };
+            var produto = new Produto { Nome = "Refri", PrecoVenda = 10m, IdExterno = 10, ProdutoIdApi = 100 };
+            var forma = new FormaPagamento { Nome = "PIX", Tipo = "CARTEIRA_DIGITAL", CodigoNfce = "17", IdExterno = 5 };
+            context.AddRange(funcionario, produto, forma);
+            context.Empresas.Add(new Empresa { RazaoSocial = "Softcom", Cnpj = "12345678000199", IdExterno = 1 });
+            await context.SaveChangesAsync();
+            var caixaLocal = (await new CaixaService(fixture.CriarContexto).AbrirCaixaLocalAsync(funcionario.Id, new DateOnly(2026, 9, 20), 1, 10m)).Valor!;
+            (caixaId, produtoId, formaId) = (caixaLocal.Id, produto.Id, forma.Id);
+        }
+        await new VendaService(fixture.CriarContexto).RegistrarVendaLocalAsync(caixaId, null, new[] { (produtoId, 1m, 10m, 0m, 0m) }, new[] { (formaId, 10m) });
+        await new CaixaService(fixture.CriarContexto).FecharCaixaLocalAsync(caixaId, 10m, new[] { (formaId, 10m) }, Array.Empty<(string, decimal)>());
+        var api = new ApiFake
+        {
+            Sobrescrever = r =>
+            {
+                var caminho = r.RequestUri!.AbsolutePath;
+                if (caminho.EndsWith("/caixa-funcoes/abrir")) return Json(HttpStatusCode.OK, """{ "data": { "success": { "id": 28 } } }""");
+                if (caminho.EndsWith("/caixa-funcoes/fechar")) return Json(HttpStatusCode.OK, "{}");
+                if (caminho.EndsWith("/vendas")) return Json(HttpStatusCode.OK, """{ "data": { "id": 500 } }""");
+                return null;
+            },
+        };
+        var service = CriarService(fixture, api.CriarHttpClient());
+
+        await service.ExecutarCicloOutboxAsync();
+
+        var posts = api.Requisicoes.Where(r => r.StartsWith("POST") && !r.Contains("authentication")).Select(r => r[(r.LastIndexOf('/') + 1)..]).ToList();
+        Assert.Equal(new[] { "abrir", "vendas", "fechar" }, posts);
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal(SyncStatus.Sincronizado, leitura.Caixas.Single().SyncStatus);   // fechamento confirmado
+        Assert.Equal(SyncStatus.Sincronizado, leitura.Vendas.Single().SyncStatus);
+    }
+
+    [Fact]
     public async Task OutboxEnviaCaixaPendente()
     {
         using var fixture = new SqliteInMemoryFixture();

@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="SistemaPDV.Views.FecharCaixaView"
+             x:DataType="vm:FecharCaixaViewModel"
+             Background="{StaticResource BgMainBrush}">
+
+  <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="520">
+    <Border Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusCard}"
+            Padding="32">
+      <StackPanel Spacing="16">
+        <TextBlock Text="🔒 Fechar caixa"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource TextMainBrush}"
+                   HorizontalAlignment="Center" />
+
+        <TextBlock Text="{Binding TotalVendido, StringFormat='Total vendido neste caixa: R$ {0:F2}'}"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   HorizontalAlignment="Center" />
+
+        <!-- Conferência: o "esperado" vem das vendas; o operador ajusta o que contou de fato. -->
+        <StackPanel Spacing="8">
+          <TextBlock Text="Apuração por forma de pagamento (R$)" Foreground="{StaticResource TextMutedBrush}" />
+
+          <TextBlock Text="Nenhuma venda neste caixa — nada a conferir."
+                     Foreground="{StaticResource TextMutedBrush}"
+                     IsVisible="{Binding SemVendas}" />
+
+          <ItemsControl ItemsSource="{Binding Formas}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LinhaApuracao">
+                <Grid ColumnDefinitions="*,Auto,140" Margin="0,0,0,6">
+                  <TextBlock Grid.Column="0" Text="{Binding Nome}" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Esperado, StringFormat='esperado R$ {0:F2}'}"
+                             Foreground="{StaticResource TextMutedBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="2"
+                           Text="{Binding Contado, Mode=TwoWay}"
+                           Background="{StaticResource BgInputBrush}"
+                           BorderBrush="{StaticResource BorderColorBrush}"
+                           Foreground="{StaticResource TextMainBrush}"
+                           FontFamily="{StaticResource FontMono}"
+                           CornerRadius="{StaticResource RadiusSmall}"
+                           AutomationProperties.Name="Valor contado" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="Troco final (R$)" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBox Text="{Binding TrocoFinal, Mode=TwoWay}"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   FontFamily="{StaticResource FontMono}"
+                   CornerRadius="{StaticResource RadiusSmall}"
+                   AutomationProperties.Name="Troco final" />
+        </StackPanel>
+
+        <TextBlock Text="{Binding Mensagem}"
+                   Foreground="{StaticResource AccentRedBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+          <Button Grid.Column="0"
+                  Content="Cancelar"
+                  Command="{Binding CancelarCommand}"
+                  Background="{StaticResource BgInputBrush}"
+                  Foreground="{StaticResource TextMainBrush}"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                  AutomationProperties.Name="Cancelar fechamento" />
+          <Button Grid.Column="1"
+                  Content="Fechar caixa"
+                  Command="{Binding ConfirmarCommand}"
+                  Background="{StaticResource BrandYellowBrush}"
+                  Foreground="{StaticResource TextDarkBrush}"
+                  FontWeight="Bold"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                  AutomationProperties.Name="Confirmar fechamento do caixa" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>
