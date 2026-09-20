@@ -324,7 +324,7 @@ public class ShellViewModelTests
     }
 
     [Fact]
-    public void DefinirConexaoAtualizaOIndicadorEGuardaOMotivoSoQuandoOffline()
+    public void DefinirConexaoGuardaOMotivoOuOResumoExcetoQuandoDesconhecida()
     {
         using var fixture = new SqliteInMemoryFixture();
         var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
@@ -335,9 +335,16 @@ public class ShellViewModelTests
         Assert.Equal(EstadoConexao.Offline, shell.Conexao);
         Assert.Equal("A URL da API não usa HTTPS", shell.DetalheConexao);
 
-        shell.DefinirConexao(EstadoConexao.Online, "resto de mensagem antiga");
+        shell.DefinirConexao(EstadoConexao.Online, "Último catálogo: Funcionários 3");
         Assert.Equal(EstadoConexao.Online, shell.Conexao);
+        Assert.Equal("Último catálogo: Funcionários 3", shell.DetalheConexao);   // 🟢 também explica o que trouxe
+
+        shell.DefinirConexao(EstadoConexao.Desconhecida, "ignorado");
         Assert.Null(shell.DetalheConexao);
+
+        shell.DefinirConexao(EstadoConexao.OnlineComFalhas, "Funcionários: 500");
+        Assert.Equal(EstadoConexao.OnlineComFalhas, shell.Conexao);
+        Assert.Equal("Funcionários: 500", shell.DetalheConexao);
 
     }
 

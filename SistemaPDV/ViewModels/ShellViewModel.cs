@@ -129,7 +129,8 @@ public class ShellViewModel : ViewModelBase
         private set => this.RaiseAndSetIfChanged(ref conexao, value);
     }
 
-    // Por que ficou offline (ex: URL sem HTTPS) — vira a dica do indicador.
+    // Dica do indicador: por que ficou offline (ex: URL sem HTTPS), qual recurso falhou, ou o
+    // que o último catálogo trouxe.
     public string? DetalheConexao
     {
         get => detalheConexao;
@@ -150,7 +151,7 @@ public class ShellViewModel : ViewModelBase
 
     public void DefinirConexao(EstadoConexao estado, string? detalhe)
     {
-        DetalheConexao = estado == EstadoConexao.Offline ? detalhe : null;
+        DetalheConexao = estado == EstadoConexao.Desconhecida ? null : detalhe;
         Conexao = estado;
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -21,6 +22,10 @@ public enum EstadoConexao
     // configuração) — diferente de Offline, que é "tentou e não conseguiu".
     Desconhecida,
     Online,
+
+    // Autenticou, mas algum recurso do catálogo (funcionários, produtos…) falhou — o header
+    // avisa e a dica diz qual. Sem isso um endpoint quebrado ficava invisível atrás do 🟢.
+    OnlineComFalhas,
     Offline,
 }
 
@@ -175,7 +180,10 @@ public class SincronizacaoBackgroundService : IDisposable
             if (resultado.AutenticacaoSucesso)
             {
                 catalogoSincronizado = true;
-                Publicar(EstadoConexao.Online, null);
+                var falhas = DescreverFalhas(resultado);
+                Publicar(
+                    falhas is null ? EstadoConexao.Online : EstadoConexao.OnlineComFalhas,
+                    falhas ?? DescreverTrazido(resultado));
                 if (TrouxeAlgo(resultado))
                     dadosAlterados.OnNext(Unit.Default);
             }
@@ -249,6 +257,34 @@ public class SincronizacaoBackgroundService : IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
         }
+    }
+
+    // null = todos os recursos sincronizaram. Senão, "Funcionários: <motivo>; Produtos: <motivo>" —
+    // vira a dica do indicador, pra o operador (e quem dá suporte) ver o que quebrou.
+    private static string? DescreverFalhas(ResultadoSincronizacaoCompleta r)
+    {
+        var falhas = new List<string>();
+        Anotar(falhas, "Formas de pagamento", r.FormasPagamento);
+        Anotar(falhas, "Clientes", r.Clientes);
+        Anotar(falhas, "Produtos", r.Produtos);
+        Anotar(falhas, "Funcionários", r.Funcionarios);
+        Anotar(falhas, "Empresa", r.Empresa);
+        return falhas.Count == 0 ? null : string.Join("; ", falhas);
+    }
+
+    // "Último catálogo: Formas de pagamento 3, Clientes 0, …" — é o que responde "sincronizou
+    // mas o banco está vazio?": se a API mandou 0 itens, aparece aqui. (Ciclos seguintes
+    // podem trazer 0 legitimamente: o catálogo é incremental, só vêm os itens alterados.)
+    private static string DescreverTrazido(ResultadoSincronizacaoCompleta r) =>
+        "Último catálogo: " +
+        $"Formas de pagamento {r.FormasPagamento?.Quantidade ?? 0}, Clientes {r.Clientes?.Quantidade ?? 0}, " +
+        $"Produtos {r.Produtos?.Quantidade ?? 0}, Funcionários {r.Funcionarios?.Quantidade ?? 0}, " +
+        $"Empresa {r.Empresa?.Quantidade ?? 0}";
+
+    private static void Anotar(List<string> falhas, string recurso, ResultadoSincronizacaoRecurso? resultado)
+    {
+        if (resultado is { Sucesso: false })
+            falhas.Add($"{recurso}: {resultado.Mensagem}");
     }
 
     private static bool TrouxeAlgo(ResultadoSincronizacaoCompleta r) =>
