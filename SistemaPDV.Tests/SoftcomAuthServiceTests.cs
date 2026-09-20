@@ -16,6 +16,43 @@ public class SoftcomAuthServiceTests
     };
 
     [Fact]
+    public async Task ObterTokenEmHttpNaoLoopbackNaoEnviaOClientSecret()
+    {
+        var chamou = false;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => { chamou = true; return RespostaJson(HttpStatusCode.OK, "{}"); });
+        var service = new SoftcomAuthService(httpClient, new SegredoProtector());
+        var configuracao = new ConfiguracaoSincronizacao
+        {
+            UrlApi = "http://exemplo.softcomshop.com.br/registrar?client_id=1",
+            ApiClienteId = "1",
+            ApiClienteSecretProtegido = "secret-de-teste",
+        };
+
+        var (sucesso, mensagem, token) = await service.ObterTokenAsync(configuracao);
+
+        Assert.False(sucesso);
+        Assert.Null(token);
+        Assert.False(chamou);
+        Assert.Contains("HTTPS", mensagem);
+    }
+
+    [Fact]
+    public async Task ObterClienteSecretEmHttpNaoLoopbackNaoEnviaNada()
+    {
+        var chamou = false;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => { chamou = true; return RespostaJson(HttpStatusCode.OK, "{}"); });
+        var service = new SoftcomAuthService(httpClient, new SegredoProtector());
+
+        var (sucesso, mensagem, clienteSecret) = await service.ObterClienteSecretAsync(
+            "http://exemplo.softcomshop.com.br/registrar?client_id=1", "PDV-01");
+
+        Assert.False(sucesso);
+        Assert.Null(clienteSecret);
+        Assert.False(chamou);
+        Assert.Contains("HTTPS", mensagem);
+    }
+
+    [Fact]
     public async Task ObterClienteSecretComSucessoExtraiOValor()
     {
         var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>

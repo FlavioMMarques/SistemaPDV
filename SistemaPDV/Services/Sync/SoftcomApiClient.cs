@@ -29,6 +29,10 @@ public class SoftcomApiClient
     public async Task<ResultadoBusca<T>> BuscarTudoAsync<T>(
         string dominio, string caminho, long? ultimaSincronizacao, string accessToken, CancellationToken ct = default)
     {
+        // Mesma guarda de EnviarAsync: o access token vai em todo GET paginado.
+        if (!ConexaoSegura.Permitida(dominio))
+            return ResultadoBusca<T>.ComFalha(ConexaoSegura.MensagemRecusa);
+
         var itens = new List<T>();
         long? dateSync = null;
         string? url = MontarUrlInicial(dominio, caminho, ultimaSincronizacao);
@@ -78,6 +82,11 @@ public class SoftcomApiClient
     public async Task<ResultadoEnvio> EnviarAsync(
         HttpMethod metodo, string url, object? corpo, string accessToken, CancellationToken ct = default)
     {
+        // Antes de qualquer coisa (inclusive de montar o header com o token): em
+        // http:// o Bearer e o corpo (que pode ter CPF/CNPJ) trafegariam em texto puro.
+        if (!ConexaoSegura.Permitida(url))
+            return ResultadoEnvio.Criar(ResultadoEnvioTipo.ConexaoInsegura, ConexaoSegura.MensagemRecusa);
+
         try
         {
             using var requisicao = new HttpRequestMessage(metodo, url);

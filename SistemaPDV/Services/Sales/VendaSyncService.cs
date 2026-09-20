@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -129,6 +128,11 @@ public class VendaSyncService
 
         var resultado = await apiClient.EnviarAsync(HttpMethod.Post, $"{dominio}/api/v2/vendas", payload, accessToken, ct);
 
+        // Problema de configuração, não da venda: continua PendenteSync, sem contar
+        // tentativa (TentativasEnvio) nem gravar erro — ver ResultadoEnvioTipo.ConexaoInsegura.
+        if (resultado.Tipo == ResultadoEnvioTipo.ConexaoInsegura)
+            return ResultadoSincronizacaoRecurso.ComFalha(resultado.Conteudo);
+
         // 409: guid já existe do lado do servidor — já foi recebida antes (ex:
         // confirmação anterior se perdeu antes de chegar no PDV). Trata como
         // sucesso, não reenvia nem duplica.
@@ -143,9 +147,9 @@ public class VendaSyncService
         if (resultado.Tipo is ResultadoEnvioTipo.Falha or ResultadoEnvioTipo.TokenExpirado)
             return await MarcarFalhaAsync(context, venda, ErroApiExtractor.Extrair(resultado.Conteudo), ct);
 
-        var respostaDto = JsonSerializer.Deserialize<VendaRespostaDto>(resultado.Conteudo, SoftcomJson.Opcoes);
+        var respostaDto = SoftcomJson.TentarDesserializar<VendaRespostaDto>(resultado.Conteudo);
         if (respostaDto?.Data is not { } dados)
-            return await MarcarFalhaAsync(context, venda, $"A resposta não trouxe o id da venda: {resultado.Conteudo}", ct);
+            return await MarcarFalhaAsync(context, venda, $"A resposta não trouxe o id da venda: {ErroApiExtractor.Extrair(resultado.Conteudo)}", ct);
 
         venda.VendaIdExterno = dados.Id;
         venda.SyncStatus = SyncStatus.Sincronizado;

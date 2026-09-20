@@ -8,6 +8,11 @@ public class Cliente : ISincronizavel<int>
     public int? IdExterno { get; set; }
     public SyncStatus SyncStatus { get; set; } = SyncStatus.PendenteSync;
 
+    // Só usado quando o cliente é criado localmente e empurrado pra API (Task 48) —
+    // mesmo papel de Caixa/Venda.UltimoErroSync: sem isso, um cliente em FalhaSync
+    // ficaria indiagnosticável. Truncado (ver ErroApiExtractor.TamanhoMaximo).
+    public string? UltimoErroSync { get; set; }
+
     public required string Nome { get; set; }
     public string? RazaoSocial { get; set; }
     public TipoPessoa Pessoa { get; set; } = TipoPessoa.Fisica;
