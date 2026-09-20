@@ -76,12 +76,13 @@ public class ShellViewModel : ViewModelBase
         // fechar com o carrinho cheio descartaria a venda).
         IrParaFecharCaixaCommand = ReactiveCommand.CreateFromTask(() => IrParaFecharCaixaAsync(CaixaAberto!.Id), podeNavegar);
 
-        // Cadastros não depende de caixa (é só leitura/cadastro local), só de haver
-        // operador logado — assim continua acessível com ExigirAberturaCaixa desligado
-        // e sem caixa aberto. Mesmo bloqueio de venda em andamento: também descartaria
-        // o carrinho.
-        var temOperador = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null);
-        var podeAbrirCadastros = temOperador.CombineLatest(semVendaEmAndamento, (temLogin, semVenda) => temLogin && semVenda);
+        // Cadastros não depende de caixa (é só leitura/cadastro local), só de haver operador logado — assim continua
+        // acessível no Dashboard com ExigirAberturaCaixa desligado e sem caixa aberto. Mesmo bloqueio de venda em
+        // andamento (descartaria o carrinho). E não enquanto a tela de ABRIR CAIXA está aberta: com a abertura exigida o fluxo obriga a abrir o caixa antes
+        // de qualquer outra coisa (o botão ficava ativo com o operador ainda escolhendo o turno).
+        var podeEntrarEmCadastros = this.WhenAnyValue(vm => vm.OperadorLogado, vm => vm.TelaAtual,
+            (operador, tela) => operador is not null && tela != Tela.AbrirCaixa);
+        var podeAbrirCadastros = podeEntrarEmCadastros.CombineLatest(semVendaEmAndamento, (podeEntrar, semVenda) => podeEntrar && semVenda);
         IrParaCadastrosCommand = ReactiveCommand.CreateFromTask(IrParaCadastrosAsync, podeAbrirCadastros);
     }
 

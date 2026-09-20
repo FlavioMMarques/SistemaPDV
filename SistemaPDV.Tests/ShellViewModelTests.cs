@@ -453,7 +453,7 @@ public class ShellViewModelTests
     }
 
     [Fact]
-    public async Task CadastrosFicaDisponivelComOperadorLogadoMesmoSemCaixaAberto()
+    public async Task CadastrosFicaBloqueadoNaTelaDeAbrirCaixaMesmoComOperadorLogado()
     {
         using var fixture = new SqliteInMemoryFixture();
         await using (var context = fixture.CriarContexto())
@@ -479,8 +479,40 @@ public class ShellViewModelTests
         var podeCadastros = await shell.IrParaCadastrosCommand.CanExecute.FirstAsync();
         var podePedidos = await shell.IrParaListaPedidosCommand.CanExecute.FirstAsync();
 
-        Assert.True(podeCadastros);
+        // Com a abertura exigida, o fluxo obriga a abrir o caixa ANTES de qualquer outra coisa: o botão de Cadastros
+        // ficava ativo no meio disso (o operador ainda nem informou o turno).
+        Assert.False(podeCadastros);
         Assert.False(podePedidos);
+    }
+
+    [Fact]
+    public async Task CadastrosFicaDisponivelNoDashboardQuandoAAberturaDeCaixaNaoEExigida()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao
+            {
+                UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1",
+                ExigirAberturaCaixa = false,
+            });
+            await context.SaveChangesAsync();
+        }
+        await SemearFuncionarioAsync(fixture, "1234");
+        var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
+        var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
+        await shell.IniciarAsync();
+        var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.PdvKeyDigitada = "1234";
+        var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
+        await loginViewModel.EntrarCommand.Execute();
+        await chegouNoDashboard;
+        Assert.Null(shell.CaixaAberto);
+        Assert.Equal(Tela.Dashboard, shell.TelaAtual);
+
+        var podeCadastros = await shell.IrParaCadastrosCommand.CanExecute.FirstAsync();
+
+        Assert.True(podeCadastros);   // sem a exigência, dá pra cadastrar sem caixa aberto
     }
 
     [Fact]
