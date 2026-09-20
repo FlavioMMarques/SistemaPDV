@@ -249,4 +249,57 @@ public class DescarteDeVendaTests
         Assert.Contains("cliente desistiu", resumo.UltimoErroSync);
         Assert.Contains("Chefe", resumo.UltimoErroSync);   // quem autorizou fica visível
     }
+
+    // ---- descarte no MEIO de um envio (o supervisor descarta enquanto o ciclo de sincronização já está tentando) ----
+
+    // O handler do "servidor" faz o descarte no meio da requisição: é exatamente a janela entre o envio ter lido a
+    // venda (ainda FalhaSync) e gravar o resultado.
+    private static VendaSyncService EnvioQueSofreDescarteNoMeio(SqliteInMemoryFixture fixture, Cenario c, HttpStatusCode statusDaApi, string corpoDaApi)
+    {
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            var descarte = Servico(fixture).DescartarVendaAsync(c.VendaId, ChaveSupervisor, "descartada no meio do envio", c.OperadorId).GetAwaiter().GetResult();
+            Assert.True(descarte.Sucesso, descarte.Mensagem);
+            return new HttpResponseMessage(statusDaApi) { Content = new StringContent(corpoDaApi, Encoding.UTF8, "application/json") };
+        });
+        return new VendaSyncService(fixture.CriarContexto, new SoftcomApiClient(httpClient));
+    }
+
+    [Fact]
+    public async Task FalhaDaApiDepoisDeUmDescarteNoMeioNaoMexeNaVendaDescartada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var c = await SemearAsync(fixture);
+        var envio = EnvioQueSofreDescarteNoMeio(fixture, c, HttpStatusCode.UnprocessableEntity, """{"errors":{"quantidade":["inválida"]}}""");
+
+        var resultado = await envio.SincronizarVendaAsync(c.VendaId, "t");
+
+        Assert.False(resultado.Sucesso);
+        using var leitura = fixture.CriarContexto();
+        var venda = leitura.Vendas.Single();
+        Assert.Equal(SyncStatus.Descartada, venda.SyncStatus);
+        Assert.Equal(0, venda.TentativasEnvio);            // a tentativa que falhou depois do descarte não é contada
+        Assert.Null(venda.UltimoErroSync);                 // nem grava erro em cima de uma venda já descartada
+        Assert.Equal("descartada no meio do envio", venda.MotivoDescarte);
+    }
+
+    [Fact]
+    public async Task SeAApiAceitouAVendaAntesDoDescarteAVerdadeDaApiVence()
+    {
+        // O descarte aconteceu mas a venda JÁ tinha chegado à API: ela existe lá, então localmente fica Sincronizado
+        // (senão sairia do "esperado" do caixa por engano). A auditoria do pedido de descarte é preservada.
+        using var fixture = new SqliteInMemoryFixture();
+        var c = await SemearAsync(fixture);
+        var envio = EnvioQueSofreDescarteNoMeio(fixture, c, HttpStatusCode.OK, """{ "data": { "id": 900 } }""");
+
+        var resultado = await envio.SincronizarVendaAsync(c.VendaId, "t");
+
+        Assert.True(resultado.Sucesso);
+        using var leitura = fixture.CriarContexto();
+        var venda = leitura.Vendas.Single();
+        Assert.Equal(SyncStatus.Sincronizado, venda.SyncStatus);
+        Assert.Equal(900, venda.VendaIdExterno);
+        Assert.NotNull(venda.DescartadaEm);
+        Assert.Equal(0, await Servico(fixture).ContarNaoEnviadasAsync(c.CaixaId));   // nada trava o fechamento do caixa
+    }
 }
