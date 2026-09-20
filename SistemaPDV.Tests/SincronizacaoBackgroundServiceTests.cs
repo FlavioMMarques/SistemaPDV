@@ -150,6 +150,65 @@ public class SincronizacaoBackgroundServiceTests
     }
 
     [Fact]
+    public async Task FalhaEmUmRecursoDoCatalogoNaoEscondeOProblemaOnlineComFalhasEMostraQual()
+    {
+        // Autenticar não basta: se os funcionários não vêm, ninguém loga — e o header
+        // mostrava 🟢 mesmo assim, sem pista nenhuma do que estava errado.
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var api = new ApiFake
+        {
+            Sobrescrever = r => r.RequestUri!.AbsolutePath.EndsWith("/api/v2/funcionarios")
+                ? Json(HttpStatusCode.InternalServerError, """{ "message": "erro no servidor" }""")
+                : null,
+        };
+        var service = CriarService(fixture, api.CriarHttpClient());
+
+        await service.ExecutarCicloCatalogoAsync();
+
+        Assert.Equal(EstadoConexao.OnlineComFalhas, service.Estado);
+        Assert.Contains("Funcionários", service.MensagemUltimoCiclo);
+        Assert.Contains("500", service.MensagemUltimoCiclo);
+    }
+
+    [Fact]
+    public async Task CatalogoQueSoFalhouParcialmenteNaoEhTentadoACada30Segundos()
+    {
+        // O catch-up de 30 s é só pro app recém-aberto/vinculado; falha parcial espera o
+        // ritmo de 5 min (senão um endpoint quebrado faria o catálogo inteiro rodar sem parar).
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var api = new ApiFake
+        {
+            Sobrescrever = r => r.RequestUri!.AbsolutePath.EndsWith("/api/v2/funcionarios")
+                ? Json(HttpStatusCode.InternalServerError, "{}")
+                : null,
+        };
+        var service = CriarService(fixture, api.CriarHttpClient());
+
+        await service.ExecutarCicloRapidoAsync();
+        var getsAposPrimeiro = api.Requisicoes.Count(r => r.StartsWith("GET"));
+        await service.ExecutarCicloRapidoAsync();
+
+        Assert.Equal(getsAposPrimeiro, api.Requisicoes.Count(r => r.StartsWith("GET")));
+    }
+
+    [Fact]
+    public async Task OnlineDoCatalogoMostraQuantosItensCadaRecursoTrouxe()
+    {
+        // 🟢 com o banco vazio é indiagnosticável: a dica diz se a API respondeu "0 itens".
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var service = CriarService(fixture, new ApiFake().CriarHttpClient());
+
+        await service.ExecutarCicloCatalogoAsync();
+
+        Assert.Equal(EstadoConexao.Online, service.Estado);
+        Assert.Contains("Funcionários 0", service.MensagemUltimoCiclo);
+        Assert.Contains("Produtos 0", service.MensagemUltimoCiclo);
+    }
+
+    [Fact]
     public async Task FalhaDeRedeNoCatalogoViraOfflineSemLancar()
     {
         using var fixture = new SqliteInMemoryFixture();

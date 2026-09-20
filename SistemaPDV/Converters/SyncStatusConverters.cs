@@ -54,6 +54,7 @@ public class EstadoConexaoParaTextoConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
         EstadoConexao.Online => "🟢 Online",
+        EstadoConexao.OnlineComFalhas => "🟠 Online, com falhas",
         EstadoConexao.Offline => "🔴 Offline",
         _ => "⚪ Conexão não verificada",
     };
@@ -69,6 +70,7 @@ public class EstadoConexaoParaCorConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
         EstadoConexao.Online => new SolidColorBrush(Color.Parse("#10B981")),
+        EstadoConexao.OnlineComFalhas => new SolidColorBrush(Color.Parse("#F59E0B")),
         EstadoConexao.Offline => new SolidColorBrush(Color.Parse("#F43F5E")),
         _ => new SolidColorBrush(Color.Parse("#94A3B8")),
     };
