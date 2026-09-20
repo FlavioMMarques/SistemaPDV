@@ -29,8 +29,8 @@ public class VendaContratoApiTests
     {
         await using var context = fixture.CriarContexto();
         var funcionario = new Funcionario { Nome = "Carlos", IdExterno = 2 };
-        var produto = new Produto { Nome = "Refri", PrecoVenda = 40m, IdExterno = 206, ProdutoIdApi = produtoIdApi };
-        var forma = new FormaPagamento { Nome = "ESPÉCIE", Tipo = "ESPECIE", IdExterno = 5 };
+        var produto = new Produto { Nome = "Refri", PrecoVenda = 40m, PrecoCompra = 6.50m, IdExterno = 206, ProdutoIdApi = produtoIdApi };
+        var forma = new FormaPagamento { Nome = "ESPÉCIE", Tipo = "ESPECIE", CodigoNfce = "01", IdExterno = 5 };
         context.AddRange(funcionario, produto, forma);
         context.Empresas.Add(new Empresa { RazaoSocial = "Softcom", Cnpj = "12345678000199", IdExterno = 1 });
         context.ConfiguracoesSincronizacao.Add(new ConfiguracaoSincronizacao { UrlApi = UrlApi, ClienteConsumidorFinalIdExterno = 1 });
@@ -122,6 +122,88 @@ public class VendaContratoApiTests
         var produto = raiz.GetProperty("produtos")[0];
         Assert.Equal("77", produto.GetProperty("produto_id").ToString());                    // produto_id da listagem
         Assert.Equal("206", produto.GetProperty("produto_empresa_grade_id").ToString());     // id do item na listagem
+    }
+
+    [Fact]
+    public async Task ItemEnviaOPrecoDeCompraEOsCamposNaoNulosDoSchema()
+    {
+        // A API real deu 500 ao gravar venda_item: "Column 'preco_compra' cannot be null". Os campos que o
+        // Swagger NÃO marca como nullable vão sempre, com valor neutro quando o PDV não tem o dado.
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearBaseAsync(fixture);
+        var venda = await RegistrarAsync(fixture, b);
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(r =>
+        {
+            corpo = r.Content!.ReadAsStringAsync().Result;
+            return Json(HttpStatusCode.OK, """{ "data": { "id": 900 } }""");
+        });
+
+        await new VendaSyncService(fixture.CriarContexto, new SoftcomApiClient(httpClient)).SincronizarVendaAsync(venda.Id, "t");
+
+        using var doc = JsonDocument.Parse(corpo!);
+        var item = doc.RootElement.GetProperty("produtos")[0];
+        Assert.Equal(6.50m, item.GetProperty("preco_compra").GetDecimal());
+        Assert.Equal(0m, item.GetProperty("comissao").GetDecimal());
+        Assert.Equal(0m, item.GetProperty("comissao_atendente").GetDecimal());
+        Assert.Equal(0m, item.GetProperty("percentual_comissao_venda").GetDecimal());
+        Assert.False(item.GetProperty("composicao_automatica").GetBoolean());
+        Assert.False(item.GetProperty("promocao_aplicada").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ProdutoSemPrecoDeCompraEnviaZeroEmVezDeNulo()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearBaseAsync(fixture);
+        await using (var context = fixture.CriarContexto())
+        {
+            var produto = context.Produtos.Single();
+            produto.PrecoCompra = null;
+            await context.SaveChangesAsync();
+        }
+        var venda = await RegistrarAsync(fixture, b);
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(r =>
+        {
+            corpo = r.Content!.ReadAsStringAsync().Result;
+            return Json(HttpStatusCode.OK, """{ "data": { "id": 900 } }""");
+        });
+
+        await new VendaSyncService(fixture.CriarContexto, new SoftcomApiClient(httpClient)).SincronizarVendaAsync(venda.Id, "t");
+
+        using var doc = JsonDocument.Parse(corpo!);
+        Assert.Equal(0m, doc.RootElement.GetProperty("produtos")[0].GetProperty("preco_compra").GetDecimal());
+    }
+
+    [Fact]
+    public async Task PagamentoEnviaONomeEOCodigoDaFormaQueOFinanceiroDaApiLe()
+    {
+        // API real: 500 "Não foi possível salvar o financeiro… Undefined index: api_nome_pagamento".
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearBaseAsync(fixture);
+        var venda = await RegistrarAsync(fixture, b);
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(r =>
+        {
+            corpo = r.Content!.ReadAsStringAsync().Result;
+            return Json(HttpStatusCode.OK, """{ "data": { "id": 900 } }""");
+        });
+
+        await new VendaSyncService(fixture.CriarContexto, new SoftcomApiClient(httpClient)).SincronizarVendaAsync(venda.Id, "t");
+
+        using var doc = JsonDocument.Parse(corpo!);
+        var pagamento = doc.RootElement.GetProperty("pagamentos")[0];
+        Assert.Equal("ESPÉCIE", pagamento.GetProperty("api_nome_pagamento").GetString());
+        Assert.Equal("01", pagamento.GetProperty("api_codigo_pagamento").GetString());
+        Assert.Equal(5, pagamento.GetProperty("forma_pagamento_id").GetInt32());
+        Assert.Equal(40m, pagamento.GetProperty("valor_pagamento").GetDecimal());
+
+        // Parcela única (à vista): a API real deu 500 "Undefined index: valor_parcela".
+        Assert.Equal(40m, pagamento.GetProperty("valor_parcela").GetDecimal());
+        Assert.Equal(40m, pagamento.GetProperty("valor_recebido").GetDecimal());
+        Assert.Equal(1, pagamento.GetProperty("parcelas").GetInt32());
+        Assert.Equal("1", pagamento.GetProperty("numero_parcela").GetString());
     }
 
     [Fact]
