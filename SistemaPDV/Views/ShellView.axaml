@@ -83,7 +83,6 @@
                 Command="{Binding IrParaConfiguracoesCommand}"
                 Background="Transparent"
                 Foreground="{StaticResource TextMainBrush}"
-                ToolTip.Tip="Exige a chave de um supervisor"
                 AutomationProperties.Name="Ir para configurações" />
       </StackPanel>
     </Border>

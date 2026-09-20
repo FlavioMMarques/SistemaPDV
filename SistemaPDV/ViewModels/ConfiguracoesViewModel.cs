@@ -41,7 +41,8 @@ public class ConfiguracoesViewModel : ViewModelBase
     {
         this.configuracaoService = configuracaoService;
         PodeVoltar = exigirSupervisor;
-        bloqueada = exigirSupervisor;
+        // Só bloqueia se a política do app exige a chave (PoliticaSupervisor); "Voltar" existe de qualquer jeito.
+        bloqueada = exigirSupervisor && configuracaoService.ExigeChaveSupervisor;
 
         var podeDesbloquear = this.WhenAnyValue(vm => vm.ChaveSupervisor, chave => !string.IsNullOrEmpty(chave));
         DesbloquearCommand = ReactiveCommand.CreateFromTask(DesbloquearAsync, podeDesbloquear);

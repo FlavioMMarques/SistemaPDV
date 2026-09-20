@@ -21,12 +21,20 @@ public class ConfiguracaoService
     private readonly SoftcomAuthService authService;
     private readonly SegredoProtector segredoProtector;
 
-    public ConfiguracaoService(Func<AppDbContext> contextFactory, SoftcomAuthService authService, SegredoProtector segredoProtector)
+    // exigirChaveSupervisor: o padrão é TRUE (a regra completa); quem decide desligar é a composição do app
+    // (PoliticaSupervisor), não este serviço.
+    public ConfiguracaoService(
+        Func<AppDbContext> contextFactory, SoftcomAuthService authService, SegredoProtector segredoProtector,
+        bool exigirChaveSupervisor = true)
     {
         this.contextFactory = contextFactory;
         this.authService = authService;
         this.segredoProtector = segredoProtector;
+        ExigeChaveSupervisor = exigirChaveSupervisor;
     }
+
+    // Se as Configurações abertas pelo botão da barra pedem a chave de um supervisor (ver PoliticaSupervisor).
+    public bool ExigeChaveSupervisor { get; }
 
     public async Task<ConfiguracaoSincronizacao> ObterOuCriarAsync(CancellationToken ct = default)
     {

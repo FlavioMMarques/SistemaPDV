@@ -143,7 +143,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | `SoftcomRotas` | Todas as rotas da API, sob `softauth/api/v2/` (sem o prefixo a API responde `500 {"error":""}`). |
 | `ConexaoSegura` | Recusa `http://` (exceto loopback) em qualquer chamada à API — token, secret e dados pessoais nunca em texto puro. |
 | `TratamentoDeErros` | Handler global do ReactiveUI (registrado em `Program.cs`): exceção de comando vira o banner do Shell em vez de derrubar o app. |
-| `SupervisorAutenticador` | Confere a chave digitada contra os supervisores ativos (bcrypt). Usado pelo descarte de venda e pela liberação das Configurações. |
+| `SupervisorAutenticador` / `PoliticaSupervisor` | Confere a chave digitada contra os supervisores ativos (bcrypt), para o descarte de venda e a liberação das Configurações. `PoliticaSupervisor.ExigirChave` é o interruptor único — hoje **desligado** (decisão do usuário: ainda não se sabe como obter a chave do supervisor no SoftcomShop); a lógica segue implementada e testada. |
 | `LogArquivo` / `Registro` | Log em arquivo (`%LOCALAPPDATA%\SistemaPDV\logs`, um por dia). `Registro` é o ponto de acesso estático (no-op nos testes); `LogArquivo` nunca lança, mascara segredos e CPF/CNPJ e tem limite de tamanho e retenção de 14 dias. |
 
 ### Regras de negócio que só apareceram contra a API real
