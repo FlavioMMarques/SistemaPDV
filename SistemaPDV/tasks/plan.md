@@ -71,7 +71,7 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 
 ### Checkpoint: data-layer completo
 - [x] Todos os Success Criteria de `specs/SPEC-data-layer.md` atendidos
-- [ ] Revisão com o usuário antes de planejar `catalog-sync`
+- [x] Revisão com o usuário antes de planejar `catalog-sync`
 
 ### Fase 2: catalog-sync (detalhada — ver `tasks/todo.md`)
 
@@ -167,8 +167,8 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - [x] Task 39: Tema visual (`ResourceDictionary` com os design tokens extraídos do protótipo real)
 
 ### Checkpoint: Foundation (pdv-ui)
-- [ ] `dotnet build` sem erros
-- [ ] `dotnet test` verde
+- [x] `dotnet build` sem erros
+- [x] `dotnet test` verde
 
 **Entrar no app (login → configuração → caixa → shell)**
 - [x] Task 40: `LoginViewModel`/`LoginView`
@@ -185,7 +185,7 @@ PDV offline-first (.NET 8 + Avalonia + EF Core 8/Sqlite) sincronizando com a API
 - [x] Task 45: `PdvView.axaml` — layout + atalhos F2/F4/F10/Esc
 
 ### Checkpoint: Vender offline funciona ponta a ponta
-- [ ] Manual check: vender com rede desligada, venda aparece `PendenteSync`
+- [x] Manual check: vender com rede desligada, venda aparece `PendenteSync`
 
 **Dashboard e pedidos**
 - [x] Task 46: `DashboardViewModel`
