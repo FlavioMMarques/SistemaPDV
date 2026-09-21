@@ -282,7 +282,7 @@
     </Grid>
 
     <!-- Painel de pagamento (modal) -->
-    <controls:PagamentoPainel IsVisible="{Binding EmPagamento}" />
+    <controls:PagamentoPainel Name="PainelPagamento" IsVisible="{Binding EmPagamento}" />
 
   </Grid>
 
