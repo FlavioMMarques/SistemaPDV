@@ -104,6 +104,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
 
         // AposLoginAsync roda desacoplado (Subscribe, não faz parte da pipeline que
@@ -137,6 +138,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouEmAbrirCaixa = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();
@@ -171,6 +173,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
 
         var telaMudou = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
@@ -199,6 +202,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
 
         var telaMudou = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
@@ -227,6 +231,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouEmAbrirCaixa = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();
@@ -268,6 +273,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixaQuebrado, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
 
         var mensagemMudou = shell.WhenAnyValue(s => s.Mensagem).Where(m => m is not null).FirstAsync().ToTask();
@@ -297,6 +303,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();
@@ -418,6 +425,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();
@@ -471,6 +479,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouEmAbrirCaixa = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();
@@ -504,6 +513,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();
@@ -557,6 +567,7 @@ public class ShellViewModelTests
         var shell = new ShellViewModel(configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal);
         await shell.IniciarAsync();
         var loginViewModel = (LoginViewModel)shell.CurrentViewModel!;
+        loginViewModel.OperadorSelecionado = loginViewModel.Operadores[0];
         loginViewModel.PdvKeyDigitada = "1234";
         var chegouNoDashboard = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await loginViewModel.EntrarCommand.Execute();

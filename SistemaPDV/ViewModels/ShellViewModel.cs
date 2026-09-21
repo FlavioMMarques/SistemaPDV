@@ -367,7 +367,7 @@ public class ShellViewModel : ViewModelBase
             return;
         }
 
-        IrParaLogin();
+        await IrParaLoginAsync();
     });
 
     [SupportedOSPlatform("windows")]
@@ -380,7 +380,7 @@ public class ShellViewModel : ViewModelBase
         // próximo tick do timer — sem funcionários locais a chave do operador não passa.
         viewModel.VincularCommand
             .Where(vinculou => vinculou)
-            .Subscribe(_ =>
+            .Subscribe(vinculou =>
             {
                 // Um novo vínculo pode ser de OUTRA empresa: quem estava logado e o caixa aberto deixam de valer, o
                 // operador entra de novo. (Na 1ª vinculação já são null — não muda nada.)
@@ -389,7 +389,7 @@ public class ShellViewModel : ViewModelBase
 
                 // Avisa ANTES de navegar: quem espera a troca de tela já encontra o aviso feito.
                 dispositivoVinculado.OnNext(Unit.Default);
-                IrParaLogin();
+                _ = ExecutarComTratamentoDeErroAsync(IrParaLoginAsync);
             });
 
         // "Voltar" (só existe quando aberta pelo botão): de volta ao ponto em que o operador estava.
@@ -407,7 +407,7 @@ public class ShellViewModel : ViewModelBase
         TelaAtual = Tela.Configuracoes;
     }
 
-    private void IrParaLogin()
+    private async Task IrParaLoginAsync()
     {
         var viewModel = new LoginViewModel(loginOperadorService);
 
@@ -417,6 +417,9 @@ public class ShellViewModel : ViewModelBase
         viewModel.EntrarCommand
             .Where(funcionario => funcionario is not null)
             .Subscribe(funcionario => _ = ExecutarComTratamentoDeErroAsync(() => AposLoginAsync(funcionario!)));
+
+        // Carrega ANTES de mostrar: a tela já abre com a lista (ou com o aviso de "nenhum operador"), sem piscar vazia.
+        await viewModel.CarregarOperadoresAsync();
 
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Login;
