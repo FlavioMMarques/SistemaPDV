@@ -29,6 +29,7 @@ public class ShellViewModel : ViewModelBase
     private readonly VendaLocalService vendaLocalService;
     private readonly CadastroLocalService cadastroLocalService;
     private readonly CaixasApiService? caixasApiService;   // consulta dos caixas da API (Configurações); opcional para os testes de outras telas
+    private readonly CepService? cepService;   // consulta de CEP do modal de cliente; opcional pelo mesmo motivo
 
     private Tela telaAtual;
     private ViewModelBase? currentViewModel;
@@ -65,7 +66,8 @@ public class ShellViewModel : ViewModelBase
         CatalogoLocalService catalogoLocalService,
         VendaLocalService vendaLocalService,
         CadastroLocalService cadastroLocalService,
-        CaixasApiService? caixasApiService = null)
+        CaixasApiService? caixasApiService = null,
+        CepService? cepService = null)
     {
         this.configuracaoService = configuracaoService;
         this.loginOperadorService = loginOperadorService;
@@ -76,6 +78,7 @@ public class ShellViewModel : ViewModelBase
         this.vendaLocalService = vendaLocalService;
         this.cadastroLocalService = cadastroLocalService;
         this.caixasApiService = caixasApiService;
+        this.cepService = cepService;
 
         // Navegação persistente entre as 3 telas pós-caixa-aberto (Dashboard/Pdv/
         // ListaPedidos) — só habilitada com CaixaAberto preenchido, já que nenhuma
@@ -564,7 +567,7 @@ public class ShellViewModel : ViewModelBase
 
     private async Task IrParaCadastrosAsync()
     {
-        var viewModel = new CadastrosViewModel(cadastroLocalService);
+        var viewModel = new CadastrosViewModel(cadastroLocalService, cepService);
         // Cliente ou produto novo = mais um item esperando envio: a pílula "Sync: N pendentes" acompanha na hora.
         viewModel.CadastroCriado.Subscribe(criado => _ = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync));
         await viewModel.IniciarAsync();
