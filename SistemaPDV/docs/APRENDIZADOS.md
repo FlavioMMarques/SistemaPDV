@@ -620,3 +620,19 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 4. **Foco de teclado perdido ao abrir o painel.** O corpo da venda fica desabilitado atrás do modal; se o foco estava nele, sumia, e F10/Esc (que vivem no `PdvView`) deixavam de chegar — só o mouse resolvia. Agora o foco vai para a 1ª forma ao abrir e para o campo de valor ao escolher uma. **Só apareceu ao verificar o foco no renderizador** (nenhum teste de ViewModel enxerga isso), e a 1ª tentativa falhou de um jeito instrutivo: os cartões só existem depois do 1º layout, então a ação de foco precisa **tentar de novo** até eles existirem; e um painel que já nasce visível não dispara "ficou visível", por isso o teste do renderizador abre o painel **depois** de mostrar a janela, como no app.
 5. **Código morto:** `AdicionarPagamentoCommand` (o clique direto na forma) não é mais usado desde o painel novo — removido. Comentário desatualizado ("troco não é modelado") corrigido.
 **FYI (sem mudança):** (a) `ReactiveCommand.Execute()` ignora o `CanExecute`, então `ConfirmarVenda`/`F10` chamam `FinalizarVenda.Execute()` sem proteção contra reentrada; hoje é seguro porque o acesso ao SQLite completa de forma síncrona na thread da interface (não há ponto de interrupção entre ler o cupom e limpá-lo), mas um `await` real ali abriria a porta para venda duplicada. (b) A grade de produtos não é virtualizada (`WrapPanel`): confortável com centenas de produtos, pesada com milhares. (c) `PdvViewModel` passou de ~550 linhas: o painel de pagamento é o candidato natural a virar um ViewModel próprio se crescer mais.
+
+## 73. Atalhos de teclado que só funcionam "depois de clicar num item": KeyBinding depende de foco
+
+**Onde:** `Views/PdvView.axaml.cs`, `Views/PdvView.axaml` (Fase 7c)
+
+**O relato:** lançar um item e apertar F2 (Nova venda) não fazia nada; clicando num item do cupom, F2 funcionava. Idem F10 e F4. Num PDV isso é grave: o operador não pode ter de "acordar" a tela com o mouse.
+
+**Causa.** Os `KeyBindings` de um `UserControl` só disparam quando o evento de tecla **sobe (bubble) de um controle focado dentro dele**. Sem nenhum controle da tela com o foco — logo ao navegar para a tela, ao clicar numa área vazia, ou quando o botão que tinha o foco some (ex: painel de pagamento fecha) — a tecla nasce na janela e nunca passa pelo `PdvView`. Reproduzi com o renderizador headless simulando teclas: foco em lugar nenhum → F2/F10 mortos; foco na busca ou num card → funcionam. O F4 era pior: tratado no code-behind com o mesmo `AddHandler` no `PdvView`, mesma dependência.
+
+**Correção (em duas camadas).**
+1. **Foco inicial na busca** (e volta para ela quando o painel de pagamento fecha): o cursor já está pronto, como no protótipo, e o leitor de código de barras digita direto.
+2. **Rede de segurança na janela:** enquanto o `PdvView` está na árvore visual, um handler de `KeyDown` no `TopLevel` (em bubble, só age se o evento ainda não foi tratado) **reaproveita a lista de `KeyBindings` do próprio XAML** (F2/F10/Esc) — sem duplicar as teclas — e trata o F4 (foco de UI puro, sem Command). É removido ao sair da tela, então F2 não vale nas outras telas. Bubble e não Tunnel de propósito: quem tem o foco e já tratou a tecla (Esc fechando a lista de um ComboBox) continua mandando, e o Esc não cancela a venda por baixo.
+
+**Verificação:** renderizador headless, tirando o foco de verdade (foco na própria janela) e apertando F10/F2, F4 com foco num card, F10 com foco na busca — todos respondem. Teste de ViewModel não enxerga isso (o comando funciona; o que falhava era a tecla chegar nele).
+
+**Lição:** atalho global de tela não pode depender de onde está o foco; declare no XAML o que é comando, mas garanta que a tecla chega ao controle mesmo com o foco fora dele.
