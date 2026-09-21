@@ -9,6 +9,7 @@ public class ProdutoConfiguration : IEntityTypeConfiguration<Produto>
     public void Configure(EntityTypeBuilder<Produto> builder)
     {
         builder.HasKey(p => p.Id);
+        builder.Ignore(p => p.GrupoNome);   // preenchido na leitura (CatalogoLocalService), não é coluna
         builder.Property(p => p.Nome).IsRequired().HasMaxLength(150);
         builder.Property(p => p.Sku).HasMaxLength(50);
         builder.Property(p => p.CodigoBarras).HasMaxLength(50);

@@ -77,7 +77,7 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 | `SoftcomJson` | `JsonSerializerOptions` compartilhada (`PropertyNameCaseInsensitive = true`) — evita recriar a mesma configuração em cada lugar que desserializa resposta da API. |
 | `ResultadoEnvio` / `ResultadoEnvioTipo` | Resultado de `EnviarAsync`: o tipo (`Sucesso`/`Conflito`/`TokenExpirado`/`ConexaoInsegura`/`Falha`) mais o conteúdo cru da resposta, pra cada chamador (`CaixaSyncService`, `VendaSyncService`) decidir o que fazer. |
 | `OutboxHelper` | `MarcarFalhaAsync<T>` genérico: grava a mensagem de erro numa entidade já carregada e salva — usado por `CaixaSyncService` e `VendaSyncService`, cada um passando sua própria regra de quais campos mexer. |
-| `CatalogSyncService` | O orquestrador: autentica e sincroniza os 6 recursos (produtos, clientes, formas de pagamento, funcionários, empresa e **cartões** — este por substituição, em `CatalogSyncService.Cartoes.cs`), fazendo upsert local por `IdExterno`. |
+| `CatalogSyncService` | O orquestrador: autentica e sincroniza os 7 recursos (produtos, clientes, formas de pagamento, funcionários, empresa, e por substituição os **cartões** — `CatalogSyncService.Cartoes.cs` — e os **grupos/categorias** de produto — `CatalogSyncService.Grupos.cs`), fazendo upsert local por `IdExterno`. |
 | `PaginaApiDto<T>` | O "envelope" de paginação que toda resposta da API usa (`data[]`, `next_page_url`, `date_sync`...). |
 | `ResultadoBusca<T>` | Resultado de uma busca paginada (sucesso/falha + itens). |
 | `ResultadoSincronizacaoRecurso` | Resultado de sincronizar UM recurso (sucesso/falha + quantidade) — reaproveitado depois em `caixa` e `sales`. |

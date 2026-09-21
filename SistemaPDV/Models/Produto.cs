@@ -50,6 +50,15 @@ public class Produto : ISincronizavel<int>
 
     public ICollection<ImagemProduto> Imagens { get; set; } = new List<ImagemProduto>();
 
+
+    // Nome da categoria (o Grupo de GrupoId), preenchido por CatalogoLocalService na hora de listar — NÃO é coluna do banco
+    // (ver ProdutoConfiguration). Null = sem grupo, ou grupo que ainda não sincronizou.
+    public string? GrupoNome { get; set; }
+
+    // O que o card do PDV mostra depois do código: a categoria ("Mercearia") como no protótipo; sem ela (grupos ainda não
+    // sincronizados) a unidade, que é o que o card mostrava antes.
+    public string CategoriaOuUnidade =>
+        !string.IsNullOrWhiteSpace(GrupoNome) ? GrupoNome : !string.IsNullOrWhiteSpace(UnidadeMedida) ? UnidadeMedida : "UN";
     // O código que aparece no card e no cupom: código de barras, senão SKU, senão o id da API. Só leitura (o EF não mapeia).
     public string? CodigoParaExibicao =>
         !string.IsNullOrWhiteSpace(CodigoBarras) ? CodigoBarras : !string.IsNullOrWhiteSpace(Sku) ? Sku : IdExterno?.ToString();

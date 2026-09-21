@@ -45,8 +45,80 @@ public class CadastroLocalService
 
         var clientes = await consulta.OrderBy(c => c.Nome).Take(LimiteLista).ToListAsync(ct);
         return clientes
-            .Select(c => new ClienteResumo(c.Id, c.Nome, DocumentoValidator.Formatar(c.CpfCnpj), c.SyncStatus, c.UltimoErroSync))
+            .Select(c => new ClienteResumo(
+                c.Id, c.Nome, DocumentoValidator.Formatar(c.CpfCnpj), c.SyncStatus, c.UltimoErroSync,
+                c.IdExterno, FormatarTelefone(c.ContatoDdd, c.ContatoTelefone), CidadeUf(c.Cidade, c.Uf)))
             .ToList();
+    }
+
+    // "(83) 99999-0000": o DDD entre parênteses e o número com hífen antes dos 4 últimos dígitos. A API guarda o DDD à parte
+    // (8 ou 9 dígitos no número), mas às vezes o número já vem com o DDD dentro (10 ou 11 dígitos) — nos dois casos sai igual, sem
+    // repetir o DDD. Qualquer outro tamanho aparece como veio: melhor mostrar o dado cru que inventar uma máscara errada.
+    public static string? FormatarTelefone(string? ddd, string? telefone)
+    {
+        var numero = DocumentoValidator.SoDigitos(telefone);
+        if (numero.Length == 0)
+            return null;
+
+        if (numero.Length is 10 or 11)
+            return $"({numero[..2]}) {numero[2..^4]}-{numero[^4..]}";
+
+        if (numero.Length is 8 or 9)
+        {
+            var local = $"{numero[..^4]}-{numero[^4..]}";
+            var prefixo = DocumentoValidator.SoDigitos(ddd);
+            return prefixo.Length == 2 ? $"({prefixo}) {local}" : local;
+        }
+
+        return telefone!.Trim();
+    }
+
+    // "João Pessoa - PB"; só uma das duas partes aparece sozinha; nenhuma = nulo.
+    public static string? CidadeUf(string? cidade, string? uf)
+    {
+        var partes = new[] { cidade?.Trim(), uf?.Trim() }.Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        return partes.Length == 0 ? null : string.Join(" - ", partes);
+    }
+
+    // Os números das abas (Produtos ( 12 ) · Clientes ( 4 ) · Operadores ( 3 )): totais, sem busca e sem o corte da lista.
+    public async Task<ContagemCadastros> ContarAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        return new ContagemCadastros(
+            await context.Produtos.CountAsync(ct),
+            await context.Clientes.CountAsync(ct),
+            await context.Funcionarios.CountAsync(ct));
+    }
+
+    // Os operadores do terminal (funcionários sincronizados): os ativos primeiro, depois por nome. Sem CPF na projeção.
+    public async Task<IReadOnlyList<OperadorResumo>> ListarOperadoresAsync(string? busca, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var consulta = context.Funcionarios.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(busca))
+        {
+            var padrao = PadraoContem(busca.Trim());
+            consulta = consulta.Where(f => EF.Functions.Like(f.Nome, padrao, "\\"));
+        }
+
+        var funcionarios = await consulta.OrderBy(f => f.Desativado).ThenBy(f => f.Nome).Take(LimiteLista).ToListAsync(ct);
+        var ids = funcionarios.Select(f => f.Id).ToList();
+        var caixasAbertos = await context.Caixas
+            .Where(c => c.Status == StatusCaixa.Aberto && ids.Contains(c.FuncionarioId))
+            .Select(c => new { c.FuncionarioId, c.Id })
+            .ToListAsync(ct);
+        var caixaPorFuncionario = caixasAbertos.GroupBy(c => c.FuncionarioId).ToDictionary(g => g.Key, g => g.Max(c => c.Id));
+
+        return funcionarios.Select(f => new OperadorResumo(
+            f.Id,
+            $"OP-{f.IdExterno ?? f.Id:00}",
+            f.Nome,
+            f.Supervisor ? "Supervisor / Gerente" : "Operador de Caixa",
+            f.Supervisor,
+            caixaPorFuncionario.TryGetValue(f.Id, out var caixaId) ? $"Caixa {caixaId:00}" : null,
+            f.Desativado ? SituacaoOperador.Desativado
+                : string.IsNullOrEmpty(f.PdvKeyHash) ? SituacaoOperador.SemChaveDoPdv : SituacaoOperador.Ativo)).ToList();
     }
 
     public async Task<IReadOnlyList<ProdutoResumo>> ListarProdutosAsync(string? busca, CancellationToken ct = default)
@@ -57,15 +129,23 @@ public class CadastroLocalService
         if (!string.IsNullOrWhiteSpace(busca))
         {
             var padrao = PadraoContem(busca.Trim());
+            // Também acha pela CATEGORIA ("mercearia" lista os produtos do grupo): os ids dos grupos cujo nome bate entram na condição.
+            var gruposQueBatem = context.Grupos
+                .Where(g => g.IdExterno != null && EF.Functions.Like(g.Nome, padrao, "\\"))
+                .Select(g => g.IdExterno);
             consulta = consulta.Where(p =>
                 EF.Functions.Like(p.Nome, padrao, "\\") ||
                 EF.Functions.Like(p.CodigoBarras, padrao, "\\") ||
-                EF.Functions.Like(p.Sku, padrao, "\\"));
+                EF.Functions.Like(p.Sku, padrao, "\\") ||
+                (p.GrupoId != null && gruposQueBatem.Contains(p.GrupoId)));
         }
 
         var produtos = await consulta.OrderBy(p => p.Nome).Take(LimiteLista).ToListAsync(ct);
+        await CatalogoLocalService.PreencherCategoriasAsync(context, produtos, ct);
         return produtos
-            .Select(p => new ProdutoResumo(p.Id, p.Nome, p.CodigoBarras, p.PrecoVenda, p.EstoqueAtual, p.SyncStatus))
+            .Select(p => new ProdutoResumo(
+                p.Id, p.Nome, p.CodigoBarras, p.PrecoVenda, p.EstoqueAtual, p.SyncStatus,
+                p.CodigoParaExibicao, p.GrupoNome, p.UnidadeMedida))
             .ToList();
     }
 
