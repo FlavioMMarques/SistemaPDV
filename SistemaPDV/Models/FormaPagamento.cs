@@ -18,7 +18,8 @@ public class FormaPagamento : ISincronizavel<int>
     public string? AtalhoNumero { get; set; }
     public bool PermissaoSupervisor { get; set; }
 
-    // Forma que exige escolher a bandeira (crédito e débito chegam da API com Tipo = "CARTAO"; PIX, dinheiro etc. não).
+    // Forma que exige escolher a bandeira (crédito e débito chegam da API com Tipo = "CARTAO"; aceita também variações como
+    // "CARTAO_CREDITO"). "CARTEIRA_DIGITAL", PIX, dinheiro etc. NÃO são cartão: por isso StartsWith, e não Contains("CART").
     // Só leitura: o EF não mapeia.
-    public bool EhCartao => string.Equals(Tipo, "CARTAO", System.StringComparison.OrdinalIgnoreCase);
+    public bool EhCartao => Tipo.StartsWith("CARTAO", System.StringComparison.OrdinalIgnoreCase);
 }

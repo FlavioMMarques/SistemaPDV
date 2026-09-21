@@ -8,8 +8,8 @@ namespace SistemaPDV.ViewModels;
 // ViewModels são recriados a cada navegação — uma assinatura por tela vazaria.
 //
 // Só entra quem pode recarregar sem atrapalhar o operador: lista de pedidos e cadastros
-// sim; a tela de venda não (recarregar o catálogo no meio de um carrinho seria pior que
-// deixar desatualizado).
+// sim; a tela de venda só recarrega o que NÃO mexe no que o operador montou (as bandeiras de
+// cartão) — recarregar o catálogo no meio de um carrinho seria pior que deixar desatualizado.
 public interface IAtualizavelPorSincronizacao
 {
     Task AtualizarAposSincronizacaoAsync();
