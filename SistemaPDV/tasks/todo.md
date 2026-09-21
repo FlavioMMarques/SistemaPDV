@@ -1530,6 +1530,7 @@ O usuário enviou os prints do protótipo (Cadastros com 3 abas, Listagem de Ped
 
 **Ordem e estimativa (h de trabalho):**
 - [x] **Task 68 — Toasts** (~1,5–2 h): `ToastCentral` + área no canto do Shell; avisos de conexão (caiu / voltou / fila vazia) e "item adicionado ao cupom". Conferido por renderização; 702 testes verdes.
+- [x] **Task 68b — Detecção de queda em ~15 s** (`VerificadorDeConexao` + evento de rede do Windows; antes levava até 5 min com a fila vazia). 711 testes verdes; conferência manual do evento de rede pendente do usuário.
 - [ ] **Task 69 — Painel Principal** (~1–1,5 h): 4 cartões (faturamento, estoque, fila outbox, conexão + última sinc), últimas vendas, bloco offline-first.
 - [ ] **Task 70 — Listagem de Pedidos** (~2–2,5 h): 3 cartões de total, busca por pedido/cliente, filtro de status e de forma, botão Detalhes.
 - [ ] **Task 71 — Modal Detalhes do pedido** (~2,5–3 h): cabeçalho, itens, forma de pagamento, total líquido e JSON da requisição real.

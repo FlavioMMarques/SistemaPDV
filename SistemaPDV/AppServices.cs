@@ -66,6 +66,7 @@ public class AppServices
         VendaLocalService = new VendaLocalService(contextFactory, PoliticaSupervisor.ExigirChave);
         CadastroLocalService = new CadastroLocalService(contextFactory);
         SincronizacaoBackgroundService = new SincronizacaoBackgroundService(
-            contextFactory, authService, CatalogSyncService, CaixaSyncService, VendaSyncService);
+            contextFactory, authService, CatalogSyncService, CaixaSyncService, VendaSyncService,
+            verificador: new VerificadorDeConexao(httpClient));
     }
 }
