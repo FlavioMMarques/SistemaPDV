@@ -10,6 +10,7 @@ public class PagamentoVendaConfiguration : IEntityTypeConfiguration<PagamentoVen
     {
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Valor).HasPrecision(18, 2);
+        builder.Property(p => p.Bandeira).HasMaxLength(30);
 
         builder.HasOne<FormaPagamento>()
             .WithMany()

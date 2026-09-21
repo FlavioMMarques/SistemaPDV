@@ -275,6 +275,7 @@ public class SincronizacaoBackgroundService : IDisposable
         Anotar(falhas, "Produtos", r.Produtos);
         Anotar(falhas, "Funcionários", r.Funcionarios);
         Anotar(falhas, "Empresa", r.Empresa);
+        Anotar(falhas, "Cartões", r.Cartoes);
         return falhas.Count == 0 ? null : string.Join("; ", falhas);
     }
 
@@ -285,7 +286,7 @@ public class SincronizacaoBackgroundService : IDisposable
         "Último catálogo: " +
         $"Formas de pagamento {r.FormasPagamento?.Quantidade ?? 0}, Clientes {r.Clientes?.Quantidade ?? 0}, " +
         $"Produtos {r.Produtos?.Quantidade ?? 0}, Funcionários {r.Funcionarios?.Quantidade ?? 0}, " +
-        $"Empresa {r.Empresa?.Quantidade ?? 0}";
+        $"Empresa {r.Empresa?.Quantidade ?? 0}, Cartões {r.Cartoes?.Quantidade ?? 0}";
 
     private static void Anotar(List<string> falhas, string recurso, ResultadoSincronizacaoRecurso? resultado)
     {
@@ -295,7 +296,7 @@ public class SincronizacaoBackgroundService : IDisposable
 
     private static bool TrouxeAlgo(ResultadoSincronizacaoCompleta r) =>
         (r.FormasPagamento?.Quantidade ?? 0) + (r.Clientes?.Quantidade ?? 0) + (r.Produtos?.Quantidade ?? 0) +
-        (r.Funcionarios?.Quantidade ?? 0) + (r.Empresa?.Quantidade ?? 0) > 0;
+        (r.Funcionarios?.Quantidade ?? 0) + (r.Empresa?.Quantidade ?? 0) + (r.Cartoes?.Quantidade ?? 0) > 0;
 
     // SincronizarAberturaAsync/SincronizarFechamentoAsync tratam UM caixa por chamada: repete até não haver mais
     // nenhum (ou falhar), com teto pra não girar sem fim se algo estiver errado.

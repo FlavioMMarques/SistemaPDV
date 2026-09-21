@@ -18,6 +18,10 @@ namespace SistemaPDV.Tests;
 public class SincronizacaoBackgroundServiceTests
 {
     private const string UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1";
+
+    // Um GET por recurso do catálogo em cada rodada: formas de pagamento, clientes, produtos, funcionários, empresa e
+    // cartões. Acrescentar um recurso novo ao catálogo é mexer só neste número.
+    private const int RecursosDoCatalogo = 6;
     private const string CpfValido = "529.982.247-25";
     private const string PaginaVazia = """{ "current_page": 1, "data": [], "next_page_url": null, "total": 0, "date_sync": 1758000000 }""";
 
@@ -136,7 +140,7 @@ public class SincronizacaoBackgroundServiceTests
     // ---- ciclo do catálogo (5 min) ----
 
     [Fact]
-    public async Task CicloDoCatalogoAutenticaEBuscaOsCincoRecursosEFicaOnline()
+    public async Task CicloDoCatalogoAutenticaEBuscaTodosOsRecursosDoCatalogoEFicaOnline()
     {
         using var fixture = new SqliteInMemoryFixture();
         await SemearConfiguracaoAsync(fixture);
@@ -146,7 +150,7 @@ public class SincronizacaoBackgroundServiceTests
         await service.ExecutarCicloCatalogoAsync();
 
         Assert.Equal(1, api.Contar("/authentication/token"));
-        Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
+        Assert.Equal(RecursosDoCatalogo, api.Requisicoes.Count(r => r.StartsWith("GET")));
         Assert.Equal(EstadoConexao.Online, service.Estado);
     }
 
@@ -518,8 +522,8 @@ public class SincronizacaoBackgroundServiceTests
         var getsAposPrimeiro = api.Requisicoes.Count(r => r.StartsWith("GET"));
         await service.ExecutarCicloRapidoAsync();
 
-        Assert.Equal(5, getsAposPrimeiro);
-        Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
+        Assert.Equal(RecursosDoCatalogo, getsAposPrimeiro);
+        Assert.Equal(RecursosDoCatalogo, api.Requisicoes.Count(r => r.StartsWith("GET")));
     }
 
     [Fact]
@@ -542,7 +546,7 @@ public class SincronizacaoBackgroundServiceTests
         }
         await service.ExecutarCicloRapidoAsync();
 
-        Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
+        Assert.Equal(RecursosDoCatalogo, api.Requisicoes.Count(r => r.StartsWith("GET")));
     }
 
     [Fact]
@@ -559,7 +563,7 @@ public class SincronizacaoBackgroundServiceTests
         await service.ExecutarCicloRapidoAsync();
 
         Assert.Equal(EstadoConexao.Online, service.Estado);
-        Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
+        Assert.Equal(RecursosDoCatalogo, api.Requisicoes.Count(r => r.StartsWith("GET")));
     }
     // ---- aviso de dados alterados (as listas se atualizam sozinhas) ----
 
@@ -708,7 +712,7 @@ public class SincronizacaoBackgroundServiceTests
         while (service.Estado != EstadoConexao.Online && DateTime.UtcNow < limite)
             await Task.Delay(20);
         Assert.Equal(EstadoConexao.Online, service.Estado);
-        Assert.Equal(5, api.Requisicoes.Count(r => r.StartsWith("GET")));
+        Assert.Equal(RecursosDoCatalogo, api.Requisicoes.Count(r => r.StartsWith("GET")));
     }
 
     [Fact]

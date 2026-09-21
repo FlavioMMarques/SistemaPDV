@@ -27,7 +27,7 @@ namespace SistemaPDV.Services.Sync;
 // e isso só quebraria em runtime, não em tempo de compilação. Cinco blocos parecidos
 // e concretos (repetição pequena, sem risco) venceram uma abstração genérica que
 // dependeria de um comportamento não garantido do EF Core.
-public class CatalogSyncService
+public partial class CatalogSyncService
 {
     private readonly Func<AppDbContext> contextFactory;
     private readonly SoftcomApiClient apiClient;
@@ -582,6 +582,7 @@ public class CatalogSyncService
         var produtos = await SincronizarProdutosAsync(accessToken, ct);
         var funcionarios = await SincronizarFuncionariosAsync(accessToken, ct);
         var empresa = await SincronizarEmpresaAsync(accessToken, ct);
+        var cartoes = await SincronizarCartoesAsync(accessToken, ct);
 
         return new ResultadoSincronizacaoCompleta
         {
@@ -591,6 +592,7 @@ public class CatalogSyncService
             Produtos = produtos,
             Funcionarios = funcionarios,
             Empresa = empresa,
+            Cartoes = cartoes,
         };
     }
 
