@@ -250,7 +250,9 @@ public class VendaLocalService
                 JsonSerializer.Serialize(requisicao.Corpo, OpcoesDeExibicao));
             return (texto, null);
         }
-        catch (InvalidOperationException ex)
+        // InvalidOperationException = caixa ou configuração inexistentes; FormatException (UriFormatException) = a URL da API
+        // está vazia ou malformada. Nos dois casos o modal abre e explica, em vez de o "Detalhes" virar uma tela de erro.
+        catch (Exception ex) when (ex is InvalidOperationException or FormatException)
         {
             return (null, $"Não foi possível montar a requisição: {ex.Message}");
         }

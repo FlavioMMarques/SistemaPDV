@@ -188,6 +188,25 @@ public class DetalheDoPedidoTests
     }
 
     [Fact]
+    public async Task UrlDaApiVaziaOuInvalidaNaoDerrubaOModalExplicaOMotivo()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearBaseAsync(fixture);
+        var venda = await RegistrarAsync(fixture, b);
+        await using (var context = fixture.CriarContexto())
+        {
+            (await context.ConfiguracoesSincronizacao.SingleAsync()).UrlApi = string.Empty;   // dispositivo sem vínculo válido
+            await context.SaveChangesAsync();
+        }
+
+        var detalhe = (await new VendaLocalService(fixture.CriarContexto).ObterDetalheAsync(venda.Id))!;
+
+        Assert.Null(detalhe.Requisicao);
+        Assert.Contains("Não foi possível montar a requisição", detalhe.MotivoSemRequisicao);
+        Assert.Single(detalhe.Itens);                                          // o resto do detalhe continua aparecendo
+    }
+
+    [Fact]
     public async Task VendaDescartadaNaoMostraRequisicaoPoisNaoEEnviada()
     {
         using var fixture = new SqliteInMemoryFixture();
