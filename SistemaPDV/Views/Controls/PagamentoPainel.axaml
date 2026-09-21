@@ -10,7 +10,7 @@
 
   <!-- Painel de pagamento (abre no FINALIZAR VENDA / F10): modal sobre a tela de venda. O fundo escurecido segura o
        clique; o teclado é tratado no PdvView (F10 confirma, Esc volta). -->
-  <Grid Background="#B3000000">
+  <Grid Background="{DynamicResource OverlayBrush}">
     <Border Background="{StaticResource BgCardBrush}"
             BorderBrush="{StaticResource BorderColorBrush}"
             BorderThickness="1"

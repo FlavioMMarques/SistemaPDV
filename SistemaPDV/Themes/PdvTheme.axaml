@@ -43,6 +43,9 @@
   <SolidColorBrush x:Key="AccentRedDimBrush" Color="{StaticResource AccentRedColor}" Opacity="0.15" />
   <SolidColorBrush x:Key="BrandYellowDimBrush" Color="{StaticResource BrandYellowColor}" Opacity="0.12" />
 
+  <!-- Fundo escurecido atrás de painéis modais (ex: pagamento no PDV) -->
+  <SolidColorBrush x:Key="OverlayBrush" Color="#000000" Opacity="0.7" />
+
   <!--
     Fonte sans: Inter já vem embutida (Avalonia.Fonts.Inter, já registrada como
     fonte padrão do app via .WithInterFont() em Program.cs) — este resource só
