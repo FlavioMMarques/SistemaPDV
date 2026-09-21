@@ -826,3 +826,15 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 **Decisões:** o ciclo ocioso continua **sem escrever nada** (sem marcas, sem andamento) — o painel não vira parede de ruído; falha de autenticação não abre ciclo. A lista segue da mais recente para a mais antiga, então o bloco lê-se resumo → itens → cabeçalho. Nada de segredo ou exceção no texto (regra do log mantida). Não feito, de propósito: filtro por nível e botão "copiar log" (o texto já é selecionável).
 
 **Testes:** 1042 verdes — `FilaOutboxLogTests` (marcas, resumo, etapas do andamento, `FormatarDuracao`), `PainelDaFilaEstadoTests`, `PendenciasPorTipoTests`.
+
+## 92. Desconto na venda: campo no cupom, rateado entre os itens (a API só aceita desconto por item)
+
+**O que faltava:** o cupom mostrava a linha "Desconto:", mas ela só somava `ItemCarrinho.DescontoItem`, que nenhuma tela preenchia — ficava sempre R$ 0,00. O modelo e o envio já existiam (`ItemVenda.DescontoItem` → `desconto_valor_item`); faltava onde informar.
+
+**Decisões (com o usuário):** desconto **na venda toda**, digitado em **R$ ou %** (botão que alterna, ou "10%" digitado; Enter ou "Aplicar"). Como a API **só tem desconto por item** (o cabeçalho da venda não tem campo), o valor é **rateado** entre os itens (`RateioDeDesconto`): proporcional ao valor de cada item, em centavos, com a sobra indo para as maiores frações — a soma é exata e nenhum item fica negativo. `Venda.Desconto` (cabeçalho) segue 0; o detalhe do pedido soma o cabeçalho e os itens.
+
+**Regras:** desconto maior que zero e **menor que o subtotal** (nem o subtotal inteiro; percentual menor que 100 e que dê ao menos R$ 0,01); um desconto novo **substitui** o anterior (não soma); **continua valendo quando o cupom muda** — percentual acompanha o novo subtotal, valor fixo que deixou de caber é descartado **com aviso** (o total não muda calado); esvaziar/cancelar o cupom limpa o desconto. Os pagamentos cobrem o total **com** desconto, e a checagem de pagamento acima do total já existente cobre quem mexe no desconto depois de lançar pagamento. Cada item mostra "desconto − R$ x" na linha.
+
+**Conferido pelo usuário em teste real (2026-09-21):** a venda com desconto foi aceita e subiu certa — a API recebe `desconto_valor_item` diferente de zero e fecha a conta com o total **líquido** (itens − descontos). Até então toda venda subia com desconto 0.
+
+**Testes:** 1055 verdes — `RateioDeDescontoTests`, `PdvDescontoTests` (R$/%, recusas, item entra/sai, gravação e detalhe).
