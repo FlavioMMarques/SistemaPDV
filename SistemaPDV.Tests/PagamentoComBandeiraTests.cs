@@ -70,6 +70,8 @@ public class PagamentoComBandeiraTests
     [Theory]
     [InlineData("CARTAO", true)]
     [InlineData("cartao", true)]
+    [InlineData("CARTAO_CREDITO", true)]
+    [InlineData("CARTEIRA_DIGITAL", false)]   // começa com "CART" mas NÃO é cartão
     [InlineData("ESPECIE", false)]
     [InlineData("DUPLICATA", false)]
     public void ReconheceAFormaQueExigeBandeira(string tipo, bool ehCartao) =>
@@ -202,5 +204,63 @@ public class PagamentoComBandeiraTests
 
         using var leitura = fixture.CriarContexto();
         Assert.Null(leitura.PagamentosVenda.Single().Bandeira);
+    }
+
+    // ---- cartões que chegam com a tela de venda já aberta ----
+
+    [Fact]
+    public async Task CartoesQueChegamComATelaAbertaViramEscolhaSemMexerNoCarrinho()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearAsync(fixture);                       // ainda sem cartões
+        var viewModel = await AbrirTelaAsync(fixture, b);         // carrinho com 1 item
+        viewModel.ValorPagamentoAdicionar = "3,00";
+        viewModel.AdicionarPagamento(b.Pix);                       // e 1 pagamento já lançado
+        Assert.False(viewModel.TemBandeiras);
+        await using (var context = fixture.CriarContexto())        // a sincronização traz um cartão agora
+        {
+            context.Cartoes.Add(new Cartao { IdExterno = 15, BandeiraNome = "MASTERCARD", BandeiraId = "02", Tipo = "CREDITO" });
+            await context.SaveChangesAsync();
+        }
+
+        await viewModel.AtualizarAposSincronizacaoAsync();
+
+        Assert.True(viewModel.TemBandeiras);
+        Assert.Equal(new[] { "MASTERCARD" }, viewModel.BandeirasDisponiveis);
+        Assert.Single(viewModel.Itens);           // o que o operador montou continua lá
+        Assert.Single(viewModel.Pagamentos);
+        Assert.Equal("3,00", viewModel.ValorPagamentoAdicionar);
+    }
+
+    [Fact]
+    public async Task BandeiraEscolhidaQueSumiuNaAtualizacaoNaoFicaComoEscolhaFantasma()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearAsync(fixture, "VISA", "ELO");
+        var viewModel = await AbrirTelaAsync(fixture, b);
+        viewModel.BandeiraSelecionada = "ELO";
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Cartoes.RemoveRange(context.Cartoes.Where(c => c.BandeiraNome == "ELO"));
+            await context.SaveChangesAsync();
+        }
+
+        await viewModel.AtualizarAposSincronizacaoAsync();
+
+        Assert.Null(viewModel.BandeiraSelecionada);
+        Assert.Equal(new[] { "VISA" }, viewModel.BandeirasDisponiveis);
+    }
+
+    [Fact]
+    public async Task BandeiraEscolhidaQueAindaExisteContinuaEscolhida()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var b = await SemearAsync(fixture, "VISA", "ELO");
+        var viewModel = await AbrirTelaAsync(fixture, b);
+        viewModel.BandeiraSelecionada = "VISA";
+
+        await viewModel.AtualizarAposSincronizacaoAsync();
+
+        Assert.Equal("VISA", viewModel.BandeiraSelecionada);
     }
 }

@@ -17,7 +17,7 @@ namespace SistemaPDV.ViewModels;
 // VendaSyncService, que é papel do SincronizacaoBackgroundService (Task 50).
 // caixaId vem de quem navega pra cá (assumido sempre um caixa aberto — é assim
 // que o ShellViewModel só chega aqui depois de abrir caixa).
-public class PdvViewModel : ViewModelBase
+public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     private readonly VendaService vendaService;
     private readonly CatalogoLocalService catalogoLocalService;
@@ -184,6 +184,20 @@ public class PdvViewModel : ViewModelBase
         ClientesDisponiveis = await catalogoLocalService.ListarClientesAsync();
         FormasPagamentoDisponiveis = await catalogoLocalService.ListarFormasPagamentoDisponiveisAsync();
         BandeirasDisponiveis = await catalogoLocalService.ListarBandeirasAsync();
+    }
+
+    // O Shell chama quando um ciclo de sincronização mexeu no banco. Na tela de venda recarrega SÓ as bandeiras: os
+    // cartões podem chegar com a tela já aberta (1º uso, ou cartão novo no SoftcomShop) e, sem isto, um pagamento em
+    // cartão seria gravado sem bandeira e ficaria fora da apuração. Produtos, clientes, formas e o carrinho NÃO são
+    // tocados — recarregar o catálogo no meio de uma venda seria pior que deixá-lo desatualizado.
+    public async Task AtualizarAposSincronizacaoAsync()
+    {
+        var bandeiras = await catalogoLocalService.ListarBandeirasAsync();
+        BandeirasDisponiveis = bandeiras;
+
+        // Se a bandeira que estava escolhida deixou de existir, não fica uma escolha fantasma.
+        if (BandeiraSelecionada is not null && !bandeiras.Contains(BandeiraSelecionada))
+            BandeiraSelecionada = null;
     }
 
     public void AdicionarItem(Produto produto)
