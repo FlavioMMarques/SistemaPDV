@@ -34,6 +34,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string valorPagamentoAdicionar = string.Empty;
     private string? mensagem;
     private bool emPagamento;
+    private IReadOnlyList<OpcaoPagamento> opcoesPagamento = Array.Empty<OpcaoPagamento>();
+    private FormaPagamento? formaSelecionada;
 
     public PdvViewModel(VendaService vendaService, CatalogoLocalService catalogoLocalService, int caixaId)
     {
@@ -48,6 +50,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         {
             Renumerar();
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+            this.RaisePropertyChanged(nameof(PodeConfirmar));
+            this.RaisePropertyChanged(nameof(TrocoPrevisto));
             this.RaisePropertyChanged(nameof(Total));
             this.RaisePropertyChanged(nameof(Subtotal));
             this.RaisePropertyChanged(nameof(TotalDescontos));
@@ -60,7 +64,10 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         Pagamentos.CollectionChanged += (_, _) =>
         {
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+            this.RaisePropertyChanged(nameof(PodeConfirmar));
+            this.RaisePropertyChanged(nameof(TrocoPrevisto));
             this.RaisePropertyChanged(nameof(TotalPago));
+            this.RaisePropertyChanged(nameof(TemPagamentos));
             this.RaisePropertyChanged(nameof(Restante));
             this.RaisePropertyChanged(nameof(Troco));
             this.RaisePropertyChanged(nameof(TemVendaEmAndamento));
@@ -80,6 +87,13 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         EscCommand = ReactiveCommand.CreateFromTask(EscAsync);
         LimparBuscaCommand = ReactiveCommand.Create(() => { FiltroProduto = string.Empty; });
         AdicionarPorBuscaCommand = ReactiveCommand.Create(AdicionarPorBusca);
+
+        // Painel de pagamento no estilo do protótipo: escolhe a forma (cartão), ajusta o valor, lança; pode repetir (misto).
+        SelecionarFormaCommand = ReactiveCommand.Create<OpcaoPagamento>(SelecionarForma);
+        AdicionarSelecionadaCommand = ReactiveCommand.Create(
+            () => AdicionarPagamento(FormaSelecionada!),
+            this.WhenAnyValue(vm => vm.FormaSelecionada).Select(forma => forma is not null));
+        ConfirmarVendaCommand = ReactiveCommand.CreateFromTask(ConfirmarAsync, this.WhenAnyValue(vm => vm.PodeConfirmar));
 
         // Wrappers finos só pra dar um ICommand pro XAML chamar (Button.Command não
         // aceita um método comum) — a lógica de verdade continua nos métodos
@@ -148,8 +162,59 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public IReadOnlyList<FormaPagamento> FormasPagamentoDisponiveis
     {
         get => formasPagamentoDisponiveis;
-        private set => this.RaiseAndSetIfChanged(ref formasPagamentoDisponiveis, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref formasPagamentoDisponiveis, value);
+            OpcoesPagamento = value.Select(forma => new OpcaoPagamento(forma)).ToList();
+            FormaSelecionada = null;
+        }
     }
+
+    // Os cartões do painel de pagamento (um por forma de pagamento sincronizada).
+    public IReadOnlyList<OpcaoPagamento> OpcoesPagamento
+    {
+        get => opcoesPagamento;
+        private set => this.RaiseAndSetIfChanged(ref opcoesPagamento, value);
+    }
+
+    // A forma escolhida para o PRÓXIMO lançamento. Pagamento misto: escolhe uma, lança, escolhe outra…
+    public FormaPagamento? FormaSelecionada
+    {
+        get => formaSelecionada;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref formaSelecionada, value);
+            foreach (var opcao in OpcoesPagamento)
+                opcao.Selecionada = ReferenceEquals(opcao.Forma, value);
+            this.RaisePropertyChanged(nameof(TemFormaSelecionada));
+            this.RaisePropertyChanged(nameof(DinheiroSelecionado));
+            this.RaisePropertyChanged(nameof(ExigeBandeiraSelecionada));
+            this.RaisePropertyChanged(nameof(RotuloValor));
+            this.RaisePropertyChanged(nameof(TrocoPrevisto));
+            this.RaisePropertyChanged(nameof(PodeConfirmar));
+        }
+    }
+
+    public bool TemFormaSelecionada => FormaSelecionada is not null;
+    public bool DinheiroSelecionado => FormaSelecionada?.EhDinheiro ?? false;
+
+    // Mostra a escolha de bandeira só quando a forma escolhida é cartão E já há bandeiras sincronizadas.
+    public bool ExigeBandeiraSelecionada => (FormaSelecionada?.EhCartao ?? false) && TemBandeiras;
+
+    public bool TemPagamentos => Pagamentos.Count > 0;
+
+    // No dinheiro o campo é o que o cliente ENTREGOU (o app calcula o troco); nas demais é o valor a lançar.
+    public string RotuloValor => DinheiroSelecionado ? "Valor recebido do cliente (R$)" : "Valor a lançar (R$)";
+
+    // Troco do lançamento em digitação (dinheiro): o que o cliente entregou menos o que falta pagar.
+    public decimal TrocoPrevisto =>
+        DinheiroSelecionado && ValorMonetario.TentarLer(ValorPagamentoAdicionar, out var recebido)
+            ? Math.Max(recebido - Restante, 0m)
+            : 0m;
+
+    // Confirmar a venda: já está toda paga, OU há uma forma escolhida a lançar (o Confirmar lança e conclui — o caso
+    // de uma forma só não precisa de um clique extra em "Adicionar").
+    public bool PodeConfirmar => PodeFinalizarVenda || (FormaSelecionada is not null && TemItens);
 
     // Nulo = Consumidor Final implícito — resolvido só na hora de sincronizar
     // (VendaSyncService), não aqui. Pode ser um cliente sem IdExterno ainda
@@ -174,6 +239,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         {
             this.RaiseAndSetIfChanged(ref bandeirasDisponiveis, value);
             this.RaisePropertyChanged(nameof(TemBandeiras));
+            this.RaisePropertyChanged(nameof(ExigeBandeiraSelecionada));
         }
     }
 
@@ -189,7 +255,11 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public string ValorPagamentoAdicionar
     {
         get => valorPagamentoAdicionar;
-        set => this.RaiseAndSetIfChanged(ref valorPagamentoAdicionar, value);
+        set
+        {
+            this.RaiseAndSetIfChanged(ref valorPagamentoAdicionar, value);
+            this.RaisePropertyChanged(nameof(TrocoPrevisto));   // dinheiro: o troco acompanha o que se digita
+        }
     }
 
     public string? Mensagem
@@ -211,7 +281,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     // Painel de pagamento: quanto já foi pago, quanto falta e o troco (pago a mais — dinheiro).
     public decimal TotalPago => Pagamentos.Sum(p => p.Valor);
     public decimal Restante => Math.Max(Total - TotalPago, 0m);
-    public decimal Troco => Math.Max(TotalPago - Total, 0m);
+    // Troco = o que o cliente entregou a mais no DINHEIRO (só ele dá troco; ver AdicionarPagamento).
+    public decimal Troco => Pagamentos.Sum(p => p.Troco);
 
     public bool EmPagamento
     {
@@ -242,6 +313,9 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<Unit, Unit> EscCommand { get; }                  // Esc
     public ReactiveCommand<Unit, Unit> LimparBuscaCommand { get; }
     public ReactiveCommand<Unit, Unit> AdicionarPorBuscaCommand { get; }    // Enter na busca (leitor de código de barras)
+    public ReactiveCommand<OpcaoPagamento, Unit> SelecionarFormaCommand { get; }
+    public ReactiveCommand<Unit, Unit> AdicionarSelecionadaCommand { get; }
+    public ReactiveCommand<Unit, Unit> ConfirmarVendaCommand { get; }
 
     public async Task IniciarAsync()
     {
@@ -288,6 +362,13 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             return;
         }
 
+        // Já está toda paga (ou não há nada no cupom): outro lançamento só criaria um pagamento de R$ 0,00.
+        if (Restante <= 0)
+        {
+            Mensagem = "A venda já está totalmente paga.";
+            return;
+        }
+
         // Cartão com bandeiras sincronizadas: a bandeira é OBRIGATÓRIA (é o que alimenta a apuração por bandeira no
         // fechamento). Sem cartões sincronizados não há o que escolher, então não trava a venda — só fica sem bandeira.
         string? bandeira = null;
@@ -302,10 +383,65 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             bandeira = BandeiraSelecionada;
         }
 
+        // Só o DINHEIRO dá troco. O que o cliente entregou (valor) pode passar do que falta: lança-se o que falta e a
+        // diferença vira troco. As outras formas não passam do que falta pagar (um cartão não cobra a mais).
+        var falta = Restante;
+        PagamentoAlocado pagamento;
+        if (forma.EhDinheiro)
+        {
+            pagamento = new PagamentoAlocado { FormaPagamento = forma, Valor = Math.Min(valor, falta), ValorRecebido = valor };
+        }
+        else if (valor > falta)
+        {
+            Mensagem = $"O valor passa do que falta pagar (R$ {ValorMonetario.Formatar(falta)}). Só o dinheiro dá troco.";
+            return;
+        }
+        else
+        {
+            pagamento = new PagamentoAlocado { FormaPagamento = forma, Valor = valor, Bandeira = bandeira };
+        }
+
         Mensagem = null;
-        Pagamentos.Add(new PagamentoAlocado { FormaPagamento = forma, Valor = valor, Bandeira = bandeira });
+        Pagamentos.Add(pagamento);
         BandeiraSelecionada = null;   // a escolha vale para um pagamento só (o próximo cartão pode ser de outra bandeira)
-        ValorPagamentoAdicionar = PreencherComORestante();   // pagamento misto: o próximo já vem com o que falta
+        FormaSelecionada = null;      // pagamento misto: escolhe-se a próxima forma
+        ValorPagamentoAdicionar = PreencherComORestante();   // e o valor já vem com o que falta
+    }
+
+    // Clique num cartão do painel: escolhe a forma do PRÓXIMO lançamento (clicar de novo na mesma desmarca) e já sugere
+    // o valor que falta. Para o dinheiro esse valor vira o "recebido", que o operador ajusta para gerar o troco.
+    private void SelecionarForma(OpcaoPagamento opcao)
+    {
+        Mensagem = null;
+        BandeiraSelecionada = null;
+        if (ReferenceEquals(FormaSelecionada, opcao.Forma))
+        {
+            FormaSelecionada = null;
+            return;
+        }
+
+        FormaSelecionada = opcao.Forma;
+        ValorPagamentoAdicionar = PreencherComORestante();
+    }
+
+    // Botão "Confirmar Venda" e F10 com o painel aberto: se há uma forma escolhida e ainda falta pagar, LANÇA-a primeiro
+    // (validando valor/bandeira como qualquer lançamento) e conclui se isso completou o pagamento.
+    private async Task ConfirmarAsync()
+    {
+        if (FormaSelecionada is { } forma && Restante > 0)
+        {
+            AdicionarPagamento(forma);
+            if (FormaSelecionada is not null)   // o lançamento foi recusado (mensagem já mostrada): fica no painel
+                return;
+        }
+
+        if (!PodeFinalizarVenda)
+        {
+            Mensagem = $"Falta pagar R$ {ValorMonetario.Formatar(Restante)}.";
+            return;
+        }
+
+        await FinalizarVendaCommand.Execute();   // passa pelo comando, pra quem escuta o resultado também ver
     }
 
     // O valor que o painel de pagamento sugere: o que ainda falta (vazio quando já está pago).
@@ -332,13 +468,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             return;
         }
 
-        if (!PodeFinalizarVenda)
-        {
-            Mensagem = $"Falta pagar R$ {ValorMonetario.Formatar(Restante)}.";
-            return;
-        }
-
-        await FinalizarVendaCommand.Execute();   // passa pelo comando, pra quem escuta o resultado também ver
+        await ConfirmarAsync();
     }
 
     // Esc: com o painel de pagamento aberto só o fecha (volta ao cupom); senão cancela a venda em andamento.
@@ -421,6 +551,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         ValorPagamentoAdicionar = string.Empty;
         BandeiraSelecionada = null;
         EmPagamento = false;
+        FormaSelecionada = null;
         return Task.CompletedTask;
     }
 }

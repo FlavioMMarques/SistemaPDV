@@ -96,18 +96,35 @@ public class PdvViewModelTests
     [Fact]
     public async Task PagamentoAMaisDoQueOTotalHabilitaFinalizar()
     {
-        // Cobre "dinheiro com troco": pagar mais do que o total é válido, o troco
-        // não é modelado aqui (fora de escopo por enquanto).
+        // "Dinheiro com troco": o cliente entrega mais do que o total. Só o dinheiro faz isso (ver o teste seguinte); o troco
+        // é calculado (PagamentoDinheiroComTrocoTests).
         using var fixture = new SqliteInMemoryFixture();
-        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);
+        var (caixaId, produto, _) = await SemearCenarioAsync(fixture);
+        var dinheiro = new FormaPagamento { Nome = "ESPÉCIE", Tipo = "ESPECIE", CodigoNfce = "01", IdExterno = 1 };
         var viewModel = CriarViewModel(fixture, caixaId);
         viewModel.QuantidadeAdicionar = "1";
         viewModel.AdicionarItem(produto);
 
         viewModel.ValorPagamentoAdicionar = "50.00";
-        viewModel.AdicionarPagamento(forma);
+        viewModel.AdicionarPagamento(dinheiro);
 
         Assert.True(viewModel.PodeFinalizarVenda);
+    }
+
+    [Fact]
+    public async Task FormaQueNaoEDinheiroNaoPassaDoQueFalta()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);   // PIX
+        var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.QuantidadeAdicionar = "1";
+        viewModel.AdicionarItem(produto);   // 9,90
+
+        viewModel.ValorPagamentoAdicionar = "50.00";
+        viewModel.AdicionarPagamento(forma);
+
+        Assert.Empty(viewModel.Pagamentos);   // um PIX/cartão não cobra a mais
+        Assert.Contains("Só o dinheiro dá troco", viewModel.Mensagem);
     }
 
     [Fact]
@@ -162,9 +179,13 @@ public class PdvViewModelTests
         Assert.False(viewModel.TemVendaEmAndamento);
 
         // Só pagamento, sem item, também conta como venda em andamento — descartar
-        // isso ao navegar seria perder o que o operador já digitou.
+        // isso ao navegar seria perder o que o operador já digitou. (O pagamento só entra com item no cupom — não passa
+        // do que falta —, então o cenário é: lança o pagamento e depois tira o item.)
+        viewModel.AdicionarItem(produto);
         viewModel.ValorPagamentoAdicionar = "5.00";
         viewModel.AdicionarPagamento(forma);
+        viewModel.RemoverItem(viewModel.Itens[0]);
+        Assert.Empty(viewModel.Itens);
         Assert.True(viewModel.TemVendaEmAndamento);
     }
 
@@ -276,8 +297,10 @@ public class PdvViewModelTests
     public async Task ValorDePagamentoComVirgulaEhLidoComoDecimal()
     {
         using var fixture = new SqliteInMemoryFixture();
-        var (caixaId, _, forma) = await SemearCenarioAsync(fixture);
+        var (caixaId, produto, forma) = await SemearCenarioAsync(fixture);
         var viewModel = CriarViewModel(fixture, caixaId);
+        viewModel.QuantidadeAdicionar = "2";
+        viewModel.AdicionarItem(produto);   // 19,80: o valor do pagamento não pode passar do que falta
 
         viewModel.ValorPagamentoAdicionar = "12,50";
         viewModel.AdicionarPagamento(forma);

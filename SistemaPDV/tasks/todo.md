@@ -1501,3 +1501,18 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 - [x] **Task 67 — Barra do topo:** logo, pill do sistema, navegação com aba ativa, chip do operador/caixa, pills de conexão e de sync (N pendentes).
 - **Diferenças inevitáveis (dado que o app não tem):** o protótipo mostra a categoria no card ("• Mercearia"); a API só manda `grupo_id`, então o app mostra a unidade. O logo real da Softcom não está no repositório (só o ícone padrão do Avalonia): entra um logo desenhado em XAML até o usuário fornecer o arquivo.
 - **Resultado (2026-09-21):** conferido por renderização headless em 1860/1366/1024 px contra o print do protótipo; 4 colunas de cards em 1860 px (largura máx. 1400 centralizada, como o protótipo), barra do topo completa em ≥1500 px e compacta (só ícones, sem a pílula do sistema) abaixo. **Não restilizado (fora do pedido):** Painel, Pedidos, Cadastros, Fechar caixa, Abrir caixa, Login e Configurações continuam no visual anterior — só herdam a barra nova. **Pendente do usuário:** conferir no app real (a fonte de emoji do Windows renderiza os ícones coloridos, o renderizador de teste não) e, se quiser o logo oficial, fornecer o arquivo (hoje é um desenho em XAML).
+
+---
+
+## Anotado para depois (2026-09-21, pedido do usuário)
+
+- [ ] **Produto com preço zero: permitir informar o preço na hora do lançamento.** Hoje um produto com `PrecoVenda = 0` entra no cupom a R$ 0,00 sem aviso (e a venda pode sair com item de graça por engano). Validação ao adicionar o item: se o preço é zero, pedir o preço (campo/diálogo) antes de lançar; o preço digitado vale só para aquele item do cupom (não altera o cadastro). Definir com o usuário: exigir preço > 0? quem pode (só supervisor)? e como isso segue para a API (o `preco` do item já é enviado).
+
+## Fase 7b — Painel de pagamento igual ao protótipo, com pagamento misto e troco (2026-09-21)
+
+Pedido do usuário (print da tela de pagamento do protótipo): "posso selecionar mais de uma forma de pagamento e, se for dinheiro, mostrar quanto o cliente deu para gerar troco".
+
+- [x] Cartões de forma de pagamento em 2 colunas (ícone + nome + explicação), o escolhido com borda amarela; caixa amarela "VALOR TOTAL DO CUPOM"; título com ✕; rodapé Voltar / ✅ Confirmar Venda (`OpcaoPagamento`, `Button.opcao`).
+- [x] **Pagamento misto:** escolhe uma forma, informa o valor, "＋ Adicionar este pagamento", escolhe outra…; lista de "pagamentos lançados" com remover. Com uma forma só, **Confirmar** já lança e conclui (1 clique).
+- [x] **Dinheiro e troco:** no dinheiro o campo vira "Valor recebido do cliente"; mostra "Troco a devolver" em tempo real; a venda grava só o que falta (o resto é troco). **Só o dinheiro passa do que falta** (cartão/PIX recusam com mensagem). Dinheiro = código NFC-e `01` (não o `Tipo`: na API real o "PIX OFF" também vem `ESPECIE`).
+- [ ] **Pendente (decisão do usuário):** enviar o **valor recebido** e o troco à API. Hoje `valor_recebido` vai igual ao valor do pagamento (o troco só existe na tela). Precisa confirmar com uma venda real em dinheiro com troco que a API aceita `valor_recebido` ≠ `valor_pagamento` (e persistir `PagamentoVenda.ValorRecebido` — exigiria migration).
