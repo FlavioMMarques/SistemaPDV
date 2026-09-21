@@ -149,9 +149,10 @@ public class DetalheDoPedidoTests
         var resultado = await envio.SincronizarVendaAsync(venda.Id, "token-secreto-de-verdade");
 
         Assert.True(resultado.Sucesso);
-        var jsonExibido = antes.Requisicao![(antes.Requisicao.IndexOf(Environment.NewLine + Environment.NewLine, StringComparison.Ordinal) + 4)..];
-        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(corpoEnviado!), JsonNode.Parse(jsonExibido)));
-        Assert.DoesNotContain("token-secreto-de-verdade", antes.Requisicao);
+        var requisicao = antes.Requisicao!;
+        var jsonExibido = requisicao[(requisicao.IndexOf(Environment.NewLine + Environment.NewLine, StringComparison.Ordinal) + 4)..];
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(corpoEnviado!)!, JsonNode.Parse(jsonExibido)!));
+        Assert.DoesNotContain("token-secreto-de-verdade", requisicao);
     }
 
     [Fact]
