@@ -18,6 +18,7 @@ namespace SistemaPDV.Views;
 public partial class PdvView : UserControl
 {
     private TopLevel? janela;
+    private IDisposable? observaPainel;
 
     public PdvView()
     {
@@ -39,7 +40,7 @@ public partial class PdvView : UserControl
         FocarBusca();
 
         // Painel de pagamento fechou: devolve o foco à busca (o botão que o tinha acabou de sumir).
-        this.FindControl<PagamentoPainel>("PainelPagamento")?.GetObservable(IsVisibleProperty)
+        observaPainel = this.FindControl<PagamentoPainel>("PainelPagamento")?.GetObservable(IsVisibleProperty)
             .Subscribe(visivel => { if (!visivel) FocarBusca(); });
     }
 
@@ -47,6 +48,8 @@ public partial class PdvView : UserControl
     {
         janela?.RemoveHandler(KeyDownEvent, AtalhosSemFoco);
         janela = null;
+        observaPainel?.Dispose();
+        observaPainel = null;
         base.OnDetachedFromVisualTree(e);
     }
 
