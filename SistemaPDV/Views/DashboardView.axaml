@@ -81,6 +81,8 @@
           </Grid>
 
           <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+            <!-- As colunas daqui e as de cada linha (no modelo do item) TÊM de ser iguais: o Avalonia não deixa compartilhar
+                 um ColumnDefinitions entre grades, então mudar uma é mudar a outra. -->
             <Grid ColumnDefinitions="90,130,*,200,140,200,110">
               <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="# PEDIDO" />
               <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="DATA/HORA" />

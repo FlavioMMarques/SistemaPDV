@@ -237,9 +237,15 @@ public class ShellViewModel : ViewModelBase
 
     public void SolicitarSincronizacao()
     {
-        // O aviso primeiro: o operador vê a resposta ao clique antes de o serviço começar a trabalhar.
-        Toasts.Publicar("Sincronizando a fila outbox...", "🔄", chave: "sincronizacao", duracao: TimeSpan.FromSeconds(2.5));
-        sincronizacaoSolicitada.OnNext(Unit.Default);
+        // O aviso primeiro: o operador vê a resposta ao clique antes de o serviço começar a trabalhar. E ele diz a verdade:
+        // "Sincronizando..." com a internet fora ou com a fila vazia deixaria o operador esperando algo que não vai acontecer.
+        var (texto, icone) = Conexao == EstadoConexao.Offline
+            ? ("Sem conexão: o que está na fila sai assim que a internet voltar.", "🛡️")
+            : PendentesSync == 0
+                ? ("Nenhuma pendência na fila local.", "✅")
+                : ("Sincronizando a fila outbox...", "🔄");
+        Toasts.Publicar(texto, icone, chave: "sincronizacao", duracao: TimeSpan.FromSeconds(2.5));
+        sincronizacaoSolicitada.OnNext(Unit.Default);   // pedir mesmo assim: o serviço confere a rede e a fila por conta própria
     }
 
     // Um ciclo de sincronização mexeu no banco: se a tela aberta lista esses dados,
