@@ -14,9 +14,44 @@
     <KeyBinding Gesture="Escape" Command="{Binding FecharPainelOutboxCommand}" />
   </UserControl.KeyBindings>
 
-  <!-- Painel lateral da fila outbox (abre na pílula "Sync: N pendentes" da barra do topo), no estilo do protótipo: quantas
-       pendências há, o botão de sincronizar agora e o log do que a sincronização fez. O fundo escurecido fecha ao clicar;
-       Esc e ✕ também. O log é para o OPERADOR ler: nunca traz token, senha ou detalhe técnico de exceção. -->
+  <UserControl.Styles>
+    <!-- Cartão de estado da fila: a borda e o fundo mudam com o estado (verde = tudo enviado, amarelo = aguardando, azul =
+         sincronizando, vermelho = sem conexão). A cor só reforça: o ícone e o título dizem o mesmo por escrito. -->
+    <Style Selector="Border.estadoFila">
+      <Setter Property="Background" Value="{DynamicResource BgMainBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}" />
+      <Setter Property="Padding" Value="16,14" />
+    </Style>
+    <Style Selector="Border.estadoFila.ok">
+      <Setter Property="Background" Value="{DynamicResource AccentGreenDimBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentGreenBrush}" />
+    </Style>
+    <Style Selector="Border.estadoFila.pendente">
+      <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+    </Style>
+    <Style Selector="Border.estadoFila.ativo">
+      <Setter Property="Background" Value="{DynamicResource AccentBlueDimBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBlueBrush}" />
+    </Style>
+    <Style Selector="Border.estadoFila.falha">
+      <Setter Property="Background" Value="{DynamicResource AccentRedDimBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentRedBrush}" />
+    </Style>
+    <!-- Barra de progresso indeterminada, na cor do "sincronizando". -->
+    <Style Selector="ProgressBar.envio">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBlueBrush}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="MinHeight" Value="3" />
+      <Setter Property="Height" Value="3" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Painel lateral da fila outbox (abre na pílula "Sync: N pendentes" da barra do topo): o estado da fila agora, o que está
+       pendente por tipo, o botão de sincronizar e o log do que a sincronização fez, em blocos por ciclo. O fundo escurecido
+       fecha ao clicar; Esc e ✕ também. O log é para o OPERADOR ler: nunca traz token, senha ou detalhe técnico de exceção. -->
   <Grid>
     <!-- Fundo: um botão transparente que cobre tudo e fecha o painel (é botão, e não só um clique no fundo, para o teclado e
          o leitor de tela também o alcançarem). Fora da ordem do Tab, pois o ✕ e o Esc já fecham. -->
@@ -29,8 +64,8 @@
     <Border Background="{DynamicResource BgCardBrush}"
             BorderBrush="{DynamicResource BorderColorBrush}"
             BorderThickness="1,0,0,0"
-            Width="420" HorizontalAlignment="Right">
-      <Grid RowDefinitions="Auto,Auto,*">
+            Width="440" HorizontalAlignment="Right">
+      <Grid RowDefinitions="Auto,Auto,Auto,*">
 
         <!-- Título + fechar -->
         <Border Grid.Row="0" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,18">
@@ -45,37 +80,120 @@
           </Grid>
         </Border>
 
-        <!-- Pendências + sincronizar agora -->
-        <StackPanel Grid.Row="1" Spacing="14" Margin="24,20">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Grid.Column="0" Text="Pendências na fila local:" FontWeight="SemiBold" VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextMainBrush}" />
-            <TextBlock Grid.Column="1" Text="{Binding TextoFilaLocal}" FontFamily="{DynamicResource FontMono}" FontSize="22" FontWeight="Bold"
-                       Foreground="{DynamicResource BrandYellowBrush}" />
-          </Grid>
-          <Button Name="SincronizarButton" Classes="primario" Content="🔄 Disparar Sincronização Agora"
+        <!-- Estado da fila + o que está pendente + sincronizar agora -->
+        <StackPanel Grid.Row="1" Spacing="14" Margin="24,20,24,16">
+
+          <Border Classes="estadoFila" Classes.ok="{Binding FilaTudoEnviado}" Classes.pendente="{Binding FilaAguardando}"
+                  Classes.ativo="{Binding Sincronizando}" Classes.falha="{Binding FilaSemConexao}"
+                  AutomationProperties.Name="Estado da fila de envio">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <TextBlock Grid.Column="0" Text="{Binding IconeEstadoDaFila}" FontSize="26" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding TituloEstadoDaFila}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
+                  <TextBlock Text="{Binding DetalheEstadoDaFila}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                  <TextBlock Text="{Binding PendentesSync}" FontFamily="{DynamicResource FontMono}" FontSize="28" FontWeight="Bold"
+                             HorizontalAlignment="Right" Foreground="{DynamicResource BrandYellowBrush}" />
+                  <TextBlock Text="pendentes" FontSize="11" HorizontalAlignment="Right" Foreground="{DynamicResource TextMutedBrush}" />
+                </StackPanel>
+              </Grid>
+              <!-- Só aparece enquanto um envio está em curso. -->
+              <ProgressBar Classes="envio" IsIndeterminate="True" IsVisible="{Binding Sincronizando}"
+                           AutomationProperties.Name="Sincronização em andamento" />
+            </StackPanel>
+          </Border>
+
+          <!-- O que está esperando, por tipo (só os que têm algo). -->
+          <ItemsControl ItemsSource="{Binding ChipsDePendencias}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:PendenciaChip">
+                <Border Classes="chip" Margin="0,0,8,8" Padding="10,5">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Icone}" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Rotulo}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Quantidade}" FontSize="12" FontWeight="Bold" FontFamily="{DynamicResource FontMono}"
+                               Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Button Name="SincronizarButton" Classes="primario" Content="{Binding TextoBotaoSincronizar}"
                   Command="{Binding SincronizarAgoraCommand}" FontSize="15"
                   ToolTip.Tip="Envia agora o que está pendente, sem esperar o próximo ciclo automático"
                   AutomationProperties.Name="Disparar a sincronização agora" />
-          <TextBlock Text="LOGS DE EXECUÇÃO DA API:" Classes="colunaTitulo" Margin="0,6,0,0" />
         </StackPanel>
 
-        <!-- Log: da atividade mais recente para a mais antiga -->
-        <Border Grid.Row="2" Background="{DynamicResource BgMainBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+        <TextBlock Grid.Row="2" Text="ATIVIDADE DA SINCRONIZAÇÃO" Classes="colunaTitulo" Margin="24,0,24,8" />
+
+        <!-- Log: da atividade mais recente para a mais antiga. Cada ciclo é um bloco: o resumo (no alto), os itens e o cabeçalho. -->
+        <Border Grid.Row="3" Background="{DynamicResource BgMainBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
                 BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Margin="24,0,24,24">
           <Grid>
-            <TextBlock Text="Nenhuma atividade de sincronização nesta sessão ainda." TextWrapping="Wrap" Margin="16"
-                       Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
-                       IsVisible="{Binding SemAtividades}" />
+            <StackPanel Margin="20" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        IsVisible="{Binding SemAtividades}">
+              <TextBlock Text="🕘" FontSize="28" HorizontalAlignment="Center" />
+              <TextBlock Text="Nenhuma atividade ainda" FontWeight="SemiBold" HorizontalAlignment="Center"
+                         Foreground="{DynamicResource TextMainBrush}" />
+              <TextBlock Text="Quando a fila enviar algo, cada rodada aparece aqui, com o resumo do que foi enviado e do que falhou."
+                         FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           AutomationProperties.Name="Log de execução da sincronização">
-              <ItemsControl ItemsSource="{Binding Atividades}" Margin="14,12">
+              <ItemsControl ItemsSource="{Binding Atividades}" Margin="14,14,14,4">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="sync:EntradaDeLog">
-                    <SelectableTextBlock FontFamily="{DynamicResource FontMono}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
-                                         Foreground="{Binding Nivel, Converter={StaticResource NivelAtividadeParaCorConverter}}">
-                      <Run Text="[" /><Run Text="{Binding Quando, StringFormat='{}{0:HH:mm:ss}'}" /><Run Text="] " /><Run Text="{Binding Texto}" />
-                    </SelectableTextBlock>
+                    <Grid>
+
+                      <!-- Um item: ícone do nível, o texto e a hora. -->
+                      <Grid IsVisible="{Binding EhItem}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="0,0,0,10">
+                        <Border Grid.Column="0" Width="26" Height="26" CornerRadius="13" VerticalAlignment="Top"
+                                Background="{Binding Nivel, Converter={StaticResource NivelAtividadeParaFundoConverter}}">
+                          <TextBlock Text="{Binding Nivel, Converter={StaticResource NivelAtividadeParaIconeConverter}}" FontSize="12"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <SelectableTextBlock Grid.Column="1" Text="{Binding Texto}" FontSize="12.5" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding Quando, StringFormat='{}{0:HH:mm:ss}'}" FontFamily="{DynamicResource FontMono}"
+                                   FontSize="11" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Top" Margin="0,4,0,0" />
+                      </Grid>
+
+                      <!-- O cabeçalho de um ciclo: uma linha fina separando este bloco do anterior. -->
+                      <Border IsVisible="{Binding EhInicioDeCiclo}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0"
+                              Margin="0,2,0,14" Padding="0,10,0,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                          <TextBlock Grid.Column="0" Text="▸" Foreground="{DynamicResource AccentBlueBrush}" FontWeight="Bold" />
+                          <TextBlock Grid.Column="1" Text="{Binding Texto}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                     Foreground="{DynamicResource TextMutedBrush}" />
+                          <TextBlock Grid.Column="2" Text="{Binding Quando, StringFormat='{}{0:HH:mm:ss}'}" FontFamily="{DynamicResource FontMono}"
+                                     FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                        </Grid>
+                      </Border>
+
+                      <!-- O resumo do ciclo: destacado, na cor do nível (verde: tudo aceito; amarelo: algo falhou; azul: nada saiu). -->
+                      <Border IsVisible="{Binding EhFimDeCiclo}" CornerRadius="{DynamicResource RadiusMedium}" Padding="12,9" Margin="0,0,0,12"
+                              BorderThickness="1"
+                              Background="{Binding Nivel, Converter={StaticResource NivelAtividadeParaFundoConverter}}"
+                              BorderBrush="{Binding Nivel, Converter={StaticResource NivelAtividadeParaCorConverter}}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                          <TextBlock Grid.Column="0" Text="{Binding Nivel, Converter={StaticResource NivelAtividadeParaIconeConverter}}" FontSize="14"
+                                     VerticalAlignment="Center" />
+                          <SelectableTextBlock Grid.Column="1" Text="{Binding Texto}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="2" Text="{Binding Quando, StringFormat='{}{0:HH:mm:ss}'}" FontFamily="{DynamicResource FontMono}"
+                                     FontSize="11" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                        </Grid>
+                      </Border>
+
+                    </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
