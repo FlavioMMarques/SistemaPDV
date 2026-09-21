@@ -33,6 +33,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string quantidadeAdicionar = "1";
     private string valorPagamentoAdicionar = string.Empty;
     private string? mensagem;
+    private bool emPagamento;
 
     public PdvViewModel(VendaService vendaService, CatalogoLocalService catalogoLocalService, int caixaId)
     {
@@ -45,13 +46,23 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         // reagirem como qualquer outra propriedade reativa.
         Itens.CollectionChanged += (_, _) =>
         {
+            Renumerar();
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
             this.RaisePropertyChanged(nameof(Total));
+            this.RaisePropertyChanged(nameof(Subtotal));
+            this.RaisePropertyChanged(nameof(TotalDescontos));
+            this.RaisePropertyChanged(nameof(ResumoItens));
+            this.RaisePropertyChanged(nameof(TemItens));
+            this.RaisePropertyChanged(nameof(Restante));
+            this.RaisePropertyChanged(nameof(Troco));
             this.RaisePropertyChanged(nameof(TemVendaEmAndamento));
         };
         Pagamentos.CollectionChanged += (_, _) =>
         {
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+            this.RaisePropertyChanged(nameof(TotalPago));
+            this.RaisePropertyChanged(nameof(Restante));
+            this.RaisePropertyChanged(nameof(Troco));
             this.RaisePropertyChanged(nameof(TemVendaEmAndamento));
         };
 
@@ -59,6 +70,16 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         FinalizarVendaCommand = ReactiveCommand.CreateFromTask(FinalizarVendaAsync, podeFinalizar);
         NovoCommand = ReactiveCommand.CreateFromTask(NovoAsync);
         CancelarCommand = ReactiveCommand.CreateFromTask(NovoAsync);
+
+        // Painel de pagamento (protótipo): "FINALIZAR VENDA (F10)" no cupom só ABRE o painel; a venda é registrada pelo
+        // botão de confirmar dele. F10 faz as duas coisas em sequência (abre; com o painel aberto e o valor pago, confirma).
+        var podeAbrirPagamento = this.WhenAnyValue(vm => vm.TemItens, vm => vm.EmPagamento, (temItens, aberto) => temItens && !aberto);
+        AbrirPagamentoCommand = ReactiveCommand.Create(AbrirPagamento, podeAbrirPagamento);
+        FecharPagamentoCommand = ReactiveCommand.Create(FecharPagamento);
+        AvancarCommand = ReactiveCommand.CreateFromTask(AvancarAsync);
+        EscCommand = ReactiveCommand.CreateFromTask(EscAsync);
+        LimparBuscaCommand = ReactiveCommand.Create(() => { FiltroProduto = string.Empty; });
+        AdicionarPorBuscaCommand = ReactiveCommand.Create(AdicionarPorBusca);
 
         // Wrappers finos só pra dar um ICommand pro XAML chamar (Button.Command não
         // aceita um método comum) — a lógica de verdade continua nos métodos
@@ -79,6 +100,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         {
             this.RaiseAndSetIfChanged(ref produtosDisponiveis, value);
             this.RaisePropertyChanged(nameof(ProdutosFiltrados));
+            this.RaisePropertyChanged(nameof(SemResultados));
+            this.RaisePropertyChanged(nameof(TextoSemResultados));
         }
     }
 
@@ -92,12 +115,29 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         {
             this.RaiseAndSetIfChanged(ref filtroProduto, value);
             this.RaisePropertyChanged(nameof(ProdutosFiltrados));
+            this.RaisePropertyChanged(nameof(SemResultados));
+            this.RaisePropertyChanged(nameof(TextoSemResultados));
         }
     }
 
+    // Busca por nome OU por código (barras, SKU, referência): "Digite o nome do produto ou bipe o código de barras".
     public IReadOnlyList<Produto> ProdutosFiltrados => string.IsNullOrWhiteSpace(FiltroProduto)
         ? ProdutosDisponiveis
-        : ProdutosDisponiveis.Where(p => p.Nome.Contains(FiltroProduto, StringComparison.OrdinalIgnoreCase)).ToList();
+        : ProdutosDisponiveis.Where(p => Casa(p, FiltroProduto.Trim())).ToList();
+
+    // Estado vazio da grade: catálogo ainda sem produtos (1ª sincronização) ou busca sem resultado — mensagens diferentes,
+    // porque a ação do operador é diferente (esperar × trocar o texto).
+    public bool SemResultados => ProdutosFiltrados.Count == 0;
+
+    public string TextoSemResultados => ProdutosDisponiveis.Count == 0
+        ? "Nenhum produto sincronizado ainda — aguarde a sincronização do catálogo."
+        : $"Nenhum produto encontrado para “{FiltroProduto.Trim()}”.";
+
+    private static bool Casa(Produto p, string texto) =>
+        p.Nome.Contains(texto, StringComparison.OrdinalIgnoreCase)
+        || (p.CodigoBarras?.Contains(texto, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (p.Sku?.Contains(texto, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (p.Referencia?.Contains(texto, StringComparison.OrdinalIgnoreCase) ?? false);
 
     public IReadOnlyList<Cliente> ClientesDisponiveis
     {
@@ -160,6 +200,25 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
     public decimal Total => Itens.Sum(item => item.Total);
 
+    // Subtotal − Desconto = Total (o acréscimo entra no subtotal). Mostrados no cupom.
+    public decimal Subtotal => Itens.Sum(item => item.Quantidade * item.PrecoUnitario + item.AcrescimoItem);
+    public decimal TotalDescontos => Itens.Sum(item => item.DescontoItem);
+    public bool TemItens => Itens.Count > 0;
+
+    // "2 item(ns)" — o selo amarelo do cabeçalho do cupom.
+    public string ResumoItens => $"{Itens.Count} item(ns)";
+
+    // Painel de pagamento: quanto já foi pago, quanto falta e o troco (pago a mais — dinheiro).
+    public decimal TotalPago => Pagamentos.Sum(p => p.Valor);
+    public decimal Restante => Math.Max(Total - TotalPago, 0m);
+    public decimal Troco => Math.Max(TotalPago - Total, 0m);
+
+    public bool EmPagamento
+    {
+        get => emPagamento;
+        private set => this.RaiseAndSetIfChanged(ref emPagamento, value);
+    }
+
     // Achado numa revisão de código (2026-09-18): carrinho não vazio sozinho não
     // bastava — dava pra finalizar com pagamento parcial ou nenhum. Pagar A MAIS
     // do que o total é permitido (dinheiro com troco); a MENOS, não. Troco em si
@@ -177,6 +236,12 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<ItemCarrinho, Unit> RemoverItemCommand { get; }
     public ReactiveCommand<FormaPagamento, Unit> AdicionarPagamentoCommand { get; }
     public ReactiveCommand<PagamentoAlocado, Unit> RemoverPagamentoCommand { get; }
+    public ReactiveCommand<Unit, Unit> AbrirPagamentoCommand { get; }
+    public ReactiveCommand<Unit, Unit> FecharPagamentoCommand { get; }
+    public ReactiveCommand<Unit, Unit> AvancarCommand { get; }              // F10
+    public ReactiveCommand<Unit, Unit> EscCommand { get; }                  // Esc
+    public ReactiveCommand<Unit, Unit> LimparBuscaCommand { get; }
+    public ReactiveCommand<Unit, Unit> AdicionarPorBuscaCommand { get; }    // Enter na busca (leitor de código de barras)
 
     public async Task IniciarAsync()
     {
@@ -240,6 +305,89 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         Mensagem = null;
         Pagamentos.Add(new PagamentoAlocado { FormaPagamento = forma, Valor = valor, Bandeira = bandeira });
         BandeiraSelecionada = null;   // a escolha vale para um pagamento só (o próximo cartão pode ser de outra bandeira)
+        ValorPagamentoAdicionar = PreencherComORestante();   // pagamento misto: o próximo já vem com o que falta
+    }
+
+    // O valor que o painel de pagamento sugere: o que ainda falta (vazio quando já está pago).
+    private string PreencherComORestante() => Restante > 0 ? ValorMonetario.Formatar(Restante) : string.Empty;
+
+    // ---- painel de pagamento (F10) ----
+
+    private void AbrirPagamento()
+    {
+        Mensagem = null;
+        ValorPagamentoAdicionar = PreencherComORestante();   // o operador só escolhe a forma
+        EmPagamento = true;
+    }
+
+    private void FecharPagamento() => EmPagamento = false;
+
+    // F10: fecha o ciclo em duas batidas — com o painel fechado ele ABRE; com o painel aberto e o valor pago, CONFIRMA.
+    private async Task AvancarAsync()
+    {
+        if (!EmPagamento)
+        {
+            if (TemItens)
+                AbrirPagamento();
+            return;
+        }
+
+        if (!PodeFinalizarVenda)
+        {
+            Mensagem = $"Falta pagar R$ {ValorMonetario.Formatar(Restante)}.";
+            return;
+        }
+
+        await FinalizarVendaCommand.Execute();   // passa pelo comando, pra quem escuta o resultado também ver
+    }
+
+    // Esc: com o painel de pagamento aberto só o fecha (volta ao cupom); senão cancela a venda em andamento.
+    private async Task EscAsync()
+    {
+        if (EmPagamento)
+        {
+            FecharPagamento();
+            return;
+        }
+
+        await NovoAsync();
+    }
+
+    // ---- busca (Enter = leitor de código de barras) ----
+
+    // "Bipe o código de barras": o leitor digita o código e manda Enter. Código exato (barras, SKU ou referência) adiciona
+    // o produto na hora; senão, se a busca restringiu a UM produto, adiciona esse; senão avisa (nada é adicionado às cegas).
+    private void AdicionarPorBusca()
+    {
+        var texto = FiltroProduto.Trim();
+        if (texto.Length == 0)
+            return;
+
+        var exato = ProdutosDisponiveis.FirstOrDefault(p =>
+            string.Equals(p.CodigoBarras, texto, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(p.Sku, texto, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(p.Referencia, texto, StringComparison.OrdinalIgnoreCase));
+
+        var filtrados = ProdutosFiltrados;
+        var alvo = exato ?? (filtrados.Count == 1 ? filtrados[0] : null);
+        if (alvo is null)
+        {
+            Mensagem = filtrados.Count == 0
+                ? $"Nenhum produto encontrado para \"{texto}\"."
+                : "Vários produtos encontrados — escolha um na lista.";
+            return;
+        }
+
+        Mensagem = null;
+        AdicionarItem(alvo);
+        FiltroProduto = string.Empty;   // pronto pro próximo código
+    }
+
+    // Numeração do cupom (1., 2., 3.…): refeita a cada mudança, porque tirar o item 2 faz o 3 virar 2.
+    private void Renumerar()
+    {
+        for (var i = 0; i < Itens.Count; i++)
+            Itens[i].Numero = i + 1;
     }
 
     public void RemoverPagamento(PagamentoAlocado pagamento) => Pagamentos.Remove(pagamento);
@@ -272,6 +420,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         QuantidadeAdicionar = "1";
         ValorPagamentoAdicionar = string.Empty;
         BandeiraSelecionada = null;
+        EmPagamento = false;
         return Task.CompletedTask;
     }
 }

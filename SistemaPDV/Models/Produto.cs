@@ -49,4 +49,8 @@ public class Produto : ISincronizavel<int>
     public int? PromocaoQuantidade { get; set; }
 
     public ICollection<ImagemProduto> Imagens { get; set; } = new List<ImagemProduto>();
+
+    // O código que aparece no card e no cupom: código de barras, senão SKU, senão o id da API. Só leitura (o EF não mapeia).
+    public string? CodigoParaExibicao =>
+        !string.IsNullOrWhiteSpace(CodigoBarras) ? CodigoBarras : !string.IsNullOrWhiteSpace(Sku) ? Sku : IdExterno?.ToString();
 }

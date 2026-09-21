@@ -1486,3 +1486,17 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 - [x] **Task 63 — Fechamento:** `VendaLocalService.TotaisPorBandeiraAsync` (ignora descartadas e pagamentos sem bandeira), `FecharCaixaViewModel`/`FecharCaixaView` (seção "Apuração por bandeira"; valor inválido trava o botão), envio em `digitacao_bandeiras`. 9 testes.
 - [x] **CONFIRMADO com a API real (2026-09-20, usuário; conferido no banco local): (a)** o fechamento com `digitacao_bandeiras: [{bandeira:"MASTERCARD", valor:…}]` é aceito FOI ACEITO (caixa 2 = id 30 na API, `Sincronizado`, sem erro; apuração MASTERCARD 40,00 da venda #6). **(b)** a venda não envia a bandeira à API (o contrato do POST de venda para isso é desconhecido) — só o fechamento a usa.
 - **Limitações conhecidas:** a lista de bandeiras não filtra por crédito/débito (o operador vê todas); uma bandeira em vários cartões (crédito e débito) aparece uma vez só; se nenhum cartão estiver sincronizado, a venda em cartão fica sem bandeira e não entra na apuração.
+
+---
+
+## Fase 7 — Visual da tela de PDV igual ao protótipo (2026-09-20, pedido do usuário)
+
+**Objetivo:** "a tela do PDV o mais parecida possível com o protótipo" (print do protótipo do curso). **Escopo (do usuário):** o corpo da tela **e** a barra do topo do app; o pagamento vira um **painel aberto no Finalizar/F10** (o protótipo não mostra pagamento na tela). As cores/fontes já vinham do CSS do protótipo (`Themes/PdvTheme.axaml`); o que muda é layout e componentes.
+
+**Como conferir o visual:** renderizador headless em `scratchpad/preview` (Avalonia.Headless + Skia) que monta o Shell com dados de exemplo e salva um PNG — sem abrir o app real (que sincronizaria com a API).
+
+- [x] **Task 64 — ViewModel:** busca por nome/código, Enter com código de barras adiciona o produto, Limpar, subtotal/descontos/nº de itens, numeração e linha descritiva do item, painel de pagamento (F10/Esc), restante e troco.
+- [x] **Task 65 — Corpo da tela:** busca grande com borda amarela, grade de cards de produto, cupom à direita (itens, cliente, subtotal/desconto/total, botão amarelo, atalhos).
+- [x] **Task 66 — Painel de pagamento:** formas, valor, bandeira do cartão, pagos, restante/troco, confirmar.
+- [ ] **Task 67 — Barra do topo:** logo, pill do sistema, navegação com aba ativa, chip do operador/caixa, pills de conexão e de sync (N pendentes).
+- **Diferenças inevitáveis (dado que o app não tem):** o protótipo mostra a categoria no card ("• Mercearia"); a API só manda `grupo_id`, então o app mostra a unidade. O logo real da Softcom não está no repositório (só o ícone padrão do Avalonia): entra um logo desenhado em XAML até o usuário fornecer o arquivo.

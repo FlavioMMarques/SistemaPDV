@@ -1,0 +1,137 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:models="using:SistemaPDV.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="SistemaPDV.Views.Controls.PagamentoPainel"
+             x:DataType="vm:PdvViewModel">
+
+  <!-- Painel de pagamento (abre no FINALIZAR VENDA / F10): modal sobre a tela de venda. O fundo escurecido segura o
+       clique; o teclado é tratado no PdvView (F10 confirma, Esc volta). -->
+  <Grid Background="#B3000000">
+    <Border Background="{StaticResource BgCardBrush}"
+            BorderBrush="{StaticResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusCard}"
+            Width="580"
+            MaxHeight="760"
+            Padding="24"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Center">
+      <StackPanel Spacing="16">
+
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="Pagamento" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+            <TextBlock Text="TOTAL A PAGAR" FontSize="11" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding Total, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" FontSize="28" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
+          </StackPanel>
+        </Grid>
+
+        <!-- Situação: texto + valor (nunca só cor). "Falta pagar" vira "Troco" quando se paga a mais. -->
+        <Border Background="{StaticResource BgInputBrush}" CornerRadius="{StaticResource RadiusMedium}" Padding="14,10">
+          <Grid ColumnDefinitions="*,*,*">
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="Pago" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+              <TextBlock Text="{Binding TotalPago, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="Falta pagar" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+              <TextBlock Text="{Binding Restante, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Text="Troco" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+              <TextBlock Text="{Binding Troco, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" FontWeight="Bold" Foreground="{StaticResource AccentGreenBrush}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- Pagamentos já lançados (misto: mais de uma forma) -->
+        <ItemsControl ItemsSource="{Binding Pagamentos}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:PagamentoAlocado">
+              <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,6">
+                <TextBlock Grid.Column="0" Text="{Binding Descricao}" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Valor, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" Margin="12,0" />
+                <Button Grid.Column="2"
+                        Classes="fantasma"
+                        Content="✕"
+                        Command="{Binding $parent[ItemsControl].((vm:PdvViewModel)DataContext).RemoverPagamentoCommand}"
+                        CommandParameter="{Binding}"
+                        AutomationProperties.Name="Remover pagamento" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Valor a lançar (R$)" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBox Name="ValorPagamentoTextBox"
+                   Text="{Binding ValorPagamentoAdicionar, Mode=TwoWay}"
+                   Background="{StaticResource BgInputBrush}"
+                   BorderBrush="{StaticResource BorderColorBrush}"
+                   Foreground="{StaticResource TextMainBrush}"
+                   FontFamily="{StaticResource FontMono}"
+                   FontSize="18"
+                   Padding="12,10"
+                   CornerRadius="{StaticResource RadiusMedium}"
+                   AutomationProperties.Name="Valor do pagamento" />
+        </StackPanel>
+
+        <!-- Só aparece se já há cartões sincronizados; obrigatória ao lançar uma forma de cartão. -->
+        <StackPanel Spacing="6" IsVisible="{Binding TemBandeiras}">
+          <TextBlock Text="Bandeira do cartão" Foreground="{StaticResource TextMutedBrush}" />
+          <ComboBox ItemsSource="{Binding BandeirasDisponiveis}"
+                    SelectedItem="{Binding BandeiraSelecionada, Mode=TwoWay}"
+                    PlaceholderText="Escolha a bandeira (só para cartão)"
+                    HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="Bandeira do cartão" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Text="Forma de pagamento" Foreground="{StaticResource TextMutedBrush}" />
+          <ItemsControl ItemsSource="{Binding FormasPagamentoDisponiveis}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="models:FormaPagamento">
+                <Button Classes="secundario"
+                        Content="{Binding Nome}"
+                        Command="{Binding $parent[ItemsControl].((vm:PdvViewModel)DataContext).AdicionarPagamentoCommand}"
+                        CommandParameter="{Binding}"
+                        MinWidth="160"
+                        Margin="0,0,8,8"
+                        HorizontalContentAlignment="Center" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <TextBlock Text="{Binding Mensagem}"
+                   Foreground="{StaticResource AccentRedBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+          <Button Grid.Column="0"
+                  Classes="secundario"
+                  Content="← Voltar (Esc)"
+                  Command="{Binding FecharPagamentoCommand}"
+                  Padding="18,14"
+                  AutomationProperties.Name="Voltar ao cupom" />
+          <Button Grid.Column="1"
+                  Classes="primario"
+                  Content="CONFIRMAR VENDA (F10)"
+                  Command="{Binding FinalizarVendaCommand}"
+                  AutomationProperties.Name="Confirmar a venda" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>

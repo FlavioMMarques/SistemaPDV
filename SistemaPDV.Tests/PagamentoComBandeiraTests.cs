@@ -216,6 +216,7 @@ public class PagamentoComBandeiraTests
         var viewModel = await AbrirTelaAsync(fixture, b);         // carrinho com 1 item
         viewModel.ValorPagamentoAdicionar = "3,00";
         viewModel.AdicionarPagamento(b.Pix);                       // e 1 pagamento já lançado
+        viewModel.ValorPagamentoAdicionar = "2,50";                // e um valor já digitado para o próximo
         Assert.False(viewModel.TemBandeiras);
         await using (var context = fixture.CriarContexto())        // a sincronização traz um cartão agora
         {
@@ -229,7 +230,7 @@ public class PagamentoComBandeiraTests
         Assert.Equal(new[] { "MASTERCARD" }, viewModel.BandeirasDisponiveis);
         Assert.Single(viewModel.Itens);           // o que o operador montou continua lá
         Assert.Single(viewModel.Pagamentos);
-        Assert.Equal("3,00", viewModel.ValorPagamentoAdicionar);
+        Assert.Equal("2,50", viewModel.ValorPagamentoAdicionar);   // a atualização não mexe no que o operador digitou
     }
 
     [Fact]

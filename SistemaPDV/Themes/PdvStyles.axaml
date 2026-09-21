@@ -1,0 +1,120 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Estilos reutilizáveis do visual do protótipo (Fase 7). Só usam os tokens de Themes/PdvTheme.axaml — nenhuma cor ou
+    raio cravado aqui. Classes: produto (card), primario (botão amarelo), secundario, fantasma, nav / nav.ativa (barra do
+    topo), pill, tecla (chip de atalho). Foco por teclado sempre visível (borda amarela), como pede a acessibilidade.
+  -->
+
+  <!-- Card de produto -->
+  <Style Selector="Button.produto">
+    <Setter Property="Background" Value="{DynamicResource BgCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}" />
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.produto:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Button.produto:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+
+  <!-- Botão principal (amarelo) -->
+  <Style Selector="Button.primario">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextDarkBrush}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="0,14" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.primario:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowBrush}" />
+    <Setter Property="Opacity" Value="0.9" />
+  </Style>
+  <Style Selector="Button.primario:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextDarkBrush}" />
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+
+  <!-- Botão secundário (contorno) -->
+  <Style Selector="Button.secundario">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.secundario:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+
+  <!-- Botão discreto (sem fundo): remover item etc. -->
+  <Style Selector="Button.fantasma">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.fantasma:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentRedDimBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentRedBrush}" />
+  </Style>
+
+  <!-- Navegação da barra do topo: a aba da tela atual fica destacada (amarelo + contorno) -->
+  <Style Selector="Button.nav">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+  </Style>
+  <Style Selector="Button.nav.ativa /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Button.nav:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <!-- Pílula de status (sistema, conexão, sync) -->
+  <Style Selector="Border.pill">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusPill}" />
+    <Setter Property="Padding" Value="12,5" />
+  </Style>
+
+  <!-- Chip de tecla de atalho ("F10") -->
+  <Style Selector="Border.tecla">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+    <Setter Property="Padding" Value="5,1" />
+  </Style>
+
+</Styles>
