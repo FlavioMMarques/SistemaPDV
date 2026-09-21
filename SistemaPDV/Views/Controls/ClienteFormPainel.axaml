@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="SistemaPDV.Views.Controls.ClienteFormPainel"
+             x:DataType="vm:CadastrosViewModel">
+
+  <!-- Modal "Cadastrar Cliente no Banco Local" (aberto por "Novo Cliente" / "Cadastrar Cliente" em Cadastros). Nome e CPF/CNPJ são
+       obrigatórios; telefone, e-mail e cidade/UF são opcionais (a cidade já vem com a da empresa). Só grava local — o envio à API é
+       da fila. Enter salva, Esc cancela; o fundo escurecido segura o clique e a tela de trás fica desabilitada. -->
+  <Grid Background="{DynamicResource OverlayBrush}">
+    <Grid.KeyBindings>
+      <KeyBinding Gesture="Escape" Command="{Binding FecharFormularioClienteCommand}" />
+    </Grid.KeyBindings>
+
+    <Border Background="{DynamicResource BgCardBrush}"
+            BorderBrush="{DynamicResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusCard}"
+            Width="580" Margin="24"
+            VerticalAlignment="Center" HorizontalAlignment="Center">
+      <StackPanel>
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,16">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="👥" FontSize="18" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Cadastrar Cliente no Banco Local" FontSize="18" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Classes="fantasma" Content="✕" FontSize="16"
+                    Command="{Binding FecharFormularioClienteCommand}"
+                    AutomationProperties.Name="Fechar sem salvar o cliente" />
+          </Grid>
+        </Border>
+
+        <Grid Margin="24,20,24,16" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="14">
+
+          <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Nome / Razão Social *" />
+            <TextBox Name="NomeTextBox" Classes="campo" Text="{Binding NovoNome, Mode=TwoWay}"
+                     PlaceholderText="Ex: Supermercado Central Ltda" MaxLength="150"
+                     AutomationProperties.Name="Nome ou razão social do cliente, obrigatório" TabIndex="1">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="CPF ou CNPJ *" />
+            <TextBox Classes="campo" Text="{Binding NovoCpfCnpj, Mode=TwoWay}"
+                     PlaceholderText="00.000.000/0001-00" MaxLength="18"
+                     AutomationProperties.Name="CPF ou CNPJ do cliente, obrigatório" TabIndex="2">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Telefone / WhatsApp" />
+            <TextBox Classes="campo" Text="{Binding NovoTelefone, Mode=TwoWay}"
+                     PlaceholderText="(83) 99999-8888" MaxLength="20"
+                     AutomationProperties.Name="Telefone ou WhatsApp do cliente, com DDD" TabIndex="3">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="E-mail Comercial" />
+            <TextBox Classes="campo" Text="{Binding NovoEmail, Mode=TwoWay}"
+                     PlaceholderText="compras@empresa.com.br" MaxLength="100"
+                     AutomationProperties.Name="E-mail do cliente" TabIndex="4">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Cidade / UF" />
+            <TextBox Classes="campo" Text="{Binding NovaCidadeUf, Mode=TwoWay}"
+                     PlaceholderText="Ex: João Pessoa - PB" MaxLength="70"
+                     AutomationProperties.Name="Cidade e UF do cliente" TabIndex="5">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+        </Grid>
+
+        <TextBlock Text="{Binding MensagemFormErro}" Margin="24,0,24,16" TextWrapping="Wrap"
+                   Foreground="{DynamicResource AccentRedBrush}"
+                   IsVisible="{Binding MensagemFormErro, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Classes="secundario" Content="Cancelar" Padding="18,9"
+                    Command="{Binding FecharFormularioClienteCommand}" TabIndex="6"
+                    AutomationProperties.Name="Cancelar e fechar sem salvar" />
+            <Button Classes="primario" Content="Salvar Cliente" Padding="20,9"
+                    Command="{Binding CriarClienteCommand}" TabIndex="7"
+                    AutomationProperties.Name="Salvar o cliente" />
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>

@@ -335,4 +335,26 @@
   <Style Selector="ComboBox.campo ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
   </Style>
+
+  <!-- Campo de texto dos formulários (modal de cadastro de cliente): fundo de entrada, borda amarela ao focar (o padrão do tema é
+       fundo preto e borda azul). Uso: <TextBox Classes="campo"> -->
+  <Style Selector="TextBox.campo">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="12,10" />
+  </Style>
+  <Style Selector="TextBox.campo:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+
+  <!-- Rótulo de campo de formulário (acima do TextBox.campo) -->
+  <Style Selector="TextBlock.rotuloForm">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+  </Style>
+
 </Styles>

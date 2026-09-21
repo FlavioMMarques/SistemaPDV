@@ -39,6 +39,23 @@ public class ClienteNovoRequestDto
     [JsonPropertyName("desativado")] public bool Desativado { get; set; }
     [JsonPropertyName("permitir_excluir")] public bool PermitirExcluir { get; set; } = true;
     [JsonPropertyName("limite_credito")] public decimal LimiteCredito { get; set; }
+
+    // Só vai quando há telefone (a API exige nome + DDD + telefone dentro do "contato"). Cidade/UF e endereço não vão: a API
+    // pede o CÓDIGO da cidade (c_cidade), que o app não tem.
+    [JsonPropertyName("contato")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ClienteNovoContatoDto? Contato { get; set; }
+}
+
+public class ClienteNovoContatoDto
+{
+    [JsonPropertyName("nome")] public string Nome { get; set; } = string.Empty;
+    [JsonPropertyName("ddd")] public string Ddd { get; set; } = string.Empty;
+    [JsonPropertyName("telefone")] public string Telefone { get; set; } = string.Empty;
+
+    [JsonPropertyName("email")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Email { get; set; }
 }
 
 public class ClienteNovoRespostaDto

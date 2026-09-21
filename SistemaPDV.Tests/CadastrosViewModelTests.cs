@@ -108,6 +108,7 @@ public class CadastrosViewModelTests
         await viewModel.IniciarAsync();
 
         viewModel.NovoNome = "Ana Lima";
+        viewModel.NovoCpfCnpj = CpfValido;
         await viewModel.CriarClienteCommand.Execute();
 
         Assert.Equal(string.Empty, viewModel.Busca);
@@ -134,7 +135,7 @@ public class CadastrosViewModelTests
     }
 
     [Fact]
-    public void CriarClienteFicaDesabilitadoSemNome()
+    public void CriarClienteFicaDesabilitadoSemNomeOuSemDocumento()
     {
         using var fixture = new SqliteInMemoryFixture();
         var viewModel = CriarViewModel(fixture);
@@ -144,10 +145,93 @@ public class CadastrosViewModelTests
         Assert.False(podeCriar);
 
         viewModel.NovoNome = "Ana";
+        Assert.False(podeCriar);                 // só o nome: falta o CPF/CNPJ (os dois têm * no modal)
+
+        viewModel.NovoCpfCnpj = CpfValido;
         Assert.True(podeCriar);
 
         viewModel.NovoNome = "   ";
         Assert.False(podeCriar);
+
+        viewModel.NovoNome = "Ana";
+        viewModel.NovoCpfCnpj = "  ";
+        Assert.False(podeCriar);
+    }
+
+    [Fact]
+    public async Task ModalAbreComACidadeDaEmpresaELimpoENovaAberturaTrazDeNovo()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Empresas.Add(new Empresa { RazaoSocial = "Softcom", Cnpj = "12345678000199", IdExterno = 1, Cidade = "João Pessoa", Uf = "PB" });
+            await context.SaveChangesAsync();
+        }
+        var viewModel = CriarViewModel(fixture);
+
+        await viewModel.NovoClienteCommand.Execute();
+
+        Assert.True(viewModel.FormularioClienteAberto);
+        Assert.Equal("João Pessoa - PB", viewModel.NovaCidadeUf);
+        Assert.Equal(string.Empty, viewModel.NovoNome);
+
+        viewModel.NovoNome = "Ana";
+        viewModel.NovoTelefone = "(83) 99999-8888";
+        viewModel.NovaCidadeUf = "Campina Grande - PB";
+        await viewModel.FecharFormularioClienteCommand.Execute();       // cancelar descarta tudo
+
+        Assert.False(viewModel.FormularioClienteAberto);
+        Assert.Equal(string.Empty, viewModel.NovoNome);
+        Assert.Equal(string.Empty, viewModel.NovoTelefone);
+        Assert.Null(viewModel.MensagemForm);
+
+        await viewModel.NovoClienteCommand.Execute();
+        Assert.Equal("João Pessoa - PB", viewModel.NovaCidadeUf);        // volta a trazer a da empresa
+    }
+
+    [Fact]
+    public async Task SalvarComTodosOsCamposFechaOModalEGravaTelefoneEmailECidade()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+        await viewModel.NovoClienteCommand.Execute();
+
+        viewModel.NovoNome = "Ana Lima";
+        viewModel.NovoCpfCnpj = CpfValido;
+        viewModel.NovoTelefone = "(83) 99999-8888";
+        viewModel.NovoEmail = "ana@empresa.com.br";
+        viewModel.NovaCidadeUf = "João Pessoa - PB";
+        await viewModel.CriarClienteCommand.Execute();
+
+        Assert.False(viewModel.FormularioClienteAberto);                 // salvou: o modal fecha
+        Assert.False(viewModel.MensagemFormEhErro);
+        Assert.NotNull(viewModel.MensagemFormSucesso);                   // e o aviso fica na tela de trás
+        var novo = Assert.Single(viewModel.Clientes, c => c.Nome == "Ana Lima");
+        Assert.Equal("(83) 99999-8888", novo.Telefone);
+        Assert.Equal("João Pessoa - PB", novo.CidadeUf);
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal("ana@empresa.com.br", leitura.Clientes.Single(c => c.Nome == "Ana Lima").ContatoEmail);
+    }
+
+    [Fact]
+    public async Task TelefoneInvalidoMantemOModalAbertoComOErroELimpaSoAoCorrigir()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.IniciarAsync();
+        await viewModel.NovoClienteCommand.Execute();
+        viewModel.NovoNome = "Ana Lima";
+        viewModel.NovoCpfCnpj = CpfValido;
+        viewModel.NovoTelefone = "123";
+
+        await viewModel.CriarClienteCommand.Execute();
+
+        Assert.True(viewModel.FormularioClienteAberto);
+        Assert.True(viewModel.MensagemFormEhErro);
+        Assert.Contains("Telefone", viewModel.MensagemFormErro);
+        Assert.Equal("123", viewModel.NovoTelefone);                     // não perde o que digitou
+        Assert.Empty(viewModel.Clientes.Where(c => c.Nome == "Ana Lima"));
     }
 
     [Fact]

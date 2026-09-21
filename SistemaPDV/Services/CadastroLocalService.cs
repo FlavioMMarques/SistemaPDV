@@ -150,32 +150,40 @@ public class CadastroLocalService
     }
 
     // Valida antes de gravar (o que o outbox rejeitaria de qualquer jeito, só que sem
-    // ninguém ver o motivo): nome obrigatório, documento — se informado — com dígitos
-    // verificadores válidos e ainda não cadastrado. O documento é guardado só com
+    // ninguém ver o motivo): nome e documento obrigatórios, documento com dígitos
+    // verificadores válidos e ainda não cadastrado, telefone/e-mail/cidade opcionais mas bem formados. O documento é guardado só com
     // dígitos, que é como a API o devolve e o que o push envia.
-    public async Task<ResultadoCriacaoCliente> CriarClienteAsync(string? nome, string? cpfCnpj, CancellationToken ct = default)
+    public async Task<ResultadoCriacaoCliente> CriarClienteAsync(NovoClienteDados dados, CancellationToken ct = default)
     {
-        var nomeLimpo = nome?.Trim() ?? string.Empty;
+        var nomeLimpo = dados.Nome?.Trim() ?? string.Empty;
         if (nomeLimpo.Length == 0)
             return ResultadoCriacaoCliente.ComFalha("Informe o nome do cliente.");
         if (nomeLimpo.Length > TamanhoMaximoNome)
             return ResultadoCriacaoCliente.ComFalha($"O nome pode ter no máximo {TamanhoMaximoNome} caracteres.");
 
-        string? documento = null;
-        if (!string.IsNullOrWhiteSpace(cpfCnpj))
-        {
-            // Só pontuação usual além dos dígitos: "123abc" não vira "123" em silêncio.
-            var digitos = DocumentoValidator.SoDigitos(cpfCnpj);
-            var soPontuacaoUsual = cpfCnpj.All(c => char.IsAsciiDigit(c) || ".-/ ".Contains(c));
-            if (!soPontuacaoUsual || !(DocumentoValidator.CpfValido(digitos) || DocumentoValidator.CnpjValido(digitos)))
-                return ResultadoCriacaoCliente.ComFalha("CPF/CNPJ inválido — confira os dígitos.");
+        // O documento é obrigatório (como no modal): cliente avulso, sem documento, é o "Consumidor Final" da venda.
+        if (string.IsNullOrWhiteSpace(dados.CpfCnpj))
+            return ResultadoCriacaoCliente.ComFalha("Informe o CPF ou CNPJ do cliente.");
 
-            documento = digitos;
-        }
+        // Só pontuação usual além dos dígitos: "123abc" não vira "123" em silêncio.
+        var documento = DocumentoValidator.SoDigitos(dados.CpfCnpj);
+        var soPontuacaoUsual = dados.CpfCnpj.All(c => char.IsAsciiDigit(c) || ".-/ ".Contains(c));
+        if (!soPontuacaoUsual || !(DocumentoValidator.CpfValido(documento) || DocumentoValidator.CnpjValido(documento)))
+            return ResultadoCriacaoCliente.ComFalha("CPF/CNPJ inválido — confira os dígitos.");
+
+        if (!TentarLerTelefone(dados.Telefone, out var ddd, out var numeroTelefone))
+            return ResultadoCriacaoCliente.ComFalha("Telefone inválido — informe o DDD e o número, como (83) 99999-8888.");
+
+        var email = dados.Email?.Trim();
+        if (!string.IsNullOrEmpty(email) && !EmailValido(email))
+            return ResultadoCriacaoCliente.ComFalha("E-mail inválido — confira o endereço.");
+
+        if (!TentarLerCidadeUf(dados.CidadeUf, out var cidade, out var uf))
+            return ResultadoCriacaoCliente.ComFalha($"Cidade inválida — use no máximo {TamanhoMaximoCidade} caracteres, como João Pessoa - PB.");
 
         await using var context = contextFactory();
 
-        if (documento is not null && await context.Clientes.AnyAsync(c => c.CpfCnpj == documento, ct))
+        if (await context.Clientes.AnyAsync(c => c.CpfCnpj == documento, ct))
             return ResultadoCriacaoCliente.ComFalha("Já existe um cliente com este CPF/CNPJ.");
 
         var cliente = new Cliente
@@ -183,13 +191,88 @@ public class CadastroLocalService
             Nome = nomeLimpo,
             CpfCnpj = documento,
             // Pessoa deriva do documento validado (14 dígitos = CNPJ), como o push faz.
-            Pessoa = documento?.Length == 14 ? TipoPessoa.Juridica : TipoPessoa.Fisica,
+            Pessoa = documento.Length == 14 ? TipoPessoa.Juridica : TipoPessoa.Fisica,
+            ContatoNome = ddd is null ? null : nomeLimpo,   // a API só aceita "contato" com nome + DDD + telefone
+            ContatoDdd = ddd,
+            ContatoTelefone = numeroTelefone,
+            ContatoEmail = string.IsNullOrEmpty(email) ? null : email,
+            Cidade = cidade,
+            Uf = uf,
             SyncStatus = SyncStatus.PendenteSync,
         };
         context.Clientes.Add(cliente);
         await context.SaveChangesAsync(ct);
         return ResultadoCriacaoCliente.ComSucesso(cliente.Id);
     }
+
+    // "João Pessoa - PB" da empresa deste aparelho: o valor que o modal de novo cliente já traz preenchido (a maioria dos clientes
+    // de balcão é da mesma cidade). Vazio se a empresa ainda não foi sincronizada.
+    public async Task<string> ObterCidadeUfPadraoAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        var empresa = await context.Empresas.Select(e => new { e.Cidade, e.Uf }).FirstOrDefaultAsync(ct);
+        return empresa is null ? string.Empty : CidadeUf(empresa.Cidade, empresa.Uf) ?? string.Empty;
+    }
+
+    private const int TamanhoMaximoCidade = 60;
+    private const int TamanhoMaximoEmail = 100;
+
+    // Telefone é opcional. Aceita "(83) 99999-8888", "83999998888", "+55 83 99999-8888": DDD + 8 ou 9 dígitos. A API guarda o
+    // DDD à parte, então sai separado (ddd, número). Vazio = sem telefone (true, com os dois nulos); qualquer outra coisa = false.
+    private static bool TentarLerTelefone(string? texto, out string? ddd, out string? numero)
+    {
+        ddd = null;
+        numero = null;
+        if (string.IsNullOrWhiteSpace(texto))
+            return true;
+
+        if (!texto.All(c => char.IsAsciiDigit(c) || "()-+. ".Contains(c)))
+            return false;
+
+        var digitos = DocumentoValidator.SoDigitos(texto);
+        if (digitos.Length is 12 or 13 && digitos.StartsWith("55"))
+            digitos = digitos[2..];   // código do país
+
+        if (digitos.Length is not (10 or 11) || digitos[0] == '0')
+            return false;
+
+        ddd = digitos[..2];
+        numero = digitos[2..];
+        return true;
+    }
+
+    private static bool EmailValido(string email) =>
+        email.Length <= TamanhoMaximoEmail && EmailRegex.IsMatch(email);
+
+    private static readonly System.Text.RegularExpressions.Regex EmailRegex =
+        new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    // "João Pessoa - PB" (ou "/" ou ","): cidade e UF de 2 letras. Sem UF reconhecível, o texto inteiro é a cidade.
+    // Só fica no banco local — a API pede o CÓDIGO da cidade (c_cidade), que o app não tem.
+    private static bool TentarLerCidadeUf(string? texto, out string? cidade, out string? uf)
+    {
+        cidade = null;
+        uf = null;
+        var limpo = texto?.Trim();
+        if (string.IsNullOrEmpty(limpo))
+            return true;
+
+        var m = CidadeUfRegex.Match(limpo);
+        if (m.Success)
+        {
+            cidade = m.Groups[1].Value.Trim();
+            uf = m.Groups[2].Value.ToUpperInvariant();
+        }
+        else
+        {
+            cidade = limpo;
+        }
+
+        return cidade.Length is > 0 and <= TamanhoMaximoCidade;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex CidadeUfRegex =
+        new(@"^(.+?)\s*[-/,]\s*([A-Za-z]{2})$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     // "Reenviar falhas": devolve à fila de envio os clientes que falharam ou desistiram
     // (zera a espera crescente e o contador — ver PoliticaRetentativa). O próximo ciclo

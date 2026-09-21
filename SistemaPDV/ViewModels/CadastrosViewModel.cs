@@ -32,6 +32,9 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string buscaAplicada = string.Empty;
     private string novoNome = string.Empty;
     private string novoCpfCnpj = string.Empty;
+    private string novoTelefone = string.Empty;
+    private string novoEmail = string.Empty;
+    private string novaCidadeUf = string.Empty;
     private string? mensagemForm;
     private bool mensagemFormEhErro;
     private string? mensagemReenvio;
@@ -48,15 +51,14 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
 
         SelecionarAbaCommand = ReactiveCommand.Create<AbaCadastros>(aba => { AbaAtual = aba; });
-        // "Novo Cliente" (no topo ou na aba de clientes): leva à aba de clientes e abre o formulário.
-        NovoClienteCommand = ReactiveCommand.Create(() =>
-        {
-            AbaAtual = AbaCadastros.Clientes;
-            FormularioClienteAberto = true;
-        });
-        FecharFormularioClienteCommand = ReactiveCommand.Create(() => { FormularioClienteAberto = false; });
+        // "Novo Cliente" (no topo ou na aba de clientes): leva à aba de clientes e abre o modal de cadastro.
+        NovoClienteCommand = ReactiveCommand.CreateFromTask(AbrirFormularioAsync);
+        // Cancelar / ✕ / Esc: fecha e descarta o que foi digitado (o modal sempre abre limpo).
+        FecharFormularioClienteCommand = ReactiveCommand.Create(FecharFormulario);
 
-        var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, nome => !string.IsNullOrWhiteSpace(nome));
+        // Nome e CPF/CNPJ são obrigatórios (os dois com * no modal); o resto é opcional.
+        var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, vm => vm.NovoCpfCnpj,
+            (nome, documento) => !string.IsNullOrWhiteSpace(nome) && !string.IsNullOrWhiteSpace(documento));
         CriarClienteCommand = ReactiveCommand.CreateFromTask(CriarClienteAsync, podeCriar);
     }
 
@@ -158,6 +160,25 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         set => this.RaiseAndSetIfChanged(ref novoCpfCnpj, value);
     }
 
+    public string NovoTelefone
+    {
+        get => novoTelefone;
+        set => this.RaiseAndSetIfChanged(ref novoTelefone, value);
+    }
+
+    public string NovoEmail
+    {
+        get => novoEmail;
+        set => this.RaiseAndSetIfChanged(ref novoEmail, value);
+    }
+
+    // Já abre preenchida com a cidade da empresa (ver AbrirFormularioAsync); o operador troca se o cliente for de outra.
+    public string NovaCidadeUf
+    {
+        get => novaCidadeUf;
+        set => this.RaiseAndSetIfChanged(ref novaCidadeUf, value);
+    }
+
     public string? MensagemForm
     {
         get => mensagemForm;
@@ -238,22 +259,51 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         await CarregarAsync();
     }
 
+    private async Task AbrirFormularioAsync()
+    {
+        AbaAtual = AbaCadastros.Clientes;
+        MensagemForm = null;
+
+        if (string.IsNullOrWhiteSpace(NovaCidadeUf))
+            NovaCidadeUf = await cadastroLocalService.ObterCidadeUfPadraoAsync();
+
+        FormularioClienteAberto = true;
+    }
+
+    private void FecharFormulario()
+    {
+        FormularioClienteAberto = false;
+        LimparFormulario();
+        MensagemForm = null;
+    }
+
+    private void LimparFormulario()
+    {
+        NovoNome = string.Empty;
+        NovoCpfCnpj = string.Empty;
+        NovoTelefone = string.Empty;
+        NovoEmail = string.Empty;
+        NovaCidadeUf = string.Empty;   // a próxima abertura traz de novo a cidade da empresa
+    }
+
     private async Task CriarClienteAsync()
     {
-        var resultado = await cadastroLocalService.CriarClienteAsync(NovoNome, NovoCpfCnpj);
+        var resultado = await cadastroLocalService.CriarClienteAsync(
+            new NovoClienteDados(NovoNome, NovoCpfCnpj, NovoTelefone, NovoEmail, NovaCidadeUf));
 
         if (!resultado.Sucesso)
         {
-            // Mantém o que o operador digitou pra ele corrigir sem redigitar.
+            // Mantém o modal aberto e o que o operador digitou pra ele corrigir sem redigitar; o erro aparece no próprio modal.
             MensagemFormEhErro = true;
             MensagemForm = resultado.Mensagem;
             return;
         }
 
+        // Salvou: o modal fecha e o aviso verde fica na tela de trás, junto da lista onde o cliente acabou de aparecer.
         MensagemFormEhErro = false;
         MensagemForm = "Cliente salvo. Ele será enviado à API na próxima sincronização.";
-        NovoNome = string.Empty;
-        NovoCpfCnpj = string.Empty;
+        FormularioClienteAberto = false;
+        LimparFormulario();
 
         // Busca ativa poderia esconder o cliente recém-criado — limpa pra ele aparecer.
         Busca = string.Empty;
