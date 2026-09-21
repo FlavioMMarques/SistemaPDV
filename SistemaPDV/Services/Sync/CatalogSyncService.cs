@@ -583,6 +583,7 @@ public partial class CatalogSyncService
         var funcionarios = await SincronizarFuncionariosAsync(accessToken, ct);
         var empresa = await SincronizarEmpresaAsync(accessToken, ct);
         var cartoes = await SincronizarCartoesAsync(accessToken, ct);
+        var grupos = await SincronizarGruposAsync(accessToken, ct);
 
         return new ResultadoSincronizacaoCompleta
         {
@@ -593,6 +594,7 @@ public partial class CatalogSyncService
             Funcionarios = funcionarios,
             Empresa = empresa,
             Cartoes = cartoes,
+            Grupos = grupos,
         };
     }
 

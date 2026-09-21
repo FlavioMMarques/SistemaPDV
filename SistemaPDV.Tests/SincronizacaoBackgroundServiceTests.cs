@@ -19,9 +19,9 @@ public class SincronizacaoBackgroundServiceTests
 {
     private const string UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1";
 
-    // Um GET por recurso do catálogo em cada rodada: formas de pagamento, clientes, produtos, funcionários, empresa e
-    // cartões. Acrescentar um recurso novo ao catálogo é mexer só neste número.
-    private const int RecursosDoCatalogo = 6;
+    // Um GET por recurso do catálogo em cada rodada: formas de pagamento, clientes, produtos, funcionários, empresa,
+    // cartões e grupos. Acrescentar um recurso novo ao catálogo é mexer só neste número.
+    private const int RecursosDoCatalogo = 7;
     private const string CpfValido = "529.982.247-25";
     private const string PaginaVazia = """{ "current_page": 1, "data": [], "next_page_url": null, "total": 0, "date_sync": 1758000000 }""";
 
