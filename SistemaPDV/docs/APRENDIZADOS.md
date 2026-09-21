@@ -825,6 +825,6 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 
 **Regras:** desconto maior que zero e **menor que o subtotal** (nem o subtotal inteiro; percentual menor que 100 e que dê ao menos R$ 0,01); um desconto novo **substitui** o anterior (não soma); **continua valendo quando o cupom muda** — percentual acompanha o novo subtotal, valor fixo que deixou de caber é descartado **com aviso** (o total não muda calado); esvaziar/cancelar o cupom limpa o desconto. Os pagamentos cobrem o total **com** desconto, e a checagem de pagamento acima do total já existente cobre quem mexe no desconto depois de lançar pagamento. Cada item mostra "desconto − R$ x" na linha.
 
-**A conferir com venda real (hipótese):** que a API aceita `desconto_valor_item` diferente de zero e fecha a conta do pagamento com o total **líquido** (itens − descontos). Até hoje toda venda subiu com desconto 0.
+**Conferido pelo usuário em teste real (2026-09-21):** a venda com desconto foi aceita e subiu certa — a API recebe `desconto_valor_item` diferente de zero e fecha a conta com o total **líquido** (itens − descontos). Até então toda venda subia com desconto 0.
 
 **Testes:** 1055 verdes — `RateioDeDescontoTests`, `PdvDescontoTests` (R$/%, recusas, item entra/sai, gravação e detalhe).
