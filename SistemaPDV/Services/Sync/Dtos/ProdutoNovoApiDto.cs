@@ -33,11 +33,6 @@ public class ProdutoNovoRequestDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Referencia { get; set; }
 
-    // O exemplo do Swagger manda estes três com 0.
-    [JsonPropertyName("preco_compra")] public decimal PrecoCompra { get; set; }
-    [JsonPropertyName("margem_lucro")] public decimal MargemLucro { get; set; }
-    [JsonPropertyName("percentual_comissao_produto")] public decimal PercentualComissaoProduto { get; set; }
-
     [JsonPropertyName("vender")] public bool Vender { get; set; } = true;
     [JsonPropertyName("controlar_estoque")] public bool ControlarEstoque { get; set; } = true;
     [JsonPropertyName("desativado")] public bool Desativado { get; set; }
