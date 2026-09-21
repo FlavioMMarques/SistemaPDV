@@ -70,6 +70,29 @@ public class EnderecoFormViewModelTests
         Assert.Equal("Sala 3", endereco.Complemento);
     }
 
+    // O complemento que o ViaCEP devolve é uma faixa de numeração ("de 5242 ao fim - lado par"), não o complemento do cliente
+    // (sala, apto, bloco): quem digita é o operador. Preencher sozinho deixou lixo no cadastro (2026-09-21).
+    [Fact]
+    public async Task BuscarNaoPreencheOComplementoComOQueOViaCepDevolve()
+    {
+        var api = new ViaCepFalso
+        {
+            Resposta = _ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """{ "logradouro": "Avenida Júlia Freire", "complemento": "de 5242 ao fim - lado par", "bairro": "Torre", "localidade": "João Pessoa", "uf": "PB", "ibge": "2507507" }""",
+                    Encoding.UTF8, "application/json"),
+            },
+        };
+        var endereco = new EnderecoFormViewModel(api.Servico()) { Cep = "58040040" };
+
+        await endereco.BuscarCepCommand.Execute();
+
+        Assert.Equal(string.Empty, endereco.Complemento);
+        Assert.Equal("Torre", endereco.Bairro);                 // o resto continua preenchendo
+        Assert.Equal("Avenida Júlia Freire", endereco.Logradouro);
+    }
+
     [Fact]
     public async Task CepGeralSemLogradouroNemBairroNaoApagaOQueJaFoiDigitado()
     {

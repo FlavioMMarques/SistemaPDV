@@ -7,9 +7,10 @@ using System.Threading.Tasks;
 
 namespace SistemaPDV.Services;
 
-// O endereço que um CEP devolve. CodigoCidade é o código da cidade no IBGE (7 dígitos) — o "c_cidade" que a API do SoftcomShop pede
-// no endereço do cliente novo. Logradouro/Bairro vêm vazios em CEP "geral" (cidade pequena, com um CEP só).
-public record EnderecoCep(string Cep, string Logradouro, string Complemento, string Bairro, string Cidade, string Uf, string CodigoCidade);
+// O endereço que um CEP devolve. O "complemento" do ViaCEP é uma faixa de numeração ("de 5242 ao fim - lado par"), não o complemento
+// do cliente (sala, apto, bloco): não é lido. CodigoCidade é o código da cidade no IBGE (7 dígitos) — o "c_cidade" que a API do
+// SoftcomShop pede no endereço do cliente novo. Logradouro/Bairro vêm vazios em CEP "geral" (cidade pequena, com um CEP só).
+public record EnderecoCep(string Cep, string Logradouro, string Bairro, string Cidade, string Uf, string CodigoCidade);
 
 public class ResultadoCep
 {
@@ -101,7 +102,7 @@ public class CepService
             // O código do IBGE só vale com 7 dígitos; qualquer outra coisa é descartada (a cidade segue, sem código).
             var ibge = DocumentoValidator.SoDigitos(Campo(raiz, "ibge"));
             return ResultadoCep.ComSucesso(new EnderecoCep(
-                cep, Campo(raiz, "logradouro"), Campo(raiz, "complemento"), Campo(raiz, "bairro"),
+                cep, Campo(raiz, "logradouro"), Campo(raiz, "bairro"),
                 cidade, uf.Length == 2 ? uf : string.Empty, ibge.Length == 7 ? ibge : string.Empty));
         }
         catch (JsonException)
