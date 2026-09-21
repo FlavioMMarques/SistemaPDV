@@ -1516,3 +1516,22 @@ Pedido do usuário (print da tela de pagamento do protótipo): "posso selecionar
 - [x] **Pagamento misto:** escolhe uma forma, informa o valor, "＋ Adicionar este pagamento", escolhe outra…; lista de "pagamentos lançados" com remover. Com uma forma só, **Confirmar** já lança e conclui (1 clique).
 - [x] **Dinheiro e troco:** no dinheiro o campo vira "Valor recebido do cliente"; mostra "Troco a devolver" em tempo real; a venda grava só o que falta (o resto é troco). **Só o dinheiro passa do que falta** (cartão/PIX recusam com mensagem). Dinheiro = código NFC-e `01` (não o `Tipo`: na API real o "PIX OFF" também vem `ESPECIE`).
 - [ ] **Pendente (decisão do usuário):** enviar o **valor recebido** e o troco à API. Hoje `valor_recebido` vai igual ao valor do pagamento (o troco só existe na tela). Precisa confirmar com uma venda real em dinheiro com troco que a API aceita `valor_recebido` ≠ `valor_pagamento` (e persistir `PagamentoVenda.ValorRecebido` — exigiria migration).
+
+## Fase 8 — Demais telas no visual do protótipo (2026-09-21, pedido do usuário)
+
+O usuário enviou os prints do protótipo (Cadastros com 3 abas, Listagem de Pedidos + modal Detalhes, Painel Principal, painel lateral da Fila Outbox, toasts). Mesma abordagem da Fase 7: skill `frontend-ui-engineering`, conferência por renderização headless (`scratchpad/preview`), tokens de `Themes/PdvTheme.axaml`/`PdvStyles.axaml`.
+
+**Decisões do usuário (2026-09-21):**
+- **Categoria do produto:** sincronizar os grupos da API e mostrar o NOME da categoria (Cadastros e card do PDV). Confirmar a rota real dos grupos antes.
+- **Novo Produto:** só o botão visual, desabilitado (dica "em breve"). Sem cadastro/envio de produto.
+- **JSON no modal de Detalhes:** o POST REAL de vendas (mesmo corpo que o app envia; token mascarado), não o endpoint inventado do protótipo (`/pedidos/sync`).
+- **Fora do escopo:** botão "Slides" da barra, botão "Testar queda de internet" do Painel, aba "Desafio dos Devs" de Cadastros.
+- **Toasts:** somem sozinhos após alguns segundos, canto inferior direito; usos: conexão caiu (vermelho), conexão voltou + "nenhuma pendência" (verde), "<produto> adicionado ao cupom" (sino).
+
+**Ordem e estimativa (h de trabalho):**
+- [ ] **Task 68 — Toasts** (~1,5–2 h): serviço de avisos + área no canto do Shell; ligar à conexão, sincronização e item adicionado.
+- [ ] **Task 69 — Painel Principal** (~1–1,5 h): 4 cartões (faturamento, estoque, fila outbox, conexão + última sinc), últimas vendas, bloco offline-first.
+- [ ] **Task 70 — Listagem de Pedidos** (~2–2,5 h): 3 cartões de total, busca por pedido/cliente, filtro de status e de forma, botão Detalhes.
+- [ ] **Task 71 — Modal Detalhes do pedido** (~2,5–3 h): cabeçalho, itens, forma de pagamento, total líquido e JSON da requisição real.
+- [ ] **Task 72 — Painel lateral da Fila Outbox** (~2–2,5 h): pendentes, "Disparar sincronização agora", log de execução em memória; abre pelo botão "Sync: N pendentes".
+- [ ] **Task 73 — Cadastros** (~3–4 h + ~1 h dos grupos): abas Produtos (SKU, descrição, categoria, preço, estoque, status nuvem), Clientes (ID, nome, CPF/CNPJ, telefone, cidade/UF, status), Operadores de Caixa (código, nome, perfil, caixa padrão, status).
