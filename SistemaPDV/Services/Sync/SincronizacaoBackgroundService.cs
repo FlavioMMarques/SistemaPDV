@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -54,6 +55,7 @@ public class SincronizacaoBackgroundService : IDisposable
 {
     public static readonly TimeSpan IntervaloOutbox = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan IntervaloCatalogo = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan IntervaloVerificacao = TimeSpan.FromSeconds(15);
 
     // SincronizarCaixaPendenteAsync trata UM caixa por chamada; o teto só evita um laço
     // longo se algo estiver errado (na prática há 0-2 caixas pendentes).
@@ -66,6 +68,7 @@ public class SincronizacaoBackgroundService : IDisposable
     private readonly CaixaSyncService caixaSyncService;
     private readonly VendaSyncService vendaSyncService;
     private readonly TimeProvider timeProvider;
+    private readonly VerificadorDeConexao? verificador;
 
     private readonly SemaphoreSlim cicloEmAndamento = new(1, 1);
     private readonly BehaviorSubject<EstadoConexao> estado = new(EstadoConexao.Desconhecida);
@@ -77,6 +80,9 @@ public class SincronizacaoBackgroundService : IDisposable
     private CancellationTokenSource? cancelamento;
     private DispatcherTimer? timerOutbox;
     private DispatcherTimer? timerCatalogo;
+    private DispatcherTimer? timerVerificacao;
+    private readonly object travaPublicacao = new();
+    private bool? ultimaVerificacaoAlcancavel;   // null = ainda não verificou
 
     public SincronizacaoBackgroundService(
         Func<AppDbContext> contextFactory,
@@ -84,8 +90,10 @@ public class SincronizacaoBackgroundService : IDisposable
         CatalogSyncService catalogSyncService,
         CaixaSyncService caixaSyncService,
         VendaSyncService vendaSyncService,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        VerificadorDeConexao? verificador = null)
     {
+        this.verificador = verificador;
         this.contextFactory = contextFactory;
         this.authService = authService;
         this.catalogSyncService = catalogSyncService;
@@ -126,6 +134,16 @@ public class SincronizacaoBackgroundService : IDisposable
         timerCatalogo.Tick += (_, _) => Disparar(ExecutarCicloCatalogoAsync);
         timerCatalogo.Start();
 
+        // Detecção de queda/volta da internet sem esperar os ciclos (que só falam com a rede quando têm o que enviar): o
+        // Windows avisa na hora quando a placa perde a rede, e uma verificação leve pega o "rede ligada, sem internet".
+        if (verificador is not null)
+        {
+            NetworkChange.NetworkAvailabilityChanged += AoMudarDisponibilidadeDeRede;
+            timerVerificacao = new DispatcherTimer { Interval = IntervaloVerificacao };
+            timerVerificacao.Tick += (_, _) => Disparar(VerificarConexaoAsync);
+            timerVerificacao.Start();
+        }
+
         Disparar(ExecutarCicloRapidoAsync);
     }
 
@@ -135,10 +153,13 @@ public class SincronizacaoBackgroundService : IDisposable
 
     public void Parar()
     {
+        NetworkChange.NetworkAvailabilityChanged -= AoMudarDisponibilidadeDeRede;
         timerOutbox?.Stop();
         timerCatalogo?.Stop();
+        timerVerificacao?.Stop();
         timerOutbox = null;
         timerCatalogo = null;
+        timerVerificacao = null;
 
         cancelamento?.Cancel();
         cancelamento?.Dispose();
@@ -151,6 +172,47 @@ public class SincronizacaoBackgroundService : IDisposable
         estado.Dispose();
         dadosAlterados.Dispose();
         cicloEmAndamento.Dispose();
+    }
+
+    // Roda numa thread do sistema (não na de UI). Sem placa de rede ativa, é Offline na hora; ao voltar, confirma com a API.
+    private void AoMudarDisponibilidadeDeRede(object? remetente, NetworkAvailabilityEventArgs e)
+    {
+        if (e.IsAvailable)
+        {
+            Disparar(VerificarConexaoAsync);
+            return;
+        }
+
+        ultimaVerificacaoAlcancavel = false;
+        if (Estado != EstadoConexao.Offline)
+            Publicar(EstadoConexao.Offline, "Sem conexão de rede");
+    }
+
+    // A cada 15 s (e quando o Windows diz que a rede voltou): o servidor da API responde? Não usa o semáforo dos ciclos — uma
+    // requisição de envio pendurada não pode atrasar o aviso de queda. Só a MUDANÇA age: caiu -> Offline; voltou (depois de ter
+    // ficado inalcançável) -> roda o catálogo (que autentica e publica Online) e o envio, sem esperar os 30 s/5 min. Repetir a
+    // resposta "alcançável" não dispara nada: um Offline por credencial errada não vira uma autenticação a cada 15 s.
+    public async Task VerificarConexaoAsync(CancellationToken ct = default)
+    {
+        if (verificador is null || await LerConfiguracaoCompletaAsync(ct) is not { } configuracao)
+            return;
+
+        var alcancavel = await verificador.AlcancavelAsync(configuracao.UrlApi!, ct);
+        var anterior = ultimaVerificacaoAlcancavel;
+        ultimaVerificacaoAlcancavel = alcancavel;
+
+        if (!alcancavel)
+        {
+            if (Estado != EstadoConexao.Offline)
+                Publicar(EstadoConexao.Offline, "Sem acesso à API (verificação de conexão)");
+            return;
+        }
+
+        if (anterior == false)
+        {
+            await ExecutarCicloCatalogoAsync(ct);
+            await ExecutarCicloOutboxAsync(ct);
+        }
     }
 
     // Tick de 30 s: se o catálogo ainda não foi baixado nesta sessão (app recém-aberto,
@@ -351,8 +413,13 @@ public class SincronizacaoBackgroundService : IDisposable
     private void Publicar(EstadoConexao novoEstado, string? mensagem)
     {
         MensagemUltimoCiclo = mensagem is { Length: > TamanhoMaximoMensagem } longa ? longa[..TamanhoMaximoMensagem] : mensagem;
-        RegistrarMudancaDeEstado(novoEstado, mensagem);
-        estado.OnNext(novoEstado);
+        // Trava: os ciclos, a verificação de conexão e o evento de rede publicam de threads diferentes, e um Subject não
+        // aceita OnNext concorrente.
+        lock (travaPublicacao)
+        {
+            RegistrarMudancaDeEstado(novoEstado, mensagem);
+            estado.OnNext(novoEstado);
+        }
     }
 
     // Só quando o estado MUDA: um PDV sem internet publica "Offline" a cada 30 s, e uma linha por ciclo encheria o

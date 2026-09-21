@@ -648,3 +648,22 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 - **Não pode tampar nem roubar o mouse/foco:** `IsHitTestVisible="False"` e `Focusable="False"` — um aviso caindo em cima do botão Finalizar não pode impedir o clique.
 - **Tempo testável.** A fila aceita um `IScheduler` (nos testes um `HistoricalScheduler`, que "avança o relógio" sem esperar). Em produção os prazos correm num relógio de fundo e a retirada da lista volta à thread da interface (`RxSchedulers.MainThreadScheduler` — no ReactiveUI 23 o `RxApp` antigo não existe mais). Em testes que trocam de estado de conexão, a recontagem em segundo plano é exposta (`RecontagemAposReconexao`) para o teste aguardá-la antes de soltar o banco em memória.
 - **Visual:** a faixa colorida lateral (verde/vermelha) é um `Border` próprio dentro do card, com o card recortando os cantos (`ClipToBounds`) — uma `BorderBrush` colorida na borda toda pintava o aviso inteiro de vermelho, diferente do protótipo. O texto ficou num `Grid` com coluna `*` (num `StackPanel` horizontal o texto não quebrava e era cortado). Cor nunca é a única pista: todo aviso tem ícone e texto.
+
+## 75. "Estou online?" não se descobre esperando ter o que enviar: detecção de queda em ~15 s
+
+**Onde:** `Services/Sync/VerificadorDeConexao.cs`, `SincronizacaoBackgroundService` (Fase 8, depois dos toasts)
+
+**A lacuna (achada por uma pergunta do usuário):** o estado de conexão só mudava quando um ciclo de sincronização falava com a API — o de 30 s só se há algo pendente, o de 5 min sempre. Com a fila vazia, desligar a internet levava **até 5 minutos** para virar "Offline" (e o aviso "Internet desconectada" chegava igualmente atrasado). E o `HttpClient` sem prazo espera 100 s numa rede pendurada, e como os ciclos não se sobrepõem, um envio pendurado atrasava também o aviso.
+
+**Correção — duas fontes de sinal, independentes dos ciclos:**
+1. **`NetworkChange.NetworkAvailabilityChanged`** (o Windows avisa na hora quando a placa perde/ganha rede): sem placa ativa = Offline imediato. É de graça, mas só diz "há uma interface ligada" — não "há internet".
+2. **Verificação leve a cada 15 s** (`VerificadorDeConexao`): um `HEAD` na raiz do servidor da API, com prazo de 5 s. **Qualquer resposta HTTP (até 404/500) prova que o servidor está lá**; só a falta de resposta (DNS, recusa, prazo estourado) é "inalcançável". Cobre o "rede ligada, sem internet" que o evento não vê. Não usa o semáforo dos ciclos, por isso um envio pendurado não a atrasa.
+
+**Regras que evitam efeitos colaterais:**
+- **Só a MUDANÇA age.** Caiu → publica Offline (uma vez). Voltou (depois de ter ficado inalcançável) → roda o **catálogo** (que autentica e publica Online — o ciclo de envio sozinho não publicaria Online se não houvesse pendência) e em seguida o envio. Repetir "alcançável" não faz nada: um Offline por **credencial errada** com o servidor no ar não pode virar uma autenticação a cada 15 s (teste dedicado: 3 verificações, 0 pedidos de token).
+- **Não mascara problema de configuração:** URL inválida ou sem HTTPS devolve "alcançável" — quem diz "a URL da API não usa HTTPS" continua sendo o ciclo, e a verificação não o troca por um enganoso "sem internet".
+- **Cancelar não é queda:** fechar o app durante a verificação propaga o cancelamento; só o prazo estourado conta como inalcançável (dois `catch` distintos, testados).
+- **Publicação com trava:** agora três origens publicam o estado (ciclos, verificação, evento de rede, em threads diferentes) e um `Subject` do Rx não aceita `OnNext` concorrente — a publicação (e o registro no log) passaram a ser serializadas por um `lock`.
+- **O verificador é opcional no construtor** (`null` = não verifica): os testes antigos dos ciclos seguem iguais e a verificação é testada à parte, com um "servidor" fake que se liga e desliga (`RedeFake`) e um handler que nunca responde (para o prazo).
+
+**Não testado automaticamente:** o evento `NetworkChange` e os timers exigem o Windows real e um Dispatcher (mesma limitação dos timers dos ciclos). Conferência manual: desligar o Wi-Fi → aviso em segundos (evento); "Wi-Fi ligado sem internet" → aviso em até ~15 s (verificação); religar → "restaurada" e, com a fila vazia, "nenhuma pendência".

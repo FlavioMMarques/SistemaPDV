@@ -141,6 +141,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | Classe | Pra que serve |
 |---|---|
 | `SincronizacaoBackgroundService` | Dois `DispatcherTimer`: a cada 30 s o outbox (clientes novos, caixa, vendas — só autentica se há pendência) e a cada 5 min o catálogo; o catálogo também roda no 1º tick. Os ciclos são métodos públicos e testáveis, rodam em `Task.Run` (o SQLite do EF é síncrono por baixo) e nunca sobrepõem (semáforo). Publica `EstadoConexao` (Online/OnlineComFalhas/Offline + motivo) e `DadosAlterados`. |
+| `VerificadorDeConexao` | Pergunta só "o servidor da API responde?" (HEAD na raiz, prazo de 5 s; qualquer resposta HTTP conta, só a falta de resposta é inalcançável; URL sem HTTPS não é verificada). O `SincronizacaoBackgroundService` a usa a cada 15 s e quando o Windows avisa que a rede mudou (`NetworkChange`): a queda vira Offline na hora e a volta roda o catálogo e o envio sem esperar os 30 s/5 min. |
 | `PoliticaRetentativa` / `IOutboxRetentavel` | Espera crescente (30 s → 10 min) e teto de 8 tentativas nos três outboxes; contadores no banco; "Reenviar falhas" zera. Sucesso também zera. |
 | `SoftcomRotas` | Todas as rotas da API, sob `softauth/api/v2/` (sem o prefixo a API responde `500 {"error":""}`). |
 | `ConexaoSegura` | Recusa `http://` (exceto loopback) em qualquer chamada à API — token, secret e dados pessoais nunca em texto puro. |
