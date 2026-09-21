@@ -15,7 +15,8 @@ public enum NivelAtividade
 
 // Uma linha do "log de execução" da fila outbox, escrita para o OPERADOR ler ("Pedido #1003 sincronizado com sucesso!"). Não é o
 // log técnico (esse é o arquivo do Registro, com exceção e detalhe): aqui só entra o que faz sentido mostrar na tela, e nunca
-// token, senha ou dado pessoal.
+// token, senha nem detalhe de exceção. O motivo de uma recusa da API aparece como a API o devolveu — o mesmo texto que a lista de
+// pedidos já mostra em cada venda em falha —, e o corpo bruto de uma resposta de autenticação que falhou fica de fora.
 public sealed record EntradaDeLog(DateTime Quando, NivelAtividade Nivel, string Texto);
 
 // O que uma etapa do envio conta sobre cada item que tratou (uma linha por venda enviada ou recusada, por exemplo).

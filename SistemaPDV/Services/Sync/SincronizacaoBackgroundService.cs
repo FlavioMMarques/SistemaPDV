@@ -193,7 +193,7 @@ public class SincronizacaoBackgroundService : IDisposable
 
         ultimaVerificacaoAlcancavel = false;
         if (Estado != EstadoConexao.Offline)
-            Publicar(EstadoConexao.Offline, "Sem conexão de rede");
+            Publicar(EstadoConexao.Offline, "Sem conexão de rede", faltaDeRede: true);
     }
 
     // A cada 15 s (e quando o Windows diz que a rede voltou): o servidor da API responde? Não usa o semáforo dos ciclos — uma
@@ -213,7 +213,7 @@ public class SincronizacaoBackgroundService : IDisposable
         {
             tentativasDeRecuperacao = 0;
             if (Estado != EstadoConexao.Offline)
-                Publicar(EstadoConexao.Offline, "Sem acesso à API (verificação de conexão)");
+                Publicar(EstadoConexao.Offline, "Sem acesso à API (verificação de conexão)", faltaDeRede: true);
             return;
         }
 
@@ -485,21 +485,23 @@ public class SincronizacaoBackgroundService : IDisposable
             : null;
     }
 
-    private void Publicar(EstadoConexao novoEstado, string? mensagem)
+    // faltaDeRede: o motivo do Offline é a rede em si (sem placa ativa / API inalcançável) — e não uma resposta ruim da API
+    // (credencial recusada, URL sem HTTPS…) ou um erro inesperado. Só muda o texto do log da fila outbox.
+    private void Publicar(EstadoConexao novoEstado, string? mensagem, bool faltaDeRede = false)
     {
         MensagemUltimoCiclo = mensagem is { Length: > TamanhoMaximoMensagem } longa ? longa[..TamanhoMaximoMensagem] : mensagem;
         // Trava: os ciclos, a verificação de conexão e o evento de rede publicam de threads diferentes, e um Subject não
         // aceita OnNext concorrente.
         lock (travaPublicacao)
         {
-            RegistrarMudancaDeEstado(novoEstado, mensagem);
+            RegistrarMudancaDeEstado(novoEstado, mensagem, faltaDeRede);
             estado.OnNext(novoEstado);
         }
     }
 
     // Só quando o estado MUDA: um PDV sem internet publica "Offline" a cada 30 s, e uma linha por ciclo encheria o
     // arquivo sem dizer nada de novo. Assim o log conta a história ("caiu às 14:02, voltou às 14:20").
-    private void RegistrarMudancaDeEstado(EstadoConexao novoEstado, string? mensagem)
+    private void RegistrarMudancaDeEstado(EstadoConexao novoEstado, string? mensagem, bool faltaDeRede)
     {
         EstadoConexao? anterior;
         lock (travaEstadoRegistrado)
@@ -519,10 +521,19 @@ public class SincronizacaoBackgroundService : IDisposable
 
         // A mesma história, em linguagem de operador, para a tela da fila outbox. Ficar online de partida não é notícia;
         // OnlineComFalhas continua "conectado" (a API respondeu — o que falhou vai nas linhas do catálogo).
+        // "Offline" também é o que o app mostra quando a API recusa a autenticação ou a URL não usa HTTPS: dizer "conexão perdida"
+        // nesses casos mandaria o operador olhar o cabo em vez do problema. O motivo bruto (que pode trazer o corpo da resposta
+        // da API) fica de fora da tela — está na dica da pílula de conexão e no arquivo de log.
         if (novoEstado == EstadoConexao.Offline)
-            Log.Registrar(NivelAtividade.Aviso, "Conexão perdida. Modo contingência ativado: as vendas irão para a Outbox.");
+        {
+            Log.Registrar(NivelAtividade.Aviso, faltaDeRede
+                ? "Conexão perdida. Modo contingência ativado: as vendas irão para a Outbox."
+                : "Não foi possível falar com a API (autenticação ou comunicação). Modo contingência ativado: as vendas irão para a Outbox.");
+        }
         else if (anterior == EstadoConexao.Offline)
+        {
             Log.Registrar(NivelAtividade.Info, "Conexão restabelecida. Iniciando o worker assíncrono...");
+        }
     }
 
     // Fora da thread de UI (ver comentário da classe) e sem deixar nada escapar: um
