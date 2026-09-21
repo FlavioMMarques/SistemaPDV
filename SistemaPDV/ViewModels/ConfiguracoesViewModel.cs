@@ -6,6 +6,7 @@ using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Services;
+using SistemaPDV.Services.Caixa;
 using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.ViewModels;
@@ -37,7 +38,7 @@ public class ConfiguracoesViewModel : ViewModelBase
     // exigirSupervisor: aberta pelo botão da barra (dispositivo já vinculado) — o formulário só aparece depois da chave
     // de um supervisor. Na 1ª vez (sem vínculo) não há como logar nem supervisor local, então abre direto.
     [SupportedOSPlatform("windows")]
-    public ConfiguracoesViewModel(ConfiguracaoService configuracaoService, bool exigirSupervisor = false)
+    public ConfiguracoesViewModel(ConfiguracaoService configuracaoService, bool exigirSupervisor = false, CaixasApiService? caixasApiService = null)
     {
         this.configuracaoService = configuracaoService;
         PodeVoltar = exigirSupervisor;
@@ -54,6 +55,10 @@ public class ConfiguracoesViewModel : ViewModelBase
         VincularCommand = ReactiveCommand.CreateFromTask(VincularAsync, podeVincular);
 
         SalvarCommand = ReactiveCommand.CreateFromTask(SalvarAsync);
+
+        // "Caixas no SoftcomShop": consulta só de leitura, aberta por um botão desta tela (ver CaixasApiViewModel).
+        Caixas = new CaixasApiViewModel(caixasApiService);
+        AbrirCaixasCommand = ReactiveCommand.CreateFromTask(Caixas.AbrirAsync, Observable.Return(Caixas.Disponivel));
     }
 
     public string LinkCadastro
@@ -108,6 +113,9 @@ public class ConfiguracoesViewModel : ViewModelBase
     }
 
     public bool Liberada => !Bloqueada;
+
+    public CaixasApiViewModel Caixas { get; }
+    public ReactiveCommand<Unit, Unit> AbrirCaixasCommand { get; }
 
     // "Voltar" só existe quando aberta pelo botão (na 1ª vinculação não há para onde voltar).
     public bool PodeVoltar { get; }

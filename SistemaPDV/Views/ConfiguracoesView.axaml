@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:controls="using:SistemaPDV.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
@@ -8,7 +9,8 @@
              x:DataType="vm:ConfiguracoesViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <ScrollViewer Padding="32">
+  <Grid>
+  <ScrollViewer Padding="32" IsEnabled="{Binding !Caixas.Aberto}">
     <StackPanel Spacing="24" MaxWidth="520" HorizontalAlignment="Left">
 
       <TextBlock Text="Configurações"
@@ -151,6 +153,28 @@
         </StackPanel>
       </Border>
 
+      <!-- Consulta dos caixas que a API tem (só leitura): abre num modal. Junto do formulário: só aparece depois da chave do supervisor,
+           quando a política a exige. -->
+      <Border Background="{StaticResource BgCardBrush}"
+              BorderBrush="{StaticResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource RadiusCard}"
+              Padding="24"
+              IsVisible="{Binding Liberada}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Caixas no SoftcomShop" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+          <TextBlock Text="Veja os caixas abertos e fechados que a API tem (últimos 7 dias ou o período que você informar). Só consulta: precisa de conexão e não altera nada."
+                     Foreground="{StaticResource TextMutedBrush}" FontSize="12" TextWrapping="Wrap" />
+          <Button Content="🏦 Consultar caixas da API"
+                  Command="{Binding AbrirCaixasCommand}"
+                  Classes="secundario"
+                  HorizontalAlignment="Left"
+                  Padding="16,8"
+                  TabIndex="7"
+                  AutomationProperties.Name="Consultar os caixas da API" />
+        </StackPanel>
+      </Border>
+
       <TextBlock Text="{Binding Mensagem}"
                  Foreground="{StaticResource TextMutedBrush}"
                  TextWrapping="Wrap"
@@ -168,5 +192,9 @@
 
     </StackPanel>
   </ScrollViewer>
+
+  <!-- Consulta dos caixas da API: a tela de trás fica desabilitada enquanto está aberta. -->
+  <controls:CaixasApiPainel IsVisible="{Binding Caixas.Aberto}" />
+  </Grid>
 
 </UserControl>

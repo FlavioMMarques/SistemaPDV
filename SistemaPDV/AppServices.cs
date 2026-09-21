@@ -30,6 +30,7 @@ public class AppServices
     public VendaSyncService VendaSyncService { get; }
     public VendaLocalService VendaLocalService { get; }
     public CadastroLocalService CadastroLocalService { get; }
+    public CaixasApiService CaixasApiService { get; }
     public SincronizacaoBackgroundService SincronizacaoBackgroundService { get; }
 
     [SupportedOSPlatform("windows")]
@@ -65,6 +66,7 @@ public class AppServices
         VendaSyncService = new VendaSyncService(contextFactory, apiClient);
         VendaLocalService = new VendaLocalService(contextFactory, PoliticaSupervisor.ExigirChave);
         CadastroLocalService = new CadastroLocalService(contextFactory);
+        CaixasApiService = new CaixasApiService(contextFactory, apiClient, authService);
         SincronizacaoBackgroundService = new SincronizacaoBackgroundService(
             contextFactory, authService, CatalogSyncService, CaixaSyncService, VendaSyncService,
             verificador: new VerificadorDeConexao(httpClient));

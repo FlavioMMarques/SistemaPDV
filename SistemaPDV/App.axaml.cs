@@ -48,7 +48,8 @@ public partial class App : Application
                 Services.VendaService,
                 Services.CatalogoLocalService,
                 Services.VendaLocalService,
-                Services.CadastroLocalService);
+                Services.CadastroLocalService,
+                Services.CaixasApiService);
             desktop.MainWindow = new MainWindow
             {
                 DataContext = shellViewModel,

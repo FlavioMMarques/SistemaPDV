@@ -1,0 +1,141 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:svc="using:SistemaPDV.Services.Caixa"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
+             x:Class="SistemaPDV.Views.Controls.CaixasApiPainel"
+             x:DataType="vm:ConfiguracoesViewModel">
+
+  <!-- Modal "Caixas no SoftcomShop" (aberto por um botão em Configurações): lista SÓ PARA LEITURA os caixas que a API tem — os
+       abertos e fechados por qualquer PDV da empresa. Sem datas, a API devolve os últimos 7 dias. Precisa de rede; nada é gravado
+       localmente. Esc e ✕ fecham; o fundo escurecido segura o clique e a tela de trás fica desabilitada. -->
+  <Grid Background="{DynamicResource OverlayBrush}">
+    <Grid.KeyBindings>
+      <KeyBinding Gesture="Escape" Command="{Binding Caixas.FecharCommand}" />
+    </Grid.KeyBindings>
+
+    <Border Background="{DynamicResource BgCardBrush}"
+            BorderBrush="{DynamicResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusCard}"
+            MaxWidth="1080" Margin="24"
+            VerticalAlignment="Center" HorizontalAlignment="Stretch">
+      <StackPanel>
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,16">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="🏦" FontSize="18" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Text="Caixas no SoftcomShop" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
+              <TextBlock Text="Consulta na nuvem, só leitura: caixas abertos e fechados por qualquer PDV da empresa."
+                         FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="fantasma" Content="✕" FontSize="16"
+                    Command="{Binding Caixas.FecharCommand}"
+                    AutomationProperties.Name="Fechar a consulta de caixas" />
+          </Grid>
+        </Border>
+
+        <!-- Filtros -->
+        <Grid Margin="24,16,24,8" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="14">
+          <StackPanel Grid.Column="0" Spacing="4">
+            <TextBlock Classes="rotuloForm" Text="De (dd/mm/aaaa)" />
+            <TextBox Classes="campo" Width="150" Text="{Binding Caixas.DataInicial, Mode=TwoWay}" PlaceholderText="últimos 7 dias" MaxLength="10"
+                     AutomationProperties.Name="Data inicial, opcional" TabIndex="1">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding Caixas.ConsultarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="4">
+            <TextBlock Classes="rotuloForm" Text="Até (dd/mm/aaaa)" />
+            <TextBox Classes="campo" Width="150" Text="{Binding Caixas.DataFinal, Mode=TwoWay}" PlaceholderText="hoje" MaxLength="10"
+                     AutomationProperties.Name="Data final, opcional" TabIndex="2">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding Caixas.ConsultarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+          <CheckBox Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,0,8" Content="Somente fechados"
+                    IsChecked="{Binding Caixas.SomenteFechados, Mode=TwoWay}" Foreground="{DynamicResource TextMainBrush}" TabIndex="3" />
+          <Button Grid.Column="3" Classes="primario" Content="Consultar" Padding="22,10" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                  Command="{Binding Caixas.ConsultarCommand}" TabIndex="4" AutomationProperties.Name="Consultar os caixas" />
+          <TextBlock Grid.Column="5" Text="Consultando…" VerticalAlignment="Bottom" Margin="0,0,0,10" Foreground="{DynamicResource TextMutedBrush}"
+                     IsVisible="{Binding Caixas.Carregando}" />
+        </Grid>
+
+        <TextBlock Text="{Binding Caixas.Mensagem}" Margin="24,0,24,8" TextWrapping="Wrap" Foreground="{DynamicResource AccentRedBrush}"
+                   IsVisible="{Binding Caixas.Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <!-- Tabela: as colunas do cabeçalho e as de cada linha TÊM de ser iguais (o Avalonia não compartilha ColumnDefinitions). -->
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,10">
+          <Grid ColumnDefinitions="70,120,90,*,150,150,140,110">
+            <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="ID" />
+            <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="DATA DO CAIXA" />
+            <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="TURNO" />
+            <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="OPERADOR" />
+            <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="ABERTURA" />
+            <TextBlock Grid.Column="5" Classes="colunaTitulo" Text="FECHAMENTO" />
+            <TextBlock Grid.Column="6" Classes="colunaTitulo" Text="DISPOSITIVO" />
+            <TextBlock Grid.Column="7" Classes="colunaTitulo" Text="SITUAÇÃO" />
+          </Grid>
+        </Border>
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,28"
+                IsVisible="{Binding Caixas.SemResultados}">
+          <TextBlock Text="Nenhum caixa encontrado nesse período." HorizontalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+        </Border>
+
+        <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Caixas.Linhas}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="svc:CaixaApiLinha">
+                <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,10">
+                  <Grid ColumnDefinitions="70,120,90,*,150,150,140,110">
+                    <TextBlock Grid.Column="0" Text="{Binding Id, StringFormat='#{0}'}" FontFamily="{DynamicResource FontMono}" FontWeight="Bold"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding DataCaixa, StringFormat='dd/MM/yyyy', TargetNullValue='—'}"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding Turno, StringFormat='Turno {0}', TargetNullValue='—'}"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding Operador}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Text="{Binding Abertura, StringFormat='dd/MM/yyyy HH:mm', TargetNullValue='—'}"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="5" Text="{Binding Fechamento, StringFormat='dd/MM/yyyy HH:mm', TargetNullValue='—'}"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="6" Text="{Binding Dispositivo, TargetNullValue='—'}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"
+                               Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <!-- Texto + cor, nunca só cor: "Aberto" (amarelo) ou "Fechado" (verde). -->
+                    <Border Grid.Column="7" Classes="selo" Classes.ok="{Binding Fechado}" Classes.pendente="{Binding !Fechado}"
+                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                      <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Situacao}" />
+                    </Border>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Paginação -->
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+            <Button Grid.Column="0" Classes="secundario" Content="‹ Anterior" Padding="16,8"
+                    Command="{Binding Caixas.AnteriorCommand}" AutomationProperties.Name="Página anterior" />
+            <TextBlock Grid.Column="1" Text="{Binding Caixas.ResumoPagina}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMutedBrush}" />
+            <Button Grid.Column="2" Classes="secundario" Content="Próxima ›" Padding="16,8"
+                    Command="{Binding Caixas.ProximaCommand}" AutomationProperties.Name="Próxima página" />
+            <Button Grid.Column="3" Classes="primario" Content="Fechar" Padding="20,8" HorizontalAlignment="Right"
+                    Command="{Binding Caixas.FecharCommand}" AutomationProperties.Name="Fechar a consulta de caixas" />
+          </Grid>
+        </Border>
+
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>
