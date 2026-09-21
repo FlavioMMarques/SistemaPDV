@@ -118,7 +118,7 @@ public class CadastroLocalServiceTests
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarClienteAsync("  Maria Souza  ", CpfValido);
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("  Maria Souza  ", CpfValido));
 
         Assert.True(resultado.Sucesso);
         using var leitura = fixture.CriarContexto();
@@ -137,23 +137,152 @@ public class CadastroLocalServiceTests
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        await service.CriarClienteAsync("Padaria do Zé", CnpjValido);
+        await service.CriarClienteAsync(new NovoClienteDados("Padaria do Zé", CnpjValido));
 
         using var leitura = fixture.CriarContexto();
         Assert.Equal(TipoPessoa.Juridica, leitura.Clientes.Single().Pessoa);
     }
 
-    [Fact]
-    public async Task DocumentoEhOpcional()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public async Task DocumentoEhObrigatorio(string? documento)
     {
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarClienteAsync("Cliente de balcão", "  ");
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("Cliente de balcão", documento));
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("CPF", resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Clientes);
+    }
+
+    [Fact]
+    public async Task GravaTelefoneEmailECidadeDoModal()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados(
+            "Ana Lima", CpfValido, "(83) 99999-8888", "  ana@empresa.com.br ", "João Pessoa - PB"));
 
         Assert.True(resultado.Sucesso);
         using var leitura = fixture.CriarContexto();
-        Assert.Null(leitura.Clientes.Single().CpfCnpj);
+        var cliente = leitura.Clientes.Single();
+        Assert.Equal("83", cliente.ContatoDdd);
+        Assert.Equal("999998888", cliente.ContatoTelefone);
+        Assert.Equal("Ana Lima", cliente.ContatoNome);          // a API exige nome dentro do contato
+        Assert.Equal("ana@empresa.com.br", cliente.ContatoEmail);
+        Assert.Equal("João Pessoa", cliente.Cidade);
+        Assert.Equal("PB", cliente.Uf);
+    }
+
+    [Theory]
+    [InlineData("(83) 99999-8888", "83", "999998888")]
+    [InlineData("83999998888", "83", "999998888")]
+    [InlineData("83 3221-4589", "83", "32214589")]              // fixo: 8 dígitos
+    [InlineData("+55 (83) 99999-8888", "83", "999998888")]      // com código do país
+    public async Task TelefoneAceitaOsFormatosUsuais(string digitado, string ddd, string numero)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("Ana", CpfValido, digitado));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        var cliente = leitura.Clientes.Single();
+        Assert.Equal(ddd, cliente.ContatoDdd);
+        Assert.Equal(numero, cliente.ContatoTelefone);
+    }
+
+    [Theory]
+    [InlineData("99999-8888")]        // sem DDD
+    [InlineData("(00) 99999-8888")]   // DDD inexistente
+    [InlineData("abc")]
+    [InlineData("(83) 99999-88x8")]
+    public async Task TelefoneInvalidoNaoGravaNada(string digitado)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("Ana", CpfValido, digitado));
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("Telefone", resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Clientes);
+    }
+
+    [Theory]
+    [InlineData("sem-arroba")]
+    [InlineData("a@b")]
+    [InlineData("a b@c.com")]
+    public async Task EmailInvalidoNaoGravaNada(string email)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("Ana", CpfValido, null, email));
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("E-mail", resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Clientes);
+    }
+
+    [Theory]
+    [InlineData("João Pessoa - PB", "João Pessoa", "PB")]
+    [InlineData("Campina Grande/pb", "Campina Grande", "PB")]
+    [InlineData("Cabedelo", "Cabedelo", null)]                  // sem UF reconhecível: tudo é a cidade
+    public async Task CidadeUfSeparaAUfQuandoHouver(string digitado, string cidade, string? uf)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        await service.CriarClienteAsync(new NovoClienteDados("Ana", CpfValido, null, null, digitado));
+
+        using var leitura = fixture.CriarContexto();
+        var cliente = leitura.Clientes.Single();
+        Assert.Equal(cidade, cliente.Cidade);
+        Assert.Equal(uf, cliente.Uf);
+    }
+
+    [Fact]
+    public async Task CamposOpcionaisVaziosFicamNulos()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        await service.CriarClienteAsync(new NovoClienteDados("Ana", CpfValido, "  ", "", "   "));
+
+        using var leitura = fixture.CriarContexto();
+        var cliente = leitura.Clientes.Single();
+        Assert.Null(cliente.ContatoDdd);
+        Assert.Null(cliente.ContatoTelefone);
+        Assert.Null(cliente.ContatoNome);
+        Assert.Null(cliente.ContatoEmail);
+        Assert.Null(cliente.Cidade);
+        Assert.Null(cliente.Uf);
+    }
+
+    [Fact]
+    public async Task CidadeUfPadraoVemDaEmpresaDoAparelho()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var service = new CadastroLocalService(fixture.CriarContexto);
+        Assert.Equal(string.Empty, await service.ObterCidadeUfPadraoAsync());   // empresa ainda não sincronizada
+
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Empresas.Add(new Empresa { RazaoSocial = "Softcom", Cnpj = "12345678000199", IdExterno = 1, Cidade = "João Pessoa", Uf = "PB" });
+            await context.SaveChangesAsync();
+        }
+
+        Assert.Equal("João Pessoa - PB", await service.ObterCidadeUfPadraoAsync());
     }
 
     [Theory]
@@ -169,7 +298,7 @@ public class CadastroLocalServiceTests
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarClienteAsync(nome, documento);
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados(nome, documento));
 
         Assert.False(resultado.Sucesso);
         Assert.False(string.IsNullOrWhiteSpace(resultado.Mensagem));
@@ -183,7 +312,7 @@ public class CadastroLocalServiceTests
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarClienteAsync("Maria", "123.456.789-00");
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("Maria", "123.456.789-00"));
 
         Assert.DoesNotContain("123", resultado.Mensagem);
     }
@@ -194,7 +323,7 @@ public class CadastroLocalServiceTests
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarClienteAsync(new string('a', 151), null);
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados(new string('a', 151), null));
 
         Assert.False(resultado.Sucesso);
     }
@@ -204,9 +333,9 @@ public class CadastroLocalServiceTests
     {
         using var fixture = new SqliteInMemoryFixture();
         var service = new CadastroLocalService(fixture.CriarContexto);
-        await service.CriarClienteAsync("Maria", CpfValido);
+        await service.CriarClienteAsync(new NovoClienteDados("Maria", CpfValido));
 
-        var resultado = await service.CriarClienteAsync("Maria de novo", "52998224725");
+        var resultado = await service.CriarClienteAsync(new NovoClienteDados("Maria de novo", "52998224725"));
 
         Assert.False(resultado.Sucesso);
         using var leitura = fixture.CriarContexto();
@@ -225,7 +354,7 @@ public class CadastroLocalServiceTests
             await context.SaveChangesAsync();
         }
         var cadastro = new CadastroLocalService(fixture.CriarContexto);
-        var criado = await cadastro.CriarClienteAsync("Maria Souza", CpfValido);
+        var criado = await cadastro.CriarClienteAsync(new NovoClienteDados("Maria Souza", CpfValido));
 
         var respostas = new Queue<string>(new[]
         {

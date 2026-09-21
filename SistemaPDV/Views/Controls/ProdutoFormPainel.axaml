@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:svc="using:SistemaPDV.Services"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="SistemaPDV.Views.Controls.ProdutoFormPainel"
+             x:DataType="vm:CadastrosViewModel">
+
+  <!-- Modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros). Nome, categoria e preço são o mínimo que a
+       API aceita; código e estoque inicial são opcionais. Só grava local — o envio à API é da fila. Enter salva, Esc cancela; o
+       fundo escurecido segura o clique e a tela de trás fica desabilitada. -->
+  <Grid Background="{DynamicResource OverlayBrush}">
+    <Grid.KeyBindings>
+      <KeyBinding Gesture="Escape" Command="{Binding FormProduto.CancelarCommand}" />
+    </Grid.KeyBindings>
+
+    <Border Background="{DynamicResource BgCardBrush}"
+            BorderBrush="{DynamicResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusCard}"
+            Width="580" Margin="24"
+            VerticalAlignment="Center" HorizontalAlignment="Center">
+      <StackPanel>
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,16">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="📦" FontSize="18" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Cadastrar Produto no Banco Local" FontSize="18" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Classes="fantasma" Content="✕" FontSize="16"
+                    Command="{Binding FormProduto.CancelarCommand}"
+                    AutomationProperties.Name="Fechar sem salvar o produto" />
+          </Grid>
+        </Border>
+
+        <Grid Margin="24,20,24,12" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="14">
+
+          <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Nome do Produto" />
+            <TextBox Name="NomeProdutoTextBox" Classes="campo" Text="{Binding FormProduto.Nome, Mode=TwoWay}"
+                     PlaceholderText="Ex: Café Torrado 500g" MaxLength="150"
+                     AutomationProperties.Name="Nome do produto, obrigatório" TabIndex="1">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="SKU / Código" />
+            <TextBox Classes="campo" Text="{Binding FormProduto.Codigo, Mode=TwoWay}"
+                     PlaceholderText="7890001" MaxLength="20"
+                     AutomationProperties.Name="SKU ou código do produto" TabIndex="2">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Categoria" />
+            <ComboBox Classes="campo" ItemsSource="{Binding FormProduto.Categorias}"
+                      SelectedItem="{Binding FormProduto.CategoriaSelecionada, Mode=TwoWay}"
+                      PlaceholderText="Selecione a categoria"
+                      AutomationProperties.Name="Categoria do produto, obrigatória" TabIndex="3">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="svc:CategoriaResumo">
+                  <TextBlock Text="{Binding Nome}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Preço (R$)" />
+            <TextBox Classes="campo" Text="{Binding FormProduto.Preco, Mode=TwoWay}"
+                     PlaceholderText="12.50" MaxLength="12"
+                     AutomationProperties.Name="Preço de venda do produto, em reais, obrigatório" TabIndex="4">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Estoque Inicial" />
+            <TextBox Classes="campo" Text="{Binding FormProduto.Estoque, Mode=TwoWay}"
+                     PlaceholderText="50" MaxLength="7"
+                     AutomationProperties.Name="Estoque inicial do produto, opcional" TabIndex="5">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+        </Grid>
+
+        <!-- A API não recebe estoque neste cadastro: sem o aviso o operador acharia que o número chegou à nuvem. -->
+        <TextBlock Margin="24,0,24,14" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}"
+                   Text="O estoque inicial fica só neste aparelho: a API não recebe estoque no cadastro, e a próxima sincronização traz o valor do SoftcomShop." />
+
+        <!-- Nenhum grupo sincronizado: nunca um combo vazio sem explicação. -->
+        <TextBlock Margin="24,0,24,14" TextWrapping="Wrap" Foreground="{DynamicResource AccentRedBrush}"
+                   IsVisible="{Binding FormProduto.SemCategorias}"
+                   Text="Nenhuma categoria sincronizada ainda — aguarde a sincronização do catálogo para cadastrar produtos." />
+
+        <TextBlock Text="{Binding FormProduto.Mensagem}" Margin="24,0,24,16" TextWrapping="Wrap"
+                   Foreground="{DynamicResource AccentRedBrush}"
+                   IsVisible="{Binding FormProduto.Mensagem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Classes="secundario" Content="Cancelar" Padding="18,9"
+                    Command="{Binding FormProduto.CancelarCommand}" TabIndex="6"
+                    AutomationProperties.Name="Cancelar e fechar sem salvar" />
+            <Button Classes="primario" Content="Salvar Produto" Padding="20,9"
+                    Command="{Binding FormProduto.SalvarCommand}" TabIndex="7"
+                    AutomationProperties.Name="Salvar o produto" />
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>

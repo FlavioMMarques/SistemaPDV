@@ -31,10 +31,15 @@ public class CatalogSyncServiceClienteNovoTests
 
     private static async Task<int> SemearClienteAsync(
         SqliteInMemoryFixture fixture, string nome = "Maria Souza", string? documento = CpfValido,
-        TipoPessoa pessoa = TipoPessoa.Fisica, string? razaoSocial = null, SyncStatus status = SyncStatus.PendenteSync)
+        TipoPessoa pessoa = TipoPessoa.Fisica, string? razaoSocial = null, SyncStatus status = SyncStatus.PendenteSync,
+        string? ddd = null, string? telefone = null, string? email = null)
     {
         await using var context = fixture.CriarContexto();
-        var cliente = new Cliente { Nome = nome, CpfCnpj = documento, Pessoa = pessoa, RazaoSocial = razaoSocial, SyncStatus = status };
+        var cliente = new Cliente
+        {
+            Nome = nome, CpfCnpj = documento, Pessoa = pessoa, RazaoSocial = razaoSocial, SyncStatus = status,
+            ContatoNome = ddd is null ? null : nome, ContatoDdd = ddd, ContatoTelefone = telefone, ContatoEmail = email,
+        };
         context.Clientes.Add(cliente);
         await context.SaveChangesAsync();
         return cliente.Id;
@@ -87,6 +92,11 @@ public class CatalogSyncServiceClienteNovoTests
         // Números, não strings (contrato do Swagger) — e os defaults decididos na spec.
         Assert.Contains("\"contribuinte_icms\":9", corpo);
         Assert.Contains("\"indicador_finalidade\":0", corpo);
+        // Os padrões do Swagger vão explícitos (a API real insere todas as colunas, com nulo no que falta).
+        Assert.Contains("\"bloqueado\":false", corpo);
+        Assert.Contains("\"desativado\":false", corpo);
+        Assert.Contains("\"permitir_excluir\":true", corpo);
+        Assert.Contains("\"limite_credito\":0", corpo);
         // Nada de campo interno local vazando pra fora.
         Assert.DoesNotContain("SyncStatus", corpo);
         Assert.DoesNotContain("UltimoErro", corpo);
@@ -113,6 +123,109 @@ public class CatalogSyncServiceClienteNovoTests
         using var json = System.Text.Json.JsonDocument.Parse(corpo!);
         Assert.Equal("JURIDICA", json.RootElement.GetProperty("pessoa").GetString());
         Assert.Equal("Padaria do Zé", json.RootElement.GetProperty("razao_social").GetString());
+    }
+
+    // A API real grava numa coluna razao_social que não aceita nulo (erro 1048 "Column 'razao_social' cannot be null" no
+    // 1º envio real de um cliente, 2026-09-21) — apesar de o Swagger dizer "obrigatório só para JURIDICA".
+    [Fact]
+    public async Task ClienteFisicoTambemEnviaRazaoSocialIgualAoNome()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearClienteAsync(fixture);   // Maria Souza, CPF válido, pessoa física
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        using var json = System.Text.Json.JsonDocument.Parse(corpo!);
+        Assert.Equal("FISICA", json.RootElement.GetProperty("pessoa").GetString());
+        Assert.Equal("Maria Souza", json.RootElement.GetProperty("razao_social").GetString());
+    }
+
+    [Fact]
+    public async Task ClienteComTelefoneEEmailEnviaOObjetoContatoCompleto()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearClienteAsync(fixture, ddd: "83", telefone: "999998888", email: "maria@empresa.com.br");
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        using var json = System.Text.Json.JsonDocument.Parse(corpo!);
+        var contato = json.RootElement.GetProperty("contato");
+        // A API exige nome + DDD + telefone dentro do contato (Swagger).
+        Assert.Equal("Maria Souza", contato.GetProperty("nome").GetString());
+        Assert.Equal("83", contato.GetProperty("ddd").GetString());
+        Assert.Equal("999998888", contato.GetProperty("telefone").GetString());
+        Assert.Equal("maria@empresa.com.br", contato.GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public async Task ClienteSemTelefoneNaoEnviaContato()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        // E-mail sozinho não basta: a API não aceita contato sem DDD e telefone.
+        var id = await SemearClienteAsync(fixture, email: "maria@empresa.com.br");
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        Assert.DoesNotContain("contato", corpo);
+    }
+
+    [Fact]
+    public async Task ContatoSemEmailNaoEnviaOCampoEmail()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearClienteAsync(fixture, ddd: "83", telefone: "32214589");
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        using var json = System.Text.Json.JsonDocument.Parse(corpo!);
+        Assert.False(json.RootElement.GetProperty("contato").TryGetProperty("email", out _));
+    }
+
+    [Fact]
+    public async Task ClienteSemDocumentoTambemEnviaRazaoSocial()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearClienteAsync(fixture, documento: null);
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        using var json = System.Text.Json.JsonDocument.Parse(corpo!);
+        Assert.Equal("Maria Souza", json.RootElement.GetProperty("razao_social").GetString());
     }
 
     [Fact]

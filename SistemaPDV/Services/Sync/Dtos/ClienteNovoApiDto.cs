@@ -20,7 +20,8 @@ public class ClienteNovoRequestDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CpfCnpj { get; set; }
 
-    // Obrigatório pela API quando pessoa = JURIDICA.
+    // O Swagger diz "obrigatório quando JURIDICA", mas a API real exige SEMPRE (coluna sem nulo): quem monta o corpo envia
+    // o nome quando não há razão social.
     [JsonPropertyName("razao_social")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RazaoSocial { get; set; }
@@ -30,6 +31,31 @@ public class ClienteNovoRequestDto
 
     // 0 = Normal (1 é reservado pro placeholder "Consumidor Final").
     [JsonPropertyName("indicador_finalidade")] public int IndicadorFinalidade { get; set; }
+
+    // Campos com valor padrão no Swagger, enviados explicitamente: a API real insere TODAS as colunas do cliente (mandando
+    // nulo no que falta — foi assim que razao_social estourou o erro 1048), então não dá para confiar que o "default" do
+    // Swagger seja aplicado quando o campo some.
+    [JsonPropertyName("bloqueado")] public bool Bloqueado { get; set; }
+    [JsonPropertyName("desativado")] public bool Desativado { get; set; }
+    [JsonPropertyName("permitir_excluir")] public bool PermitirExcluir { get; set; } = true;
+    [JsonPropertyName("limite_credito")] public decimal LimiteCredito { get; set; }
+
+    // Só vai quando há telefone (a API exige nome + DDD + telefone dentro do "contato"). Cidade/UF e endereço não vão: a API
+    // pede o CÓDIGO da cidade (c_cidade), que o app não tem.
+    [JsonPropertyName("contato")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ClienteNovoContatoDto? Contato { get; set; }
+}
+
+public class ClienteNovoContatoDto
+{
+    [JsonPropertyName("nome")] public string Nome { get; set; } = string.Empty;
+    [JsonPropertyName("ddd")] public string Ddd { get; set; } = string.Empty;
+    [JsonPropertyName("telefone")] public string Telefone { get; set; } = string.Empty;
+
+    [JsonPropertyName("email")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Email { get; set; }
 }
 
 public class ClienteNovoRespostaDto

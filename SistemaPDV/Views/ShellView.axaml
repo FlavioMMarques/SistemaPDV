@@ -143,7 +143,7 @@
 
           <!-- A pílula de sincronização é um BOTÃO: abre o painel lateral da fila outbox. -->
           <Button Classes="pillBotao" Command="{Binding AbrirPainelOutboxCommand}"
-                  ToolTip.Tip="Itens que ainda não chegaram à API (caixas, vendas e clientes novos) — clique para ver a fila"
+                  ToolTip.Tip="Itens que ainda não chegaram à API (caixas, vendas, clientes e produtos novos) — clique para ver a fila"
                   AutomationProperties.Name="Sincronização: abrir a fila outbox">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <TextBlock Text="☁" FontSize="12" Foreground="{StaticResource AccentBlueBrush}" VerticalAlignment="Center" />
