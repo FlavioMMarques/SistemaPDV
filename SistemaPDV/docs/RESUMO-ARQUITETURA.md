@@ -119,6 +119,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | Classe | Pra que serve |
 |---|---|
 | `ShellViewModel` / `ShellView` | A casca: decide a tela (Configurações → Login → Abrir caixa/Dashboard → Venda/Pedidos/Cadastros), guarda operador logado e caixa aberto, mostra o indicador de conexão e o banner de erro. Navegação bloqueada durante venda em andamento. |
+| `Toast` / `ToastCentral` | Avisos temporários no canto inferior direito (conexão caiu/voltou, "item adicionado ao cupom"). A `ToastCentral` (do Shell) guarda a lista `Ativos` e some com cada aviso sozinho (esmaece e sai); avisos da mesma `Chave` se substituem em vez de empilhar. |
 | `Tela` | Enum das telas que o Shell sabe mostrar. |
 | `Configuracoes…`, `Login…`, `AbrirCaixa…`, `Dashboard…`, `Pdv…`, `ListaPedidos…`, `Cadastros…` (`ViewModel` + `View`) | Uma dupla por tela. `AbrirCaixaViewModel` lista os 6 turnos do SoftcomShop; `ConfiguracoesViewModel.VincularCommand` devolve se vinculou (o Shell então leva ao Login). |
 | `IAtualizavelPorSincronizacao` | Contrato de telas que se recarregam quando a sincronização mexe no banco (Pedidos e Cadastros; a tela de venda não, pra não mexer no carrinho). O Shell chama, ninguém assina evento (os ViewModels são recriados a cada navegação). |

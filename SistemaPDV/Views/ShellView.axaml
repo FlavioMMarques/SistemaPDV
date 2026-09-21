@@ -19,6 +19,7 @@
     </Style>
   </UserControl.Styles>
 
+  <Grid>
   <DockPanel Name="Raiz">
 
     <!-- Barra do topo (protótipo): logo, pílula do sistema, navegação com a aba atual destacada, chip do operador/caixa e
@@ -166,5 +167,33 @@
     <ContentControl Content="{Binding CurrentViewModel}" />
 
   </DockPanel>
+
+    <!-- Avisos temporários (ToastCentral): canto inferior direito, por cima de tudo e SEM capturar o mouse — um aviso nunca
+         pode tampar o botão Finalizar. Cada um some sozinho (ver Border.toast em Themes/PdvStyles.axaml). -->
+    <ItemsControl ItemsSource="{Binding Toasts.Ativos}"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  Margin="0,0,24,24" IsHitTestVisible="False" Focusable="False">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="8" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:Toast">
+          <Border Classes="toast"
+                  Classes.saindo="{Binding Saindo}" HorizontalAlignment="Right"
+                  AutomationProperties.LiveSetting="Polite">
+            <Grid ColumnDefinitions="4,Auto,*" ColumnSpacing="12">
+              <Border Grid.Column="0" Classes="toastFaixa" Classes.sucesso="{Binding EhSucesso}" Classes.erro="{Binding EhErro}" />
+              <TextBlock Grid.Column="1" Text="{Binding Icone}" FontSize="16" VerticalAlignment="Center" Margin="0,12,0,12" />
+              <TextBlock Grid.Column="2" Text="{Binding Texto}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
+                         Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,12,16,12" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+  </Grid>
 
 </UserControl>

@@ -324,7 +324,7 @@ public class ShellViewModelTests
     }
 
     [Fact]
-    public void DefinirConexaoGuardaOMotivoOuOResumoExcetoQuandoDesconhecida()
+    public async Task DefinirConexaoGuardaOMotivoOuOResumoExcetoQuandoDesconhecida()
     {
         using var fixture = new SqliteInMemoryFixture();
         var (configuracao, login, caixa, dashboard, venda, catalogoLocal, vendaLocal, cadastroLocal) = CriarServicos(fixture);
@@ -346,6 +346,7 @@ public class ShellViewModelTests
         Assert.Equal(EstadoConexao.OnlineComFalhas, shell.Conexao);
         Assert.Equal("Funcionários: 500", shell.DetalheConexao);
 
+        await shell.RecontagemAposReconexao;   // a recontagem disparada ao reconectar termina antes de o banco em memória ser solto
     }
 
     [Fact]

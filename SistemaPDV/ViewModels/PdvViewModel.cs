@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Models;
@@ -351,6 +352,10 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             BandeiraSelecionada = null;
     }
 
+    // Avisa a tela ("Sabonete" adicionado ao cupom) sem o ViewModel conhecer o canto da tela onde o aviso aparece.
+    public IObservable<string> ItemLancado => itemLancado;
+    private readonly Subject<string> itemLancado = new();
+
     public void AdicionarItem(Produto produto)
     {
         var quantidade = ValorMonetario.TentarLer(QuantidadeAdicionar, out var valor, casasDecimais: 3) && valor > 0
@@ -358,6 +363,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             : 1m;
 
         Itens.Add(new ItemCarrinho { Produto = produto, Quantidade = quantidade, PrecoUnitario = produto.PrecoVenda });
+        itemLancado.OnNext(produto.Nome);
     }
 
     public void RemoverItem(ItemCarrinho item) => Itens.Remove(item);

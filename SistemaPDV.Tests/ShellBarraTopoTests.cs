@@ -22,7 +22,7 @@ public class ShellBarraTopoTests
 {
     private const string UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1";
 
-    private static async Task<ShellViewModel> CriarShellLogadoAsync(SqliteInMemoryFixture fixture, bool comCaixaAberto = true)
+    internal static async Task<ShellViewModel> CriarShellLogadoAsync(SqliteInMemoryFixture fixture, bool comCaixaAberto = true)
     {
         int operadorId;
         await using (var context = fixture.CriarContexto())
