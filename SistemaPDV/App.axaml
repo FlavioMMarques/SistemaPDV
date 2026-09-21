@@ -28,5 +28,7 @@
 
     <Application.Styles>
         <FluentTheme />
+        <!-- Estilos do visual do protótipo (botões, cards, pílulas): usam só os tokens do PdvTheme. -->
+        <StyleInclude Source="avares://SistemaPDV/Themes/PdvStyles.axaml" />
     </Application.Styles>
 </Application>
