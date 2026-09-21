@@ -181,7 +181,6 @@ public class EnderecoFormViewModel : ViewModelBase
             // CEP "geral" (cidade pequena, um CEP só) vem sem logradouro/bairro: não apaga o que já estava digitado.
             if (e.Logradouro.Length > 0) Logradouro = e.Logradouro;
             if (e.Bairro.Length > 0) Bairro = e.Bairro;
-            if (e.Complemento.Length > 0 && Complemento.Length == 0) Complemento = e.Complemento;
 
             var cidadeTexto = CadastroLocalService.CidadeUf(e.Cidade, e.Uf) ?? string.Empty;
             cidadeUfDaConsulta = cidadeTexto;
