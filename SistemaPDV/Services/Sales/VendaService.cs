@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -20,11 +21,21 @@ public class VendaService
         this.contextFactory = contextFactory;
     }
 
-    public async Task<Venda> RegistrarVendaLocalAsync(
+    // Sem bandeira de cartão (forma que não é cartão, ou ainda sem cartões sincronizados) — o caso de sempre.
+    public Task<Venda> RegistrarVendaLocalAsync(
         int caixaId,
         int? clienteId,
         IReadOnlyList<(int ProdutoId, decimal Quantidade, decimal PrecoUnitario, decimal DescontoItem, decimal AcrescimoItem)> itens,
         IReadOnlyList<(int FormaPagamentoId, decimal Valor)> pagamentos,
+        CancellationToken ct = default) =>
+        RegistrarVendaLocalAsync(caixaId, clienteId, itens, pagamentos.Select(p => (p.FormaPagamentoId, p.Valor, (string?)null)).ToList(), ct);
+
+    // Com a bandeira escolhida em cada pagamento (BandeiraNome de um Cartao sincronizado; nula quando não se aplica).
+    public async Task<Venda> RegistrarVendaLocalAsync(
+        int caixaId,
+        int? clienteId,
+        IReadOnlyList<(int ProdutoId, decimal Quantidade, decimal PrecoUnitario, decimal DescontoItem, decimal AcrescimoItem)> itens,
+        IReadOnlyList<(int FormaPagamentoId, decimal Valor, string? Bandeira)> pagamentos,
         CancellationToken ct = default)
     {
         // Número do pedido: sequencial e único neste dispositivo (índice único no banco). Lido do banco — não de um
@@ -67,7 +78,7 @@ public class VendaService
         int caixaId,
         int? clienteId,
         IReadOnlyList<(int ProdutoId, decimal Quantidade, decimal PrecoUnitario, decimal DescontoItem, decimal AcrescimoItem)> itens,
-        IReadOnlyList<(int FormaPagamentoId, decimal Valor)> pagamentos)
+        IReadOnlyList<(int FormaPagamentoId, decimal Valor, string? Bandeira)> pagamentos)
     {
         // Guid gerado aqui, na criação — nunca depois. É a chave de idempotência
         // enviada como "guid" pra API (ver VendaSyncService), então precisa nascer
@@ -93,13 +104,14 @@ public class VendaService
             });
         }
 
-        foreach (var (formaPagamentoId, valor) in pagamentos)
+        foreach (var (formaPagamentoId, valor, bandeira) in pagamentos)
         {
             venda.Pagamentos.Add(new PagamentoVenda
             {
                 VendaId = venda.Id,
                 FormaPagamentoId = formaPagamentoId,
                 Valor = valor,
+                Bandeira = string.IsNullOrWhiteSpace(bandeira) ? null : bandeira.Trim(),
             });
         }
 

@@ -142,6 +142,17 @@
                      FontFamily="{StaticResource FontMono}"
                      CornerRadius="{StaticResource RadiusSmall}"
                      AutomationProperties.Name="Valor do pagamento" />
+
+            <!-- Só aparece se já há cartões sincronizados. Obrigatória ao adicionar um pagamento em cartão. -->
+            <StackPanel Spacing="4" IsVisible="{Binding TemBandeiras}">
+              <TextBlock Text="Bandeira do cartão" Foreground="{StaticResource TextMutedBrush}" />
+              <ComboBox ItemsSource="{Binding BandeirasDisponiveis}"
+                        SelectedItem="{Binding BandeiraSelecionada, Mode=TwoWay}"
+                        PlaceholderText="Escolha (só para cartão)"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="Bandeira do cartão" />
+            </StackPanel>
+
             <ItemsControl ItemsSource="{Binding FormasPagamentoDisponiveis}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="models:FormaPagamento">
@@ -161,7 +172,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PagamentoAlocado">
                   <Grid ColumnDefinitions="*,Auto,Auto">
-                    <TextBlock Grid.Column="0" Text="{Binding FormaPagamento.Nome}" Foreground="{StaticResource TextMutedBrush}" />
+                    <TextBlock Grid.Column="0" Text="{Binding Descricao}" Foreground="{StaticResource TextMutedBrush}" />
                     <TextBlock Grid.Column="1" Text="{Binding Valor, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMainBrush}" Margin="8,0" />
                     <Button Grid.Column="2"
                             Content="✕"

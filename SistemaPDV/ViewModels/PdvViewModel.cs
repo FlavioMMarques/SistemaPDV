@@ -26,6 +26,8 @@ public class PdvViewModel : ViewModelBase
     private IReadOnlyList<Produto> produtosDisponiveis = Array.Empty<Produto>();
     private IReadOnlyList<Cliente> clientesDisponiveis = Array.Empty<Cliente>();
     private IReadOnlyList<FormaPagamento> formasPagamentoDisponiveis = Array.Empty<FormaPagamento>();
+    private IReadOnlyList<string> bandeirasDisponiveis = Array.Empty<string>();
+    private string? bandeiraSelecionada;
     private Cliente? clienteSelecionado;
     private string filtroProduto = string.Empty;
     private string quantidadeAdicionar = "1";
@@ -124,6 +126,26 @@ public class PdvViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref quantidadeAdicionar, value);
     }
 
+    // Bandeiras dos cartões sincronizados. Vazia = ainda não há cartões: o pagamento em cartão segue sem bandeira.
+    public IReadOnlyList<string> BandeirasDisponiveis
+    {
+        get => bandeirasDisponiveis;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref bandeirasDisponiveis, value);
+            this.RaisePropertyChanged(nameof(TemBandeiras));
+        }
+    }
+
+    public bool TemBandeiras => BandeirasDisponiveis.Count > 0;
+
+    // Escolha do operador para o PRÓXIMO pagamento em cartão; volta a nula depois de cada pagamento adicionado.
+    public string? BandeiraSelecionada
+    {
+        get => bandeiraSelecionada;
+        set => this.RaiseAndSetIfChanged(ref bandeiraSelecionada, value);
+    }
+
     public string ValorPagamentoAdicionar
     {
         get => valorPagamentoAdicionar;
@@ -161,6 +183,7 @@ public class PdvViewModel : ViewModelBase
         ProdutosDisponiveis = await catalogoLocalService.ListarProdutosDisponiveisAsync();
         ClientesDisponiveis = await catalogoLocalService.ListarClientesAsync();
         FormasPagamentoDisponiveis = await catalogoLocalService.ListarFormasPagamentoDisponiveisAsync();
+        BandeirasDisponiveis = await catalogoLocalService.ListarBandeirasAsync();
     }
 
     public void AdicionarItem(Produto produto)
@@ -186,8 +209,23 @@ public class PdvViewModel : ViewModelBase
             return;
         }
 
+        // Cartão com bandeiras sincronizadas: a bandeira é OBRIGATÓRIA (é o que alimenta a apuração por bandeira no
+        // fechamento). Sem cartões sincronizados não há o que escolher, então não trava a venda — só fica sem bandeira.
+        string? bandeira = null;
+        if (forma.EhCartao && TemBandeiras)
+        {
+            if (string.IsNullOrEmpty(BandeiraSelecionada))
+            {
+                Mensagem = "Escolha a bandeira do cartão antes de adicionar o pagamento.";
+                return;
+            }
+
+            bandeira = BandeiraSelecionada;
+        }
+
         Mensagem = null;
-        Pagamentos.Add(new PagamentoAlocado { FormaPagamento = forma, Valor = valor });
+        Pagamentos.Add(new PagamentoAlocado { FormaPagamento = forma, Valor = valor, Bandeira = bandeira });
+        BandeiraSelecionada = null;   // a escolha vale para um pagamento só (o próximo cartão pode ser de outra bandeira)
     }
 
     public void RemoverPagamento(PagamentoAlocado pagamento) => Pagamentos.Remove(pagamento);
@@ -200,7 +238,7 @@ public class PdvViewModel : ViewModelBase
             .Select(i => (i.Produto.Id, i.Quantidade, i.PrecoUnitario, i.DescontoItem, i.AcrescimoItem))
             .ToList();
         var pagamentos = Pagamentos
-            .Select(p => (p.FormaPagamento.Id, p.Valor))
+            .Select(p => (p.FormaPagamento.Id, p.Valor, p.Bandeira))
             .ToList();
 
         var venda = await vendaService.RegistrarVendaLocalAsync(caixaId, ClienteSelecionado?.Id, itens, pagamentos);
@@ -219,6 +257,7 @@ public class PdvViewModel : ViewModelBase
         ClienteSelecionado = null;
         QuantidadeAdicionar = "1";
         ValorPagamentoAdicionar = string.Empty;
+        BandeiraSelecionada = null;
         return Task.CompletedTask;
     }
 }
