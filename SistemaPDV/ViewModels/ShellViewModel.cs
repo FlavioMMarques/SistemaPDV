@@ -451,8 +451,9 @@ public class ShellViewModel : ViewModelBase
     {
         var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId, OperadorLogado?.Id);
         await viewModel.IniciarAsync();
-        if (vendaParaSelecionar is { } vendaId)
-            viewModel.VendaSelecionada = viewModel.Vendas.FirstOrDefault(v => v.Id == vendaId);
+        // Vindo do "Detalhes" do painel principal: já chega com o modal daquela venda aberto.
+        if (vendaParaSelecionar is { } vendaId && viewModel.Vendas.FirstOrDefault(v => v.Id == vendaId) is { } venda)
+            await viewModel.AbrirDetalheAsync(venda);
         // Só emitem (mesmo padrão do painel): o Shell decide navegar ou pedir a sincronização.
         viewModel.NovaVendaCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(() => IrParaPdvAsync(caixaId)));
         viewModel.SincronizarAgoraCommand.Subscribe(evento => SolicitarSincronizacao());
