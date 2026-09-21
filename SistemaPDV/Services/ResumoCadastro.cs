@@ -71,8 +71,12 @@ public class ResultadoCriacaoCliente
 }
 
 // O que o modal "Cadastrar Cliente" preenche. Só Nome e CPF/CNPJ são obrigatórios; o resto é opcional.
-// Telefone: "(83) 99999-8888" (DDD + número); CidadeUf: "João Pessoa - PB".
-public record NovoClienteDados(string? Nome, string? CpfCnpj, string? Telefone = null, string? Email = null, string? CidadeUf = null);
+// Telefone: "(83) 99999-8888" (DDD + número); CidadeUf: "João Pessoa - PB"; Cep: "58039-000". CodigoCidade: o código IBGE da cidade
+// (7 dígitos, vem da consulta de CEP) — só vale junto com a cidade que a consulta trouxe.
+public record NovoClienteDados(
+    string? Nome, string? CpfCnpj, string? Telefone = null, string? Email = null, string? CidadeUf = null,
+    string? Cep = null, string? Logradouro = null, string? Numero = null, string? Complemento = null, string? Bairro = null,
+    string? CodigoCidade = null);
 
 // O que o modal "Cadastrar Produto" preenche. Preço e estoque chegam como texto digitado ("12,50" / "50"); a categoria é o
 // IdExterno do Grupo sincronizado (a API exige um grupo que já exista lá).

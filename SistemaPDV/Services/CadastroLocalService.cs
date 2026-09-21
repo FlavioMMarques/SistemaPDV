@@ -181,6 +181,31 @@ public class CadastroLocalService
         if (!TentarLerCidadeUf(dados.CidadeUf, out var cidade, out var uf))
             return ResultadoCriacaoCliente.ComFalha($"Cidade inválida — use no máximo {TamanhoMaximoCidade} caracteres, como João Pessoa - PB.");
 
+        string? cep = null;
+        if (!string.IsNullOrWhiteSpace(dados.Cep))
+        {
+            if (!CepService.TentarNormalizar(dados.Cep, out var cepNormalizado))
+                return ResultadoCriacaoCliente.ComFalha("CEP inválido — informe os 8 dígitos (ex: 58039-000).");
+            cep = cepNormalizado;
+        }
+
+        var logradouro = Aparar(dados.Logradouro);
+        var numero = Aparar(dados.Numero);
+        var complemento = Aparar(dados.Complemento);
+        var bairro = Aparar(dados.Bairro);
+        if (logradouro?.Length > TamanhoMaximoLogradouro)
+            return ResultadoCriacaoCliente.ComFalha($"O endereço pode ter no máximo {TamanhoMaximoLogradouro} caracteres.");
+        if (numero?.Length > TamanhoMaximoNumero)
+            return ResultadoCriacaoCliente.ComFalha($"O número pode ter no máximo {TamanhoMaximoNumero} caracteres.");
+        if (complemento?.Length > TamanhoMaximoComplementoBairro)
+            return ResultadoCriacaoCliente.ComFalha($"O complemento pode ter no máximo {TamanhoMaximoComplementoBairro} caracteres.");
+        if (bairro?.Length > TamanhoMaximoComplementoBairro)
+            return ResultadoCriacaoCliente.ComFalha($"O bairro pode ter no máximo {TamanhoMaximoComplementoBairro} caracteres.");
+
+        // O código IBGE só vale com 7 dígitos E com uma cidade: um código sem cidade (ou de tamanho errado) seria rejeitado pela API.
+        var codigoCidade = DocumentoValidator.SoDigitos(dados.CodigoCidade);
+        var codigoCidadeValido = cidade is not null && codigoCidade.Length == 7 ? codigoCidade : null;
+
         await using var context = contextFactory();
 
         if (await context.Clientes.AnyAsync(c => c.CpfCnpj == documento, ct))
@@ -196,7 +221,13 @@ public class CadastroLocalService
             ContatoDdd = ddd,
             ContatoTelefone = numeroTelefone,
             ContatoEmail = string.IsNullOrEmpty(email) ? null : email,
+            Cep = cep,
+            Endereco = logradouro,
+            Numero = numero,
+            Complemento = complemento,
+            Bairro = bairro,
             Cidade = cidade,
+            CodigoCidade = codigoCidadeValido,
             Uf = uf,
             SyncStatus = SyncStatus.PendenteSync,
         };
@@ -305,6 +336,11 @@ public class CadastroLocalService
 
     private const int TamanhoMaximoCidade = 60;
     private const int TamanhoMaximoEmail = 100;
+    private const int TamanhoMaximoLogradouro = 150;
+    private const int TamanhoMaximoNumero = 20;
+    private const int TamanhoMaximoComplementoBairro = 80;
+
+    private static string? Aparar(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     // Telefone é opcional. Aceita "(83) 99999-8888", "83999998888", "+55 83 99999-8888": DDD + 8 ou 9 dígitos. A API guarda o
     // DDD à parte, então sai separado (ddd, número). Vazio = sem telefone (true, com os dois nulos); qualquer outra coisa = false.
