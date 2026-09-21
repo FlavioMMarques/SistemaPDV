@@ -31,6 +31,14 @@ public class ClienteNovoRequestDto
 
     // 0 = Normal (1 é reservado pro placeholder "Consumidor Final").
     [JsonPropertyName("indicador_finalidade")] public int IndicadorFinalidade { get; set; }
+
+    // Campos com valor padrão no Swagger, enviados explicitamente: a API real insere TODAS as colunas do cliente (mandando
+    // nulo no que falta — foi assim que razao_social estourou o erro 1048), então não dá para confiar que o "default" do
+    // Swagger seja aplicado quando o campo some.
+    [JsonPropertyName("bloqueado")] public bool Bloqueado { get; set; }
+    [JsonPropertyName("desativado")] public bool Desativado { get; set; }
+    [JsonPropertyName("permitir_excluir")] public bool PermitirExcluir { get; set; } = true;
+    [JsonPropertyName("limite_credito")] public decimal LimiteCredito { get; set; }
 }
 
 public class ClienteNovoRespostaDto
