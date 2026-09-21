@@ -64,6 +64,7 @@ public class FilaOutboxLogTests
     {
         public bool Ligada { get; set; } = true;
         public HttpStatusCode RespostaDaVenda { get; set; } = HttpStatusCode.OK;
+        public bool AutenticacaoRecusada { get; set; }
 
         public HttpClient CriarHttpClient() => FakeHttpMessageHandler.CriarHttpClient(requisicao =>
         {
@@ -74,7 +75,9 @@ public class FilaOutboxLogTests
             if (requisicao.Method == HttpMethod.Head)
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
             if (caminho.EndsWith("/authentication/token"))
-                return Json(HttpStatusCode.OK, """{ "data": { "token": "token-fake" } }""");
+                return AutenticacaoRecusada
+                    ? Json(HttpStatusCode.Unauthorized, """{ "message": "corpo-bruto-da-resposta" }""")
+                    : Json(HttpStatusCode.OK, """{ "data": { "token": "token-fake" } }""");
             if (requisicao.Method == HttpMethod.Post && caminho.EndsWith("/vendas"))
                 return RespostaDaVenda == HttpStatusCode.OK
                     ? Json(HttpStatusCode.OK, """{ "data": { "id": 999 } }""")
@@ -207,6 +210,22 @@ public class FilaOutboxLogTests
         Assert.Single(textos, t => t.StartsWith("Conexão restabelecida"));
         Assert.True(textos.FindIndex(t => t.StartsWith("Conexão perdida")) < textos.FindIndex(t => t.StartsWith("Conexão restabelecida")));
         Assert.Equal(NivelAtividade.Aviso, service.Log.Recentes.Last(e => e.Texto.StartsWith("Conexão perdida")).Nivel);
+    }
+
+    [Fact]
+    public async Task CredencialRecusadaNaoViraConexaoPerdidaENemMostraOCorpoDaResposta()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearVendaPendenteAsync(fixture);
+        using var service = CriarService(fixture, new RedeFake { AutenticacaoRecusada = true });
+
+        await service.ExecutarCicloOutboxAsync();
+
+        var linha = Assert.Single(service.Log.Recentes, e => e.Nivel == NivelAtividade.Aviso);
+        Assert.StartsWith("Não foi possível falar com a API", linha.Texto);           // o operador não vai olhar o cabo à toa
+        Assert.DoesNotContain(service.Log.Recentes, e => e.Texto.Contains("Conexão perdida"));
+        Assert.DoesNotContain(service.Log.Recentes, e => e.Texto.Contains("corpo-bruto-da-resposta"));   // o motivo bruto fica fora da tela
+        Assert.Contains("corpo-bruto-da-resposta", service.MensagemUltimoCiclo);                          // ...e continua na dica da pílula
     }
 
     [Fact]
