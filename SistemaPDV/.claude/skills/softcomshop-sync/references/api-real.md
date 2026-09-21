@@ -26,6 +26,8 @@ O domínio (`https://<dominio>`) **muda por cliente/dispositivo**: vem do link d
 | Cartões/bandeiras | `GET softauth/api/financeiros/cartoes/page/{n}` — **sem `v2`** (exceção!) |
 | Abrir caixa | `POST softauth/api/v2/financeiro/caixa-funcoes/abrir` |
 | Fechar caixa | `POST softauth/api/v2/financeiro/caixa-funcoes/fechar` |
+| Listar caixas (só leitura) | `GET softauth/api/v2/financeiro/caixa-funcoes` (`data_inicial`, `data_final`, `fechado=1`, `per_page`, `page`) |
+| Cadastrar produtos (lote) | `POST softauth/api/v2/produtos/produtos` (o mesmo caminho da listagem) |
 | Venda | `POST softauth/api/v2/vendas` |
 | Token | `POST softauth/authentication/token` (sem `api/v2`) |
 
@@ -78,7 +80,25 @@ Resposta de sucesso: `data.id`.
 - **[hipótese]** `valor_recebido` diferente de `valor_pagamento` (troco) ainda **não foi confirmado** com venda real: hoje vai igual ao valor.
 
 ### Criar cliente
-`pessoa` (`FISICA`/`JURIDICA`), `nome`, `cpf_cnpj` (só dígitos), `razao_social` (obrigatória se jurídica), `contribuinte_icms` (9 = não contribuinte), `indicador_finalidade` (0 normal; 1 é o Consumidor Final). Campos nulos são **omitidos**. Resposta: `data.id`. `409` **não** traz o id (veja `arquitetura-outbox.md`).
+`pessoa` (`FISICA`/`JURIDICA`, derive do documento: 14 dígitos = CNPJ), `nome`, `cpf_cnpj` (só dígitos), **`razao_social` SEMPRE** (o Swagger diz "só para jurídica", mas a coluna não aceita nulo e a API responde `1048 Column 'razao_social' cannot be null`; para pessoa física mande o nome), `contribuinte_icms` (9 = não contribuinte), `indicador_finalidade` (0 normal; 1 é o Consumidor Final). **Mande também os padrões do Swagger explícitos** — `bloqueado:false`, `desativado:false`, `permitir_excluir:true`, `limite_credito:0` — porque a API grava todas as colunas e o "default" da documentação não é aplicado quando o campo some.
+
+Opcionais que **funcionam** (confirmado):
+- `contato: { nome, ddd, telefone, email? }` — só mande o objeto **com telefone** (a API exige nome + DDD + telefone dentro dele; e-mail sozinho não vale). **[hipótese]** ainda não testado com POST real.
+- `endereco: { cep, endereco, numero, bairro, complemento, c_cidade }` — omita o que estiver vazio. **`c_cidade` é o código IBGE da cidade** (7 dígitos, ex: `2507507` = João Pessoa), **não** o nome nem o `cidade_id`. Confirmado: a API aceitou o IBGE, devolveu `codigo_cidade` e resolveu sozinha o `cidade_id` interno. O bairro chega e a API o devolve, mas a **tela do SoftcomShop não o exibe** (causa ainda desconhecida).
+
+Campos nulos são **omitidos**. Resposta: `data.id`. `409` **não** traz o id (veja `arquitetura-outbox.md`).
+
+**Dois códigos de cidade, cuidado:** a listagem de clientes traz `cidade_id` (número **interno** da API: João Pessoa 1336) e `codigo_cidade` (**IBGE**: 2507507). Para enviar, use o IBGE. Para obtê-lo a partir do CEP, o ViaCEP (`https://viacep.com.br/ws/{cep}/json/`) devolve o campo `ibge`; o campo `complemento` dele é uma **faixa de numeração**, não o complemento do cliente — não use.
+
+### Cadastrar produto (cadastro múltiplo)
+`POST softauth/api/v2/produtos/produtos` com `{ "produtos": [ … ] }` — de 1 a 100 por requisição, **numa transação só** (uma falha desfaz o lote inteiro; por isso mande **um produto por requisição**). Campos que o app envia: `nome` (≤255, único entre os ativos), `grupo_id` (**obrigatório**: id de um grupo ativo que já existe; não aceita 0), `preco_venda` (obrigatório), `codigo_barras` e/ou `referencia` (≤20; únicos entre os ativos; omita se vazio), e os padrões explícitos `vender:true`, `controlar_estoque:true`, `desativado:false`, `habilitar_grade:false`, `agrupar_pedido:true`, `tipo_produto:"PRODUTO"`. **Não mande `preco_compra`/`margem_lucro`/`percentual_comissao_produto` zerados** (podem anular o preço).
+
+Resposta: `data.created[].id` (o `produto_id` da venda) e `produto_empresas[].produto_empresa_grade.id` (o `produto_empresa_grade_id` da venda); use a grade da empresa **do dispositivo** (`empresa_id`). Erros: `422 {"errors":{"produtos.0.nome":[…]}}`; `500 {"message":…, "errors":"texto"}` (aqui `errors` é uma **string**).
+
+**Limitações não resolvidas (em espera):** o cadastro **não tem campo de estoque**, e o produto chega **com `preco_venda = 0` e `estoque = 0` no registro da empresa** (o preço/estoque são por `empresa_id`/`produto_empresa_id`). Falta descobrir o endpoint que atualiza o preço da empresa e o que lança estoque. Até lá, o "estoque inicial" digitado fica só local e a próxima sincronização o sobrescreve com o da API.
+
+### Listar caixas (só leitura)
+`GET softauth/api/v2/financeiro/caixa-funcoes?per_page=15&page=1` + opcionais `data_inicial`/`data_final` (`yyyy-MM-dd`) e `fechado=1` (só os fechados). Sem datas, a API devolve os **últimos 7 dias**. Envelope de página padrão; cada item: `id`, `api_device_id`, `operador_id` (= `Funcionario.IdExterno`), `turno`, `data_caixa`, `data_abertura`, `data_fechamento` (`null` = aberto), `usuario_abertura_id`, `usuario_fechamento_id`, `device_client_id`. **Confirmado com a API real.** Mostra caixas de **qualquer PDV** da empresa, não só deste dispositivo.
 
 ## 7. Erros
 
