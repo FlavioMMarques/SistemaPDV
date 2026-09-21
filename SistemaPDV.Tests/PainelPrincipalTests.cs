@@ -165,6 +165,27 @@ public class PainelPrincipalTests
     }
 
     [Fact]
+    public async Task AposUmaSincronizacaoOPainelRecarregaOEstadoDasVendas()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var caixaId = await SemearCaixaAsync(fixture);
+        await SemearVendasAsync(fixture, caixaId, 1, SyncStatus.PendenteSync);
+        var viewModel = CriarViewModel(fixture, caixaId);
+        await viewModel.IniciarAsync();
+        Assert.Equal(SyncStatus.PendenteSync, viewModel.UltimasVendas.Single().SyncStatus);
+
+        await using (var context = fixture.CriarContexto())
+        {
+            (await context.Vendas.SingleAsync()).SyncStatus = SyncStatus.Sincronizado;   // o ciclo de sincronização enviou a venda
+            await context.SaveChangesAsync();
+        }
+        await viewModel.AtualizarAposSincronizacaoAsync();                                // o Shell avisa que o banco mudou
+
+        Assert.Equal(SyncStatus.Sincronizado, viewModel.UltimasVendas.Single().SyncStatus);   // o selo não fica "Pendente" para sempre
+        Assert.IsAssignableFrom<IAtualizavelPorSincronizacao>(viewModel);
+    }
+
+    [Fact]
     public async Task SemVendasDizPorqueEmVezDeTabelaEmBranco()
     {
         using var fixture = new SqliteInMemoryFixture();
