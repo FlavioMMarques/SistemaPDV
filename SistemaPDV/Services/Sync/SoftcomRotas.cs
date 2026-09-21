@@ -21,6 +21,11 @@ public static class SoftcomRotas
     // envelope também é outro (PaginaMetaApiDto) e o número da página vai no fim do caminho.
     public const string Cartoes = "softauth/api/financeiros/cartoes/page";
 
+    // Grupos (categorias) de produto: sob "v2" e com o envelope padrão de página (conferido na API real em 2026-09-21). Sem
+    // "/page/N" — com ele a rota responde 500; a paginação vem por next_page_url. A rota SEM v2 também responde, mas com o
+    // outro envelope (o dos cartões) e tudo em texto.
+    public const string Grupos = Prefixo + "/produtos/grupos";
+
     // Escrita (URL completa: EnviarAsync recebe a URL inteira).
     public static string CaixaAbrir(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/abrir";
     public static string CaixaFechar(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/fechar";

@@ -11,6 +11,7 @@ public class ResultadoSincronizacaoCompleta
     public ResultadoSincronizacaoRecurso? Funcionarios { get; init; }
     public ResultadoSincronizacaoRecurso? Empresa { get; init; }
     public ResultadoSincronizacaoRecurso? Cartoes { get; init; }
+    public ResultadoSincronizacaoRecurso? Grupos { get; init; }
 
     public bool TudoComSucesso =>
         AutenticacaoSucesso &&
@@ -19,5 +20,6 @@ public class ResultadoSincronizacaoCompleta
         (Produtos?.Sucesso ?? false) &&
         (Funcionarios?.Sucesso ?? false) &&
         (Empresa?.Sucesso ?? false) &&
-        (Cartoes?.Sucesso ?? false);
+        (Cartoes?.Sucesso ?? false) &&
+        (Grupos?.Sucesso ?? false);
 }
