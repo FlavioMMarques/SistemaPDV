@@ -367,7 +367,9 @@ public partial class CatalogSyncService
             Pessoa = juridica ? "JURIDICA" : "FISICA",
             Nome = nome,
             CpfCnpj = temDocumento ? documento : null,
-            RazaoSocial = juridica ? (string.IsNullOrWhiteSpace(cliente.RazaoSocial) ? nome : cliente.RazaoSocial.Trim()) : null,
+            // Sempre enviada, também para pessoa física (usa o nome): o Swagger diz "obrigatório só para JURIDICA", mas a API
+            // real grava numa coluna que não aceita nulo e recusa o cliente (erro 1048, 1º envio real em 2026-09-21).
+            RazaoSocial = string.IsNullOrWhiteSpace(cliente.RazaoSocial) ? nome : cliente.RazaoSocial.Trim(),
         };
 
         var resultado = await apiClient.EnviarAsync(

@@ -115,6 +115,47 @@ public class CatalogSyncServiceClienteNovoTests
         Assert.Equal("Padaria do Zé", json.RootElement.GetProperty("razao_social").GetString());
     }
 
+    // A API real grava numa coluna razao_social que não aceita nulo (erro 1048 "Column 'razao_social' cannot be null" no
+    // 1º envio real de um cliente, 2026-09-21) — apesar de o Swagger dizer "obrigatório só para JURIDICA".
+    [Fact]
+    public async Task ClienteFisicoTambemEnviaRazaoSocialIgualAoNome()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearClienteAsync(fixture);   // Maria Souza, CPF válido, pessoa física
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        using var json = System.Text.Json.JsonDocument.Parse(corpo!);
+        Assert.Equal("FISICA", json.RootElement.GetProperty("pessoa").GetString());
+        Assert.Equal("Maria Souza", json.RootElement.GetProperty("razao_social").GetString());
+    }
+
+    [Fact]
+    public async Task ClienteSemDocumentoTambemEnviaRazaoSocial()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearClienteAsync(fixture, documento: null);
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, """{ "data": { "id": 1 } }""");
+        });
+
+        await CriarService(fixture, httpClient).SincronizarClienteNovoAsync(id, "token-fake");
+
+        using var json = System.Text.Json.JsonDocument.Parse(corpo!);
+        Assert.Equal("Maria Souza", json.RootElement.GetProperty("razao_social").GetString());
+    }
+
     [Fact]
     public async Task PessoaEhDerivadaDoDocumentoNaoDoCampoLocal()
     {
