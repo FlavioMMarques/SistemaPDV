@@ -72,6 +72,10 @@ public class LoginAtrasoProgressivoTests
 
     // ---- o serviço de login ----
 
+    // O único funcionário semeado por CriarServicoAsync (o 1º de um banco novo).
+    private const int CarlosId = 1;
+    private static readonly OperadorLogin Carlos = new(CarlosId, "Carlos", false);
+
     private static async Task<LoginOperadorService> CriarServicoAsync(SqliteInMemoryFixture fixture, RelogioFalso relogio)
     {
         await using var context = fixture.CriarContexto();
@@ -83,7 +87,7 @@ public class LoginAtrasoProgressivoTests
     private static async Task ErrarAsync(LoginOperadorService servico, int vezes)
     {
         for (var i = 0; i < vezes; i++)
-            Assert.Null(await servico.AutenticarAsync("0000"));
+            Assert.Null(await servico.AutenticarAsync(CarlosId, "0000"));
     }
 
     [Fact]
@@ -95,7 +99,7 @@ public class LoginAtrasoProgressivoTests
         await ErrarAsync(servico, 3);
 
         Assert.Equal(TimeSpan.Zero, servico.EsperaRestante);
-        Assert.NotNull(await servico.AutenticarAsync("1234"));
+        Assert.NotNull(await servico.AutenticarAsync(CarlosId, "1234"));
     }
 
     [Fact]
@@ -106,7 +110,7 @@ public class LoginAtrasoProgressivoTests
         await ErrarAsync(servico, 4);
 
         Assert.Equal(TimeSpan.FromSeconds(5), servico.EsperaRestante);
-        Assert.Null(await servico.AutenticarAsync("1234"));   // nem a chave certa vale durante a espera
+        Assert.Null(await servico.AutenticarAsync(CarlosId, "1234"));   // nem a chave certa vale durante a espera
     }
 
     [Fact]
@@ -118,7 +122,7 @@ public class LoginAtrasoProgressivoTests
         await ErrarAsync(servico, 5);   // espera de 10 s
         relogio.Avancar(TimeSpan.FromSeconds(10));
 
-        Assert.NotNull(await servico.AutenticarAsync("1234"));
+        Assert.NotNull(await servico.AutenticarAsync(CarlosId, "1234"));
 
         Assert.Equal(TimeSpan.Zero, servico.EsperaRestante);
         await ErrarAsync(servico, 3);   // recomeça com as 3 livres
@@ -167,7 +171,7 @@ public class LoginAtrasoProgressivoTests
     {
         using var fixture = new SqliteInMemoryFixture();
         var servico = await CriarServicoAsync(fixture, new RelogioFalso());
-        var viewModel = new LoginViewModel(servico) { PdvKeyDigitada = "0000" };
+        var viewModel = new LoginViewModel(servico) { OperadorSelecionado = Carlos, PdvKeyDigitada = "0000" };
 
         for (var i = 0; i < 3; i++)
         {
@@ -193,7 +197,7 @@ public class LoginAtrasoProgressivoTests
         var servico = await CriarServicoAsync(fixture, relogio);
         await ErrarAsync(servico, 4);
         relogio.Avancar(TimeSpan.FromSeconds(5));
-        var viewModel = new LoginViewModel(servico) { PdvKeyDigitada = "1234" };
+        var viewModel = new LoginViewModel(servico) { OperadorSelecionado = Carlos, PdvKeyDigitada = "1234" };
 
         var funcionario = await viewModel.EntrarCommand.Execute();
 

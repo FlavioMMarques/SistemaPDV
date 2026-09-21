@@ -101,9 +101,13 @@ public class ShellViewModel : ViewModelBase
         // Configurações: qualquer tela depois do login (não exige caixa aberto — o código do PDV precisa ser definido
         // ANTES de vender), bloqueada só com venda em andamento como as outras. A chave do supervisor é pedida na
         // própria tela (ConfiguracoesViewModel), não aqui.
-        var podeAbrirConfiguracoes = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null)
+        var logadoSemVendaEmAndamento = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null)
             .CombineLatest(semVendaEmAndamento, (logado, semVenda) => logado && semVenda);
-        IrParaConfiguracoesCommand = ReactiveCommand.CreateFromTask(() => IrParaConfiguracoesAsync(exigirSupervisor: true), podeAbrirConfiguracoes);
+        IrParaConfiguracoesCommand = ReactiveCommand.CreateFromTask(() => IrParaConfiguracoesAsync(exigirSupervisor: true), logadoSemVendaEmAndamento);
+
+        // Sair (logoff): volta ao login para trocar de operador. Mesma regra das Configurações — sair com o carrinho cheio
+        // descartaria a venda, então fica bloqueado até finalizar ou cancelar.
+        SairCommand = ReactiveCommand.CreateFromTask(SairAsync, logadoSemVendaEmAndamento);
 
         // Painel lateral da fila outbox (abre pela pílula "Sync: N pendentes" da barra do topo). Disponível em qualquer tela
         // depois do login — inclusive sem caixa aberto (a fila pode ter clientes novos) — e fecha com Esc.
@@ -350,6 +354,7 @@ public class ShellViewModel : ViewModelBase
     public ReactiveCommand<Unit, Unit> IrParaCadastrosCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaFecharCaixaCommand { get; }
     public ReactiveCommand<Unit, Unit> IrParaConfiguracoesCommand { get; }
+    public ReactiveCommand<Unit, Unit> SairCommand { get; }
 
     // Marcado aqui (não a classe inteira) porque IniciarAsync é o único caminho que
     // pode chegar em IrParaConfiguracoesAsync, que constrói ConfiguracoesViewModel
@@ -367,7 +372,7 @@ public class ShellViewModel : ViewModelBase
             return;
         }
 
-        IrParaLogin();
+        await IrParaLoginAsync();
     });
 
     [SupportedOSPlatform("windows")]
@@ -380,7 +385,7 @@ public class ShellViewModel : ViewModelBase
         // próximo tick do timer — sem funcionários locais a chave do operador não passa.
         viewModel.VincularCommand
             .Where(vinculou => vinculou)
-            .Subscribe(_ =>
+            .Subscribe(vinculou =>
             {
                 // Um novo vínculo pode ser de OUTRA empresa: quem estava logado e o caixa aberto deixam de valer, o
                 // operador entra de novo. (Na 1ª vinculação já são null — não muda nada.)
@@ -389,7 +394,7 @@ public class ShellViewModel : ViewModelBase
 
                 // Avisa ANTES de navegar: quem espera a troca de tela já encontra o aviso feito.
                 dispositivoVinculado.OnNext(Unit.Default);
-                IrParaLogin();
+                _ = ExecutarComTratamentoDeErroAsync(IrParaLoginAsync);
             });
 
         // "Voltar" (só existe quando aberta pelo botão): de volta ao ponto em que o operador estava.
@@ -407,7 +412,7 @@ public class ShellViewModel : ViewModelBase
         TelaAtual = Tela.Configuracoes;
     }
 
-    private void IrParaLogin()
+    private async Task IrParaLoginAsync()
     {
         var viewModel = new LoginViewModel(loginOperadorService);
 
@@ -418,8 +423,26 @@ public class ShellViewModel : ViewModelBase
             .Where(funcionario => funcionario is not null)
             .Subscribe(funcionario => _ = ExecutarComTratamentoDeErroAsync(() => AposLoginAsync(funcionario!)));
 
+        // Carrega ANTES de mostrar: a tela já abre com a lista (ou com o aviso de "nenhum operador"), sem piscar vazia.
+        await viewModel.CarregarOperadoresAsync();
+
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Login;
+    }
+
+    // Logoff: esquece o operador e o caixa DELE na tela e volta ao login. Nada é fechado nem apagado — o caixa segue aberto
+    // no banco e o operador o reencontra ao entrar de novo (AposLoginAsync busca o caixa aberto do funcionário).
+    private async Task SairAsync()
+    {
+        if (OperadorLogado is { } operador)
+            Registro.Info("Auditoria", $"Logoff: {operador.Nome}");
+
+        OperadorLogado = null;
+        CaixaAberto = null;
+        PainelOutboxAberto = false;
+        Mensagem = null;
+
+        await IrParaLoginAsync();
     }
 
     private async Task AposLoginAsync(Funcionario funcionario)
