@@ -31,4 +31,5 @@ public static class SoftcomRotas
     public static string CaixaFechar(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/fechar";
     public static string Vendas(string dominio) => $"{dominio}/{Prefixo}/vendas";
     public static string ClientesCriar(string dominio) => $"{dominio}/{Prefixo}/clientes/clientes";
+    public static string ProdutosCriar(string dominio) => $"{dominio}/{Prefixo}/produtos/produtos";
 }

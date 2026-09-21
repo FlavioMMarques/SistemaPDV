@@ -110,7 +110,7 @@ public class ShellViewModel : ViewModelBase
         SairCommand = ReactiveCommand.CreateFromTask(SairAsync, logadoSemVendaEmAndamento);
 
         // Painel lateral da fila outbox (abre pela pílula "Sync: N pendentes" da barra do topo). Disponível em qualquer tela
-        // depois do login — inclusive sem caixa aberto (a fila pode ter clientes novos) — e fecha com Esc.
+        // depois do login — inclusive sem caixa aberto (a fila pode ter clientes e produtos novos) — e fecha com Esc.
         AbrirPainelOutboxCommand = ReactiveCommand.Create(() => { PainelOutboxAberto = true; });
         FecharPainelOutboxCommand = ReactiveCommand.Create(
             () => { PainelOutboxAberto = false; },
@@ -153,7 +153,7 @@ public class ShellViewModel : ViewModelBase
     // Sob o nome, no lugar do "JWT Ativo" do protótipo (que não existe neste app): o estado que importa ao operador.
     public string SituacaoCaixa => CaixaAberto is null ? "Sem caixa aberto" : "Caixa aberto";
 
-    // Itens que ainda não chegaram à API (caixas, vendas, clientes novos): "Sync: 3 pendentes".
+    // Itens que ainda não chegaram à API (caixas, vendas, clientes e produtos novos): "Sync: 3 pendentes".
     public int PendentesSync
     {
         get => pendentesSync;

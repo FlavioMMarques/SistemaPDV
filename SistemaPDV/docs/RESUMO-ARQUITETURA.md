@@ -33,7 +33,7 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 
 | Entidade | Pra que serve |
 |---|---|
-| `Produto` | Catálogo de produtos — sincronizado da API, usado nas vendas. |
+| `Produto` | Catálogo de produtos — sincronizado da API, usado nas vendas. Também nasce no PDV (modal "Cadastrar Produto"): aí fica `PendenteSync` sem `IdExterno`, com `UltimoErroSync` e a espera crescente da fila, até a API devolver os dois ids da venda. |
 | `Cliente` | Cadastro de clientes — sincronizado da API, inclui o "Consumidor Final" (id 1) pra vendas avulsas. |
 | `FormaPagamento` | Formas de pagamento aceitas (PIX, dinheiro, cartão...) — sincronizada da API. |
 | `Empresa` | Configuração fiscal/cadastral da empresa dona do PDV — inclui campos sensíveis protegidos (certificado digital). |
@@ -78,12 +78,12 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 | `SoftcomJson` | `JsonSerializerOptions` compartilhada (`PropertyNameCaseInsensitive = true`) — evita recriar a mesma configuração em cada lugar que desserializa resposta da API. |
 | `ResultadoEnvio` / `ResultadoEnvioTipo` | Resultado de `EnviarAsync`: o tipo (`Sucesso`/`Conflito`/`TokenExpirado`/`ConexaoInsegura`/`Falha`) mais o conteúdo cru da resposta, pra cada chamador (`CaixaSyncService`, `VendaSyncService`) decidir o que fazer. |
 | `OutboxHelper` | `MarcarFalhaAsync<T>` genérico: grava a mensagem de erro numa entidade já carregada e salva — usado por `CaixaSyncService` e `VendaSyncService`, cada um passando sua própria regra de quais campos mexer. |
-| `CatalogSyncService` | O orquestrador: autentica e sincroniza os 7 recursos (produtos, clientes, formas de pagamento, funcionários, empresa, e por substituição os **cartões** — `CatalogSyncService.Cartoes.cs` — e os **grupos/categorias** de produto — `CatalogSyncService.Grupos.cs`), fazendo upsert local por `IdExterno`. |
+| `CatalogSyncService` | O orquestrador (também envia o que nasce no PDV: cliente novo e, em `CatalogSyncService.ProdutoNovo.cs`, produto novo): autentica e sincroniza os 7 recursos (produtos, clientes, formas de pagamento, funcionários, empresa, e por substituição os **cartões** — `CatalogSyncService.Cartoes.cs` — e os **grupos/categorias** de produto — `CatalogSyncService.Grupos.cs`), fazendo upsert local por `IdExterno`. |
 | `PaginaApiDto<T>` | O "envelope" de paginação que toda resposta da API usa (`data[]`, `next_page_url`, `date_sync`...). |
 | `ResultadoBusca<T>` | Resultado de uma busca paginada (sucesso/falha + itens). |
 | `ResultadoSincronizacaoRecurso` | Resultado de sincronizar UM recurso (sucesso/falha + quantidade) — reaproveitado depois em `caixa` e `sales`. |
 | `ResultadoSincronizacaoCompleta` | Resultado de sincronizar TUDO (autenticação + cada recurso do catálogo, cada um com seu próprio resultado). |
-| `Dtos/*ApiDto.cs` | Um DTO por recurso (`ClienteApiDto`, `ProdutoApiDto`, `FormaPagamentoApiDto`, `EmpresaApiDto`, `FuncionarioApiDto`, `CartaoApiDto`, `GrupoApiDto`, mais `ClienteNovoApiDto` para o envio de cliente criado no PDV) — o formato exato que a API manda, convertido pra entidade local depois. `BooleanoFlexivelConverter` e `TextoFlexivelConverter` absorvem os campos que a API manda ora como texto, ora como número/booleano. |
+| `Dtos/*ApiDto.cs` | Um DTO por recurso (`ClienteApiDto`, `ProdutoApiDto`, `FormaPagamentoApiDto`, `EmpresaApiDto`, `FuncionarioApiDto`, `CartaoApiDto`, `GrupoApiDto`, mais `ClienteNovoApiDto` para o envio de cliente criado no PDV, `ProdutoNovoApiDto` para o cadastro múltiplo de produtos) — o formato exato que a API manda, convertido pra entidade local depois. `BooleanoFlexivelConverter` e `TextoFlexivelConverter` absorvem os campos que a API manda ora como texto, ora como número/booleano. |
 
 ---
 
@@ -127,6 +127,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | `PagamentoPainel` (controle) + `OpcaoPagamento` / `PagamentoAlocado` | O painel de pagamento do PDV (F10): cartões de forma de pagamento (`OpcaoPagamento`, só apresentação), pagamento misto (cada `PagamentoAlocado` é uma forma com seu valor e, no cartão, a bandeira), "valor recebido" e troco em tempo real no dinheiro. Só o dinheiro pode passar do que falta; a venda grava só o que falta. |
 | `ItemCarrinho` | Item do cupom em memória, antes de virar `ItemVenda` (numeração, descrição, "preço informado"). Não é entidade do EF. |
 | `ClienteFormPainel` (controle) | O modal "Cadastrar Cliente no Banco Local" de Cadastros (aberto por "Novo Cliente"): Nome e CPF/CNPJ obrigatórios, telefone, e-mail e cidade/UF opcionais. Enter salva, Esc cancela; a tela de trás fica desabilitada. Só grava local — o envio é da fila. Usa os estilos globais `TextBox.campo` e `TextBlock.rotuloForm`. |
+| `ProdutoFormPainel` (controle) + `ProdutoFormViewModel` | O modal "Cadastrar Produto no Banco Local" de Cadastros (aberto por "＋ Novo Produto"): nome, SKU/código, categoria (combo dos grupos sincronizados), preço e estoque inicial. O ViewModel é um filho do `CadastrosViewModel` (`FormProduto`); `ModalAberto` desabilita a tela de trás quando qualquer dos dois modais (cliente ou produto) está aberto. Só grava local — o envio é da fila. |
 | `PrecoProdutoPainel` (controle) | O painel "Informar preço" do PDV: abre quando se lança um produto com R$ 0,00 no cadastro (`PdvViewModel.AdicionarItem`); o item só entra com um preço maior que zero (Enter), Esc/Cancelar descarta. O preço vale só para aquele item do cupom. |
 | `PainelFilaOutbox` (controle) | O painel lateral da fila outbox (abre pela pílula "Sync: N pendentes" da barra do topo): pendências, botão "Disparar Sincronização Agora" e o log de atividade. A tela de baixo fica desabilitada (e os atalhos dela dormem) enquanto ele está aberto; fecha com ✕, clique no fundo ou Esc. |
 | `GuardaDeFoco` | Comportamento dos painéis modais (fila outbox, detalhes): devolve o foco a quem o tinha antes de o painel abrir — sem isso a caixa de busca do PDV perdia o foco e o leitor de código de barras parava de funcionar. |
@@ -142,7 +143,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 |---|---|
 | `CatalogoLocalService` | Leitura do catálogo pra tela de venda. |
 | `VendaLocalService` | Lista de pedidos do caixa (com número do pedido e motivo de espera/falha) e "Reenviar falhas". |
-| `CadastroLocalService` | Busca de clientes/produtos (`LIKE` com curingas escapados, teto de 200) e **criação local** de cliente (`NovoClienteDados`: nome e CPF/CNPJ obrigatórios — validado com `DocumentoValidator` —, telefone com DDD, e-mail e cidade/UF opcionais; nasce `PendenteSync`). `ObterCidadeUfPadraoAsync` traz a cidade da empresa para pré-preencher o modal. |
+| `CadastroLocalService` | Busca de clientes/produtos (`LIKE` com curingas escapados, teto de 200) e **criação local** de produto (`NovoProdutoDados`: nome, categoria e preço obrigatórios; código e estoque opcionais) e de cliente (`NovoClienteDados`: nome e CPF/CNPJ obrigatórios — validado com `DocumentoValidator` —, telefone com DDD, e-mail e cidade/UF opcionais; nasce `PendenteSync`). `ObterCidadeUfPadraoAsync` traz a cidade da empresa para pré-preencher o modal. |
 | `FecharCaixaViewModel` / `FecharCaixaView` | Conferência do fechamento: esperado por forma de pagamento (das vendas do caixa), apuração digitada (`LinhaApuracao`) e troco final; só grava local. Depois de fechar o Shell volta a Abrir caixa (com `ExigirAberturaCaixa`) ou ao Dashboard. |
 | `ValorMonetario` | Leitor único dos valores digitados (vírgula ou ponto; ambíguo é recusado; 2 casas pra dinheiro, 3 pra quantidade). |
 | `VendaResumo` / `ClienteResumo` / `ProdutoResumo` / `OperadorResumo` (`ResumoCadastro.cs`) | Projeções enxutas de leitura para as listas (Pedidos, Cadastros) em vez da entidade inteira. O resumo do operador deixa de fora CPF e chave. |

@@ -1523,7 +1523,7 @@ O usuário enviou os prints do protótipo (Cadastros com 3 abas, Listagem de Ped
 
 **Decisões do usuário (2026-09-21):**
 - **Categoria do produto:** sincronizar os grupos da API e mostrar o NOME da categoria (Cadastros e card do PDV). Confirmar a rota real dos grupos antes.
-- **Novo Produto:** só o botão visual, desabilitado (dica "em breve"). Sem cadastro/envio de produto.
+- **Novo Produto:** só o botão visual, desabilitado (dica "em breve"). Sem cadastro/envio de produto. **(Depois, em 2026-09-21, a pedido do usuário: cadastro de produto em modal + envio pela fila — ver APRENDIZADOS #86.)**
 - **JSON no modal de Detalhes:** o POST REAL de vendas (mesmo corpo que o app envia; token mascarado), não o endpoint inventado do protótipo (`/pedidos/sync`).
 - **Fora do escopo:** botão "Slides" da barra, botão "Testar queda de internet" do Painel, aba "Desafio dos Devs" de Cadastros.
 - **Toasts:** somem sozinhos após alguns segundos, canto inferior direito; usos: conexão caiu (vermelho), conexão voltou + "nenhuma pendência" (verde), "<produto> adicionado ao cupom" (sino).

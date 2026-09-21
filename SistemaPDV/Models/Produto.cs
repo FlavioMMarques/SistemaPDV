@@ -1,8 +1,9 @@
+using System;
 using System.Collections.Generic;
 
 namespace SistemaPDV.Models;
 
-public class Produto : ISincronizavel<int>
+public class Produto : ISincronizavel<int>, IOutboxRetentavel
 {
     public int Id { get; set; }
     public int? IdExterno { get; set; }
@@ -50,6 +51,12 @@ public class Produto : ISincronizavel<int>
 
     public ICollection<ImagemProduto> Imagens { get; set; } = new List<ImagemProduto>();
 
+    // Só para produto criado no PDV (IdExterno nulo até a API confirmar): mesmo papel de Cliente.UltimoErroSync e da política de
+    // retentativa (ver PoliticaRetentativa). Produto que veio da API nunca usa isto.
+    public string? UltimoErroSync { get; set; }
+    public int TentativasEnvio { get; set; }
+    public DateTime? ProximaTentativaEm { get; set; }
+
 
     // Nome da categoria (o Grupo de GrupoId), preenchido por CatalogoLocalService na hora de listar — NÃO é coluna do banco
     // (ver ProdutoConfiguration). Null = sem grupo, ou grupo que ainda não sincronizou.
@@ -63,7 +70,9 @@ public class Produto : ISincronizavel<int>
     // Sem preço no cadastro (R$ 0,00): o PDV pede o valor na hora de lançar (ver PdvViewModel.AdicionarItem), e o card avisa.
     public bool SemPreco => PrecoVenda <= 0;
 
-    // O código que aparece no card e no cupom: código de barras, senão SKU, senão o id da API. Só leitura (o EF não mapeia).
+    // O código que aparece no card e no cupom: código de barras, senão SKU, senão a referência (o "código" digitado no cadastro de
+    // produto que não é código de barras), senão o id da API. Só leitura (o EF não mapeia).
     public string? CodigoParaExibicao =>
-        !string.IsNullOrWhiteSpace(CodigoBarras) ? CodigoBarras : !string.IsNullOrWhiteSpace(Sku) ? Sku : IdExterno?.ToString();
+        !string.IsNullOrWhiteSpace(CodigoBarras) ? CodigoBarras : !string.IsNullOrWhiteSpace(Sku) ? Sku
+        : !string.IsNullOrWhiteSpace(Referencia) ? Referencia : IdExterno?.ToString();
 }
