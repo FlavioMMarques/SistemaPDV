@@ -315,6 +315,20 @@ public class ListagemDePedidosVisualTests
         await lista.SincronizarAgoraCommand.Execute();
         await pedido;
 
-        Assert.Contains(shell.Toasts.Ativos, t => t.Texto.Contains("Sincronizando"));
+        Assert.Contains(shell.Toasts.Ativos, t => t.Texto.Contains("Sincronizando"));   // há o caixa ainda sem subir: fila com 1 item
+    }
+
+    [Fact]
+    public async Task SincronizarAgoraSemPendenciaOuSemInternetNaoDizQueEstaSincronizando()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var shell = await ShellBarraTopoTests.CriarShellLogadoAsync(fixture, comCaixaAberto: false);
+        shell.SolicitarSincronizacao();
+        Assert.Contains(shell.Toasts.Ativos, t => t.Texto == "Nenhuma pendência na fila local.");   // fila vazia
+
+        shell.DefinirConexao(Services.Sync.EstadoConexao.Offline, "sem rede");
+        shell.SolicitarSincronizacao();
+        Assert.Single(shell.Toasts.Ativos, t => t.Texto.Contains("Sem conexão"));      // o mesmo aviso (chave) foi substituído
+        Assert.DoesNotContain(shell.Toasts.Ativos, t => t.Texto.Contains("Sincronizando"));
     }
 }
