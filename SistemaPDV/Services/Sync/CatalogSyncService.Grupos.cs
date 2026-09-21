@@ -33,6 +33,12 @@ public partial class CatalogSyncService
         // Se o mesmo id vier em mais de uma página, vale o último.
         var daApi = resultado.Itens.GroupBy(i => i.Id).ToDictionary(g => g.Key, g => g.Last());
         var locais = await context.Grupos.ToListAsync(ct);
+
+        // Resposta VAZIA de uma empresa que já tinha grupos: quase certamente um soluço da API (permissão, filtro, servidor
+        // reiniciando), não "apagaram todas as categorias" — uma empresa com produtos não fica sem nenhum grupo. Apagar tudo por
+        // isso tiraria a categoria dos cards até o próximo ciclo; melhor manter o que já se sabe e tentar de novo em 5 min.
+        if (daApi.Count == 0 && locais.Count > 0)
+            return ResultadoSincronizacaoRecurso.ComSucesso(0);
         var porIdExterno = new Dictionary<int, Grupo>();
         foreach (var local in locais)
         {

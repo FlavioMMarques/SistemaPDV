@@ -106,6 +106,24 @@ public class GruposSyncTests
     }
 
     [Fact]
+    public async Task RespostaVaziaDeQuemJaTinhaGruposNaoApagaAsCategorias()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var resposta = Pagina(1, null, Item(1, "Mercearia"), Item(2, "Bebidas"));
+        var service = CriarService(fixture, _ => Json(HttpStatusCode.OK, resposta));
+        await service.SincronizarGruposAsync("t");
+
+        resposta = Pagina(1, null);                                                   // a API respondeu 200 com lista vazia
+        var resultado = await service.SincronizarGruposAsync("t");
+
+        Assert.True(resultado.Sucesso);
+        Assert.Equal(0, resultado.Quantidade);
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal(2, leitura.Grupos.Count());                                       // as categorias continuam
+    }
+
+    [Fact]
     public async Task FalhaNoMeioDaBuscaNaoEsvaziaAListaLocal()
     {
         using var fixture = new SqliteInMemoryFixture();
