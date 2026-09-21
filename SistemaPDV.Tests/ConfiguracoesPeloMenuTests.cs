@@ -204,6 +204,7 @@ public class ConfiguracoesPeloMenuTests
     {
         await shell.IniciarAsync();
         var login = (LoginViewModel)shell.CurrentViewModel!;
+        login.OperadorSelecionado = login.Operadores[0];
         login.PdvKeyDigitada = ChaveOperador;
         var saiuDoLogin = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await login.EntrarCommand.Execute();
