@@ -87,6 +87,11 @@ public class CatalogSyncServiceClienteNovoTests
         // Números, não strings (contrato do Swagger) — e os defaults decididos na spec.
         Assert.Contains("\"contribuinte_icms\":9", corpo);
         Assert.Contains("\"indicador_finalidade\":0", corpo);
+        // Os padrões do Swagger vão explícitos (a API real insere todas as colunas, com nulo no que falta).
+        Assert.Contains("\"bloqueado\":false", corpo);
+        Assert.Contains("\"desativado\":false", corpo);
+        Assert.Contains("\"permitir_excluir\":true", corpo);
+        Assert.Contains("\"limite_credito\":0", corpo);
         // Nada de campo interno local vazando pra fora.
         Assert.DoesNotContain("SyncStatus", corpo);
         Assert.DoesNotContain("UltimoErro", corpo);
