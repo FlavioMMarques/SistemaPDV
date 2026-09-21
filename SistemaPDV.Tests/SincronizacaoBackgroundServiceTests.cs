@@ -292,6 +292,34 @@ public class SincronizacaoBackgroundServiceTests
     }
 
     [Fact]
+    public async Task OutboxEnviaOProdutoNovoPendenteEGravaOsIdsDaVenda()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Produtos.Add(new Produto { Nome = "Café Torrado 500g", GrupoId = 7, PrecoVenda = 12.5m, SyncStatus = SyncStatus.PendenteSync });
+            await context.SaveChangesAsync();
+        }
+        var api = new ApiFake
+        {
+            Sobrescrever = req => req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/produtos/produtos")
+                ? Json(HttpStatusCode.OK, """{ "data": { "created": [ { "id": 1049, "produto_empresas": [ { "empresa_id": "1", "produto_empresa_grade": { "id": 122848 } } ] } ] } }""")
+                : null,
+        };
+        var service = CriarService(fixture, api.CriarHttpClient());
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Equal(1, api.Contar("POST /softauth/api/v2/produtos/produtos"));
+        using var leitura = fixture.CriarContexto();
+        var produto = leitura.Produtos.Single();
+        Assert.Equal(122848, produto.IdExterno);
+        Assert.Equal(1049, produto.ProdutoIdApi);
+        Assert.Equal(SyncStatus.Sincronizado, produto.SyncStatus);
+    }
+
+    [Fact]
     public async Task OutboxIgnoraItensEmEsperaOuQueDesistiramSemNemPedirToken()
     {
         // Sem isso, um único cliente com erro permanente faria o app autenticar a cada 30 s

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Services;
@@ -42,6 +43,8 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private ContagemCadastros contagem = new(0, 0, 0);
     private IReadOnlyList<OperadorResumo> operadores = Array.Empty<OperadorResumo>();
     private bool formularioClienteAberto;
+    private string? mensagemProdutoSalvo;
+    private readonly ObservableAsPropertyHelper<bool> modalAberto;
 
     public CadastrosViewModel(CadastroLocalService cadastroLocalService)
     {
@@ -53,6 +56,15 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         SelecionarAbaCommand = ReactiveCommand.Create<AbaCadastros>(aba => { AbaAtual = aba; });
         // "Novo Cliente" (no topo ou na aba de clientes): leva à aba de clientes e abre o modal de cadastro.
         NovoClienteCommand = ReactiveCommand.CreateFromTask(AbrirFormularioAsync);
+
+        // "＋ Novo Produto": abre o modal de cadastro de produto (formulário à parte, ver ProdutoFormViewModel).
+        FormProduto = new ProdutoFormViewModel(cadastroLocalService, RecarregarAposCriarProdutoAsync);
+        NovoProdutoCommand = ReactiveCommand.CreateFromTask(AbrirFormularioProdutoAsync);
+
+        // Qualquer dos dois modais aberto: a tela de trás fica desabilitada.
+        this.WhenAnyValue(vm => vm.FormularioClienteAberto)
+            .CombineLatest(FormProduto.WhenAnyValue(f => f.Aberto), (cliente, produto) => cliente || produto)
+            .ToProperty(this, vm => vm.ModalAberto, out modalAberto);
         // Cancelar / ✕ / Esc: fecha e descarta o que foi digitado (o modal sempre abre limpo).
         FecharFormularioClienteCommand = ReactiveCommand.Create(FecharFormulario);
 
@@ -140,6 +152,19 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
     public ReactiveCommand<AbaCadastros, Unit> SelecionarAbaCommand { get; }
     public ReactiveCommand<Unit, Unit> NovoClienteCommand { get; }
+    public ReactiveCommand<Unit, Unit> NovoProdutoCommand { get; }
+
+    public ProdutoFormViewModel FormProduto { get; }
+
+    // Um dos modais (cliente ou produto) está aberto: a tela de trás fica desabilitada.
+    public bool ModalAberto => modalAberto.Value;
+
+    // "Produto salvo": o modal fecha ao salvar e o aviso fica na tela de trás, junto da lista.
+    public string? MensagemProdutoSalvo
+    {
+        get => mensagemProdutoSalvo;
+        private set => this.RaiseAndSetIfChanged(ref mensagemProdutoSalvo, value);
+    }
     public ReactiveCommand<Unit, Unit> FecharFormularioClienteCommand { get; }
 
     public string Busca
@@ -255,8 +280,23 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         var reenviados = await cadastroLocalService.ReenviarFalhasAsync();
         MensagemReenvio = reenviados == 0
             ? "Nenhuma falha para reenviar."
-            : $"{reenviados} cliente(s) voltaram para a fila e serão enviados no próximo ciclo (até 30 s).";
+            : $"{reenviados} cadastro(s) voltaram para a fila e serão enviados no próximo ciclo (até 30 s).";
         await CarregarAsync();
+    }
+
+    private async Task AbrirFormularioProdutoAsync()
+    {
+        AbaAtual = AbaCadastros.Produtos;
+        MensagemProdutoSalvo = null;
+        await FormProduto.AbrirAsync();
+    }
+
+    // O modal já fechou e o produto está gravado (pendente): limpa a busca (uma busca ativa poderia escondê-lo) e recarrega.
+    private async Task RecarregarAposCriarProdutoAsync()
+    {
+        MensagemProdutoSalvo = "Produto salvo. Ele será enviado à API na próxima sincronização.";
+        Busca = string.Empty;
+        await BuscarAsync();
     }
 
     private async Task AbrirFormularioAsync()

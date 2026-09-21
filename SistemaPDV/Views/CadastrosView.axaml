@@ -14,7 +14,7 @@
        da aba escolhida. Além do protótipo: uma busca única para as abas (Enter ou 🔍) e o modal de cadastro de cliente (Nome, CPF/CNPJ,
        telefone, e-mail, cidade), aberto por "Novo Cliente". Conteúdo com largura máxima e centralizado, como as outras telas; a página rola se a janela for baixa. -->
   <Grid>
-  <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding !FormularioClienteAberto}">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding !ModalAberto}">
     <StackPanel MaxWidth="1400" Margin="24" Spacing="20">
 
       <Grid ColumnDefinitions="*,Auto">
@@ -28,9 +28,8 @@
           <Button Classes="secundario" Content="👥 Novo Cliente" Command="{Binding NovoClienteCommand}"
                   FontWeight="SemiBold" Padding="18,12" AutomationProperties.Name="Novo cliente" />
           <!-- Cadastro de produto não existe neste app (o catálogo vem do SoftcomShop): o botão do protótipo fica, desabilitado. -->
-          <Button Classes="primario" Content="＋ Novo Produto" IsEnabled="False" HorizontalAlignment="Right" Padding="20,12"
-                  ToolTip.Tip="O cadastro de produtos é feito no SoftcomShop — aqui o catálogo é só sincronizado (em breve)"
-                  AutomationProperties.Name="Novo produto, indisponível" />
+          <Button Classes="primario" Content="＋ Novo Produto" Command="{Binding NovoProdutoCommand}"
+                  HorizontalAlignment="Right" Padding="20,12" AutomationProperties.Name="Novo produto" />
         </StackPanel>
       </Grid>
 
@@ -80,6 +79,10 @@
             <TextBlock Grid.Column="1" Text="Catálogo sincronizado do SoftcomShop" FontSize="12"
                        Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
           </Grid>
+          <!-- Aviso de "produto salvo" (o modal de cadastro fecha ao salvar; o erro aparece dentro do modal). -->
+          <TextBlock Text="{Binding MensagemProdutoSalvo}" Foreground="{DynamicResource AccentGreenBrush}" TextWrapping="Wrap"
+                     Margin="20,0,20,10"
+                     IsVisible="{Binding MensagemProdutoSalvo, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <TextBlock Text="{Binding AvisoLimite}" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="20,0,20,10"
                      IsVisible="{Binding ProdutosCortados}" />
           <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -104,6 +107,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="svc:ProdutoResumo">
                     <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                     <StackPanel Spacing="6">
                       <Grid ColumnDefinitions="170,*,190,130,130,200">
                         <TextBlock Grid.Column="0" Text="{Binding Codigo, TargetNullValue='—'}" FontFamily="{DynamicResource FontMono}"
                                    FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
@@ -120,6 +124,10 @@
                                    Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
                         <controls:SeloSincronia Grid.Column="5" Status="{Binding SyncStatus}" VerticalAlignment="Center" />
                       </Grid>
+                      <!-- Falha do envio fica visível (produto criado aqui): sem isso um produto em falha seria indiagnosticável. -->
+                      <TextBlock Text="{Binding UltimoErroSync}" Foreground="{DynamicResource AccentRedBrush}" FontSize="12" TextWrapping="Wrap"
+                                 IsVisible="{Binding UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                     </StackPanel>
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -138,8 +146,8 @@
                        Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
               <Button Classes="secundario" Content="🔁 Reenviar falhas" Command="{Binding ReenviarFalhasCommand}" FontSize="12" Padding="12,7"
-                      ToolTip.Tip="Devolve à fila de envio os clientes que falharam ou desistiram"
-                      AutomationProperties.Name="Reenviar clientes com falha" />
+                      ToolTip.Tip="Devolve à fila de envio os clientes e produtos novos que falharam ou desistiram"
+                      AutomationProperties.Name="Reenviar cadastros com falha" />
               <Button Classes="primario" Content="＋ Cadastrar Cliente" Command="{Binding NovoClienteCommand}" FontSize="12"
                       HorizontalAlignment="Right" Padding="16,7" AutomationProperties.Name="Cadastrar cliente" />
             </StackPanel>
@@ -257,8 +265,9 @@
     </StackPanel>
   </ScrollViewer>
 
-  <!-- Modal de cadastro de cliente: a tela de trás fica desabilitada enquanto ele está aberto. -->
+  <!-- Modais de cadastro (cliente e produto): a tela de trás fica desabilitada enquanto um deles está aberto. -->
   <controls:ClienteFormPainel IsVisible="{Binding FormularioClienteAberto}" />
+  <controls:ProdutoFormPainel IsVisible="{Binding FormProduto.Aberto}" />
   </Grid>
 
 </UserControl>
