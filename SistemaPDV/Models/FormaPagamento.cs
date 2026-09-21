@@ -22,4 +22,17 @@ public class FormaPagamento : ISincronizavel<int>
     // "CARTAO_CREDITO"). "CARTEIRA_DIGITAL", PIX, dinheiro etc. NÃO são cartão: por isso StartsWith, e não Contains("CART").
     // Só leitura: o EF não mapeia.
     public bool EhCartao => Tipo.StartsWith("CARTAO", System.StringComparison.OrdinalIgnoreCase);
+
+    // Dinheiro: a única forma que dá TROCO (o cliente entrega mais do que o valor lançado). Pelo código da NFC-e "01"
+    // (dinheiro) e NÃO pelo Tipo: na API real o PIX manual ("PIX OFF", código 20) também vem com Tipo = "ESPECIE". Sem
+    // código, cai no Tipo "ESPECIE". Só leitura: o EF não mapeia.
+    public bool EhDinheiro => CodigoNfce == "01"
+        || (string.IsNullOrWhiteSpace(CodigoNfce) && string.Equals(Tipo, "ESPECIE", System.StringComparison.OrdinalIgnoreCase));
+
+    public bool EhPix => Nome.Contains("PIX", System.StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Tipo, "CARTEIRA_DIGITAL", System.StringComparison.OrdinalIgnoreCase);
+
+    // Débito × crédito (os dois têm Tipo "CARTAO"): código da NFC-e "04" é débito; sem código, pelo nome.
+    public bool EhDebito => CodigoNfce == "04" || Nome.Contains("DÉBITO", System.StringComparison.OrdinalIgnoreCase)
+        || Nome.Contains("DEBITO", System.StringComparison.OrdinalIgnoreCase);
 }

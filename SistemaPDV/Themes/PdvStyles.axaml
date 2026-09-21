@@ -111,6 +111,30 @@
     <Setter Property="Opacity" Value="1" />
   </Style>
 
+  <!-- Cartão de forma de pagamento (painel de pagamento): o escolhido fica com borda amarela e fundo âmbar -->
+  <Style Selector="Button.opcao">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}" />
+    <Setter Property="Padding" Value="18,16" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.opcao:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Button.opcao.selecionada /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Button.opcao:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+
   <!-- Pílula de status (sistema, conexão, sync) -->
   <Style Selector="Border.pill">
     <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
