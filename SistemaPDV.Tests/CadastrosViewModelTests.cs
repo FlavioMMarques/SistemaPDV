@@ -172,12 +172,12 @@ public class CadastrosViewModelTests
         await viewModel.NovoClienteCommand.Execute();
 
         Assert.True(viewModel.FormularioClienteAberto);
-        Assert.Equal("João Pessoa - PB", viewModel.NovaCidadeUf);
+        Assert.Equal("João Pessoa - PB", viewModel.NovoEndereco.CidadeUf);
         Assert.Equal(string.Empty, viewModel.NovoNome);
 
         viewModel.NovoNome = "Ana";
         viewModel.NovoTelefone = "(83) 99999-8888";
-        viewModel.NovaCidadeUf = "Campina Grande - PB";
+        viewModel.NovoEndereco.CidadeUf = "Campina Grande - PB";
         await viewModel.FecharFormularioClienteCommand.Execute();       // cancelar descarta tudo
 
         Assert.False(viewModel.FormularioClienteAberto);
@@ -186,7 +186,7 @@ public class CadastrosViewModelTests
         Assert.Null(viewModel.MensagemForm);
 
         await viewModel.NovoClienteCommand.Execute();
-        Assert.Equal("João Pessoa - PB", viewModel.NovaCidadeUf);        // volta a trazer a da empresa
+        Assert.Equal("João Pessoa - PB", viewModel.NovoEndereco.CidadeUf);        // volta a trazer a da empresa
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class CadastrosViewModelTests
         viewModel.NovoCpfCnpj = CpfValido;
         viewModel.NovoTelefone = "(83) 99999-8888";
         viewModel.NovoEmail = "ana@empresa.com.br";
-        viewModel.NovaCidadeUf = "João Pessoa - PB";
+        viewModel.NovoEndereco.CidadeUf = "João Pessoa - PB";
         await viewModel.CriarClienteCommand.Execute();
 
         Assert.False(viewModel.FormularioClienteAberto);                 // salvou: o modal fecha
@@ -231,7 +231,7 @@ public class CadastrosViewModelTests
         Assert.True(viewModel.MensagemFormEhErro);
         Assert.Contains("Telefone", viewModel.MensagemFormErro);
         Assert.Equal("123", viewModel.NovoTelefone);                     // não perde o que digitou
-        Assert.Empty(viewModel.Clientes.Where(c => c.Nome == "Ana Lima"));
+        Assert.DoesNotContain(viewModel.Clientes, c => c.Nome == "Ana Lima");
     }
 
     [Fact]

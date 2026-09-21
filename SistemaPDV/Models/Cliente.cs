@@ -49,6 +49,11 @@ public class Cliente : ISincronizavel<int>, IOutboxRetentavel
     public string? PontoReferencia { get; set; }
     public string? Cidade { get; set; }
     public string? CidadeId { get; set; }
+
+    // Código da cidade no IBGE (7 dígitos, ex: 2507507 = João Pessoa) — o "c_cidade" que a API pede no endereço do cliente novo, vindo do
+    // ViaCEP. É diferente do CidadeId acima (número interno da API, ex: 1336 para João Pessoa). Clientes que vieram da API trazem o
+    // "codigo_cidade" aqui.
+    public string? CodigoCidade { get; set; }
     public string? Uf { get; set; }
 
     public string? TipoClienteId { get; set; }
