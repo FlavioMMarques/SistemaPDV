@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,13 +9,20 @@ using SistemaPDV.Models;
 
 namespace SistemaPDV.Services.Caixa;
 
-// Login local, sem rede: confere a chave digitada contra os hashes bcrypt de pdv_key que
-// catalog-sync já baixou — nunca guarda nem recebe a chave em claro de volta.
+// Um operador que pode aparecer na tela de login: só o que a lista precisa (nunca o hash da chave nem o CPF).
+public record OperadorLogin(int Id, string Nome, bool Supervisor)
+{
+    // Inicial do avatar da lista e rótulo do perfil (os mesmos textos do chip de perfil dos Cadastros).
+    public string Inicial => string.IsNullOrWhiteSpace(Nome) ? "?" : Nome.Trim()[..1].ToUpperInvariant();
+    public string Perfil => Supervisor ? "Supervisor" : "Operador";
+}
+
+// Login local, sem rede: o operador escolhe o próprio nome na lista e digita a chave; ela é conferida contra o hash bcrypt
+// de pdv_key DELE (que catalog-sync já baixou) — nunca guarda nem recebe a chave em claro de volta.
 //
-// O login não pede usuário (só a chave), então não há "o" funcionário pra conferir: tenta-se
-// cada funcionário ativo com hash. bcrypt é lento DE PROPÓSITO (custo 10 ≈ dezenas de ms cada;
-// dezenas de operadores = até ~1 s no pior caso), por isso a conferência roda fora da thread
-// de UI — o login não pode congelar a janela.
+// A escolha do operador existe porque a API não garante chave única: com só a chave, dois operadores com a mesma chave
+// entrariam como "o primeiro que bater". Conferir contra UM hash também evita o custo do bcrypt (lento DE PROPÓSITO,
+// custo 10 ≈ dezenas de ms) multiplicado pelo número de operadores. Mesmo assim roda fora da thread de UI.
 public class LoginOperadorService
 {
     private readonly Func<AppDbContext> contextFactory;
@@ -27,10 +35,26 @@ public class LoginOperadorService
     }
 
     // Quanto falta até o login aceitar outra tentativa (zero = pode tentar agora): depois de erros seguidos o app exige
-    // uma espera crescente (ver LimitadorDeTentativas). A tela lê isto pra avisar o operador.
+    // uma espera crescente (ver LimitadorDeTentativas). A tela lê isto pra avisar o operador. O limite é do aparelho, não
+    // de um operador: trocar de nome na lista não zera a espera.
     public TimeSpan EsperaRestante => limitador.EsperaRestante;
 
-    public async Task<Funcionario?> AutenticarAsync(string pdvKeyDigitado, CancellationToken ct = default)
+    // Quem consegue entrar: ativo e com hash de chave (sem hash não há como conferir), por ordem de nome.
+    public async Task<IReadOnlyList<OperadorLogin>> ListarOperadoresAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        var funcionarios = await context.Funcionarios
+            .Where(f => !f.Desativado && f.PdvKeyHash != null)
+            .Select(f => new { f.Id, f.Nome, f.Supervisor })
+            .ToListAsync(ct);
+
+        return funcionarios
+            .OrderBy(f => f.Nome, StringComparer.CurrentCultureIgnoreCase)
+            .Select(f => new OperadorLogin(f.Id, f.Nome, f.Supervisor))
+            .ToList();
+    }
+
+    public async Task<Funcionario?> AutenticarAsync(int funcionarioId, string pdvKeyDigitado, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(pdvKeyDigitado))
             return null;
@@ -41,15 +65,15 @@ public class LoginOperadorService
             return null;
 
         await using var context = contextFactory();
-        var candidatos = await context.Funcionarios
-            .Where(f => !f.Desativado && f.PdvKeyHash != null)
-            .ToListAsync(ct);
+        var funcionario = await context.Funcionarios
+            .FirstOrDefaultAsync(f => f.Id == funcionarioId && !f.Desativado && f.PdvKeyHash != null, ct);
 
-        var funcionario = await Task.Run(
-            () => candidatos.FirstOrDefault(f => PdvKeyHasher.Verificar(pdvKeyDigitado, f.PdvKeyHash)),
-            ct);
+        // Operador que sumiu ou foi desativado depois de a lista carregar conta como chave errada: mesma resposta, mesma
+        // espera — a tela não revela qual dos dois foi.
+        var acertou = funcionario is not null
+            && await Task.Run(() => PdvKeyHasher.Verificar(pdvKeyDigitado, funcionario.PdvKeyHash), ct);
 
-        if (funcionario is not null)
+        if (acertou)
         {
             limitador.Zerar();
             return funcionario;

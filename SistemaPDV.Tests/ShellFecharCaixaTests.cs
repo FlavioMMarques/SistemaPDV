@@ -48,6 +48,7 @@ public class ShellFecharCaixaTests
 
         await shell.IniciarAsync();
         var login = (LoginViewModel)shell.CurrentViewModel!;
+        login.OperadorSelecionado = login.Operadores[0];
         login.PdvKeyDigitada = "1234";
         var chegou = shell.WhenAnyValue(s => s.TelaAtual).Where(t => t != Tela.Login).FirstAsync().ToTask();
         await login.EntrarCommand.Execute();

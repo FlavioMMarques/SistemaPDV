@@ -92,7 +92,7 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 | Classe | Pra que serve |
 |---|---|
 | `PdvKeyHasher` | A API manda a `pdv_key` como **hash bcrypt** (`$2y$10$…`): `EhHashBcrypt` decide o que `catalog-sync` grava (valor que não parece bcrypt nunca é gravado) e `Verificar` confere a chave digitada (`caixa`). |
-| `LoginOperadorService` | Login local do operador, sem rede — confere a chave digitada com bcrypt contra cada funcionário ativo (fora da thread de UI: bcrypt é lento de propósito). |
+| `LoginOperadorService` | Login local do operador, sem rede: `ListarOperadoresAsync` devolve quem pode entrar (ativo e com chave, por nome) e `AutenticarAsync(id, chave)` confere a chave com bcrypt contra o hash SÓ do operador escolhido (fora da thread de UI: bcrypt é lento de propósito). O operador é escolhido na tela porque a API não garante chave única. |
 | `CaixaService` | Abrir e fechar caixa **localmente**, sem rede — o coração do offline-first desse módulo. |
 | `CaixaSyncService` | O outbox: quando há rede, confirma a abertura/fechamento com a API. Tem o método `SincronizarCaixaPendenteAsync`, que decide sozinho se é hora de sincronizar abertura ou fechamento. |
 | `ResultadoOperacaoCaixa<T>` | Resultado de uma operação local (abrir/fechar) — sucesso/falha + a entidade, pra operações que podem falhar por regra de negócio (ex: caixa já existe). |
@@ -164,7 +164,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 
 ### Regras de negócio que só apareceram contra a API real
 
-- **Login:** a `pdv_key` que a API devolve é **hash bcrypt** (`$2y$10$…`); `PdvKeyHasher` guarda como veio e `LoginOperadorService` confere com BCrypt (fora da thread de UI).
+- **Login:** a `pdv_key` que a API devolve é **hash bcrypt** (`$2y$10$…`); `PdvKeyHasher` guarda como veio e `LoginOperadorService` (só do operador escolhido na tela) confere com BCrypt (fora da thread de UI).
 - **Empresa do dispositivo:** o CNPJ do **link de vínculo** (`SoftcomAuthService.ExtrairEmpresaCnpj`) diz qual das empresas da API é a deste PDV; só ela é gravada e usada na venda.
 - **Venda:** `numero_documento` = `<Código do PDV>-<Venda.NumeroPedido com 6 dígitos>` (`NumeroDocumento`; único por empresa mesmo com vários PDVs; sem código configurado vai o número puro), sequencial gerado offline; produto tem 3 ids — `produto_id` = `Produto.ProdutoIdApi`, `produto_empresa_grade_id` = `Produto.IdExterno`; item e pagamento levam os campos que a API grava (`preco_compra`, `api_nome_pagamento`, parcela única). Venda avulsa usa o cliente com `indicador_finalidade = 1`.
 - **Descarte de venda:** venda em `FalhaSync` pode ser descartada na tela de Pedidos por um **supervisor** (chave dele + motivo). Vira `Descartada` (não apagada; auditoria em `Venda`), não é enviada e sai do esperado/faturamento/pendentes — `VendaFiltros` concentra essa regra e destrava o fechamento do caixa.

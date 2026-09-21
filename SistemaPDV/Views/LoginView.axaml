@@ -1,46 +1,152 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:caixa="using:SistemaPDV.Services.Caixa"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="SistemaPDV.Views.LoginView"
              x:DataType="vm:LoginViewModel"
              Background="{StaticResource BgMainBrush}">
+
+  <UserControl.Styles>
+    <!-- Linha de operador: cartão como os do painel de pagamento; o escolhido fica com borda amarela e fundo âmbar. -->
+    <Style Selector="ListBox.operadores ListBoxItem">
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Foreground" Value="{StaticResource TextMainBrush}" />
+    </Style>
+    <Style Selector="ListBox.operadores ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource BgInputBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+    </Style>
+    <Style Selector="ListBox.operadores ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource BgCardHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
+    </Style>
+    <Style Selector="ListBox.operadores ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource BrandYellowDimBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
+    </Style>
+    <Style Selector="ListBox.operadores ListBoxItem:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
+    </Style>
+    <!-- Campo da chave: focado com a borda amarela do app (o padrão do tema é fundo preto e borda azul); desabilitado
+         (nenhum operador escolhido ainda) fica apagado em vez de cinza. -->
+    <Style Selector="TextBox#ChaveTextBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource BgInputBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
+    </Style>
+    <Style Selector="TextBox#ChaveTextBox:disabled /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource BgInputBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}" />
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="TextBlock.rotuloCampo">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="LetterSpacing" Value="0.6" />
+      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    </Style>
+  </UserControl.Styles>
 
   <Design.DataContext>
     <vm:LoginViewModel />
   </Design.DataContext>
 
-  <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="360">
-    <Border Background="{StaticResource BgCardBrush}"
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="440" Margin="16,32"
+            Background="{StaticResource BgCardBrush}"
             BorderBrush="{StaticResource BorderColorBrush}"
             BorderThickness="1"
             CornerRadius="{StaticResource RadiusCard}"
             Padding="32">
-      <StackPanel Spacing="16">
-        <TextBlock Text="SoftcomPDV"
-                   FontFamily="{StaticResource FontSans}"
-                   FontSize="22"
-                   FontWeight="Bold"
-                   Foreground="{StaticResource TextMainBrush}"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="Identificação do operador"
-                   FontFamily="{StaticResource FontSans}"
-                   Foreground="{StaticResource TextMutedBrush}"
-                   HorizontalAlignment="Center" />
+      <StackPanel Spacing="18">
 
         <StackPanel Spacing="4">
-          <TextBlock Text="Chave do operador" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="Entrar no caixa"
+                     FontFamily="{StaticResource FontSans}"
+                     FontSize="24"
+                     FontWeight="ExtraBold"
+                     Foreground="{StaticResource TextMainBrush}"
+                     HorizontalAlignment="Center" />
+          <TextBlock Text="Escolha o seu nome e digite a chave do operador"
+                     FontFamily="{StaticResource FontSans}"
+                     Foreground="{StaticResource TextMutedBrush}"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- 1. Quem é você -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="rotuloCampo" Text="OPERADOR" />
+
+          <ListBox x:Name="OperadoresListBox" Classes="operadores"
+                   ItemsSource="{Binding Operadores}"
+                   SelectedItem="{Binding OperadorSelecionado, Mode=TwoWay}"
+                   IsVisible="{Binding !SemOperadores}"
+                   MaxHeight="264"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   AutomationProperties.Name="Operadores"
+                   TabIndex="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="caixa:OperadorLogin">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                  <Border Width="34" Height="34" CornerRadius="17" Background="{StaticResource BrandYellowDimBrush}">
+                    <TextBlock Text="{Binding Inicial}"
+                               FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Grid.Column="1" Text="{Binding Nome}" FontWeight="SemiBold"
+                             Foreground="{StaticResource TextMainBrush}"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <Border Grid.Column="2" Classes="chip" Classes.supervisor="{Binding Supervisor}" Classes.operador="{Binding !Supervisor}"
+                          VerticalAlignment="Center">
+                    <TextBlock FontSize="11" FontWeight="SemiBold"
+                               Text="{Binding Perfil}" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- Catálogo ainda não chegou (1ª vez no aparelho) ou nenhum operador tem chave: nunca uma área em branco. -->
+          <Border IsVisible="{Binding SemOperadores}"
+                  Background="{StaticResource BgInputBrush}"
+                  BorderBrush="{StaticResource BorderColorBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusMedium}"
+                  Padding="16">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Nenhum operador disponível" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+              <TextBlock Text="Os operadores vêm do SoftcomShop. Se este aparelho acabou de ser vinculado, aguarde a sincronização: a lista aparece aqui sozinha."
+                         TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextMutedBrush}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- 2. A chave dele (só depois de escolher o operador) -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="rotuloCampo" Text="CHAVE DO OPERADOR" />
           <TextBox x:Name="ChaveTextBox"
                    Text="{Binding PdvKeyDigitada, Mode=TwoWay}"
+                   IsEnabled="{Binding OperadorSelecionado, Converter={x:Static ObjectConverters.IsNotNull}}"
                    PasswordChar="•"
+                   PlaceholderText="Digite a sua chave"
                    Background="{StaticResource BgInputBrush}"
                    BorderBrush="{StaticResource BorderColorBrush}"
                    Foreground="{StaticResource TextMainBrush}"
-                   CornerRadius="{StaticResource RadiusSmall}"
+                   CornerRadius="{StaticResource RadiusMedium}"
+                   Padding="12,10"
                    AutomationProperties.Name="Chave do operador"
-                   TabIndex="0">
+                   TabIndex="1">
             <TextBox.KeyBindings>
               <KeyBinding Gesture="Enter" Command="{Binding EntrarCommand}" />
             </TextBox.KeyBindings>
@@ -52,19 +158,13 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding MensagemErro, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-        <Button Content="Entrar"
+        <Button Classes="primario"
+                Content="Entrar"
                 Command="{Binding EntrarCommand}"
-                Background="{StaticResource BrandYellowBrush}"
-                Foreground="{StaticResource TextDarkBrush}"
-                FontWeight="Bold"
-                CornerRadius="{StaticResource RadiusMedium}"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                Padding="0,10"
-                TabIndex="1"
+                TabIndex="2"
                 AutomationProperties.Name="Entrar" />
       </StackPanel>
     </Border>
-  </Grid>
+  </ScrollViewer>
 
 </UserControl>
