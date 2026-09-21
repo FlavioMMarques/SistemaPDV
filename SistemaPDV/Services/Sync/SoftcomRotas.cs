@@ -16,6 +16,11 @@ public static class SoftcomRotas
     public const string Funcionarios = Prefixo + "/funcionarios";
     public const string Empresa = Prefixo + "/empresa/empresas/1";
 
+    // EXCEÇÃO: a rota de cartões fica em "softauth/api/" SEM o "v2" (como o token, "softauth/authentication/token") —
+    // sob "softauth/api/v2/…" ela responde 500 "Resource not found." (conferido na API real em 2026-09-20). O
+    // envelope também é outro (PaginaMetaApiDto) e o número da página vai no fim do caminho.
+    public const string Cartoes = "softauth/api/financeiros/cartoes/page";
+
     // Escrita (URL completa: EnviarAsync recebe a URL inteira).
     public static string CaixaAbrir(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/abrir";
     public static string CaixaFechar(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/fechar";

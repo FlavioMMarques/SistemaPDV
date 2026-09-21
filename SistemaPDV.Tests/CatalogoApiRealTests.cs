@@ -48,6 +48,12 @@ public class CatalogoApiRealTests
         "next_page_url":null,"total":1,"date_sync":1789924589}
         """;
 
+    // Formato REAL (2026-09-20): envelope {code,message,human,data,meta.page,date_sync} e TUDO como texto.
+    private const string CartoesReal = """
+        {"code":1,"message":"OK","human":"Sucesso","data":[{"id":"15","credenciadora":"REDE","cnpj":"01425787000104","nome":"CREDITO","bandeira_id":"02","bandeira_nome":"MASTERCARD",
+        "dia":"1","parcelas":"12","taxa_administrativa":"0.01","alias_cartao":"CREDITO","tipo":"CREDITO"}],"meta":{"page":{"current":1,"prev":null,"next":null,"count":1}},"date_sync":1789924589}
+        """;
+
     private static async Task SemearConfiguracaoAsync(SqliteInMemoryFixture fixture)
     {
         await using var context = fixture.CriarContexto();
@@ -61,6 +67,12 @@ public class CatalogoApiRealTests
         {
             var caminho = requisicao.RequestUri!.AbsolutePath.TrimStart('/');
             visitadas.Add($"{requisicao.Method} {caminho}");
+
+            // Cartões: rota SEM "v2" e com outro envelope (achado na API real). Sob "v2" ela não existe.
+            if (caminho.StartsWith("softauth/api/financeiros/cartoes/page/"))
+                return caminho.EndsWith("/page/1")
+                    ? Json(HttpStatusCode.OK, CartoesReal)
+                    : Json(HttpStatusCode.InternalServerError, """{"error":"Invalid pagination interval."}""");
 
             if (!caminho.StartsWith("softauth/api/v2/") && !caminho.EndsWith("authentication/token"))
                 return Json(HttpStatusCode.InternalServerError, """{"error":""}""");
@@ -106,8 +118,9 @@ public class CatalogoApiRealTests
 
         var resultado = await service.SincronizarTudoAsync();
 
-        Assert.True(resultado.TudoComSucesso, $"Auth={resultado.AutenticacaoSucesso}; F={resultado.FormasPagamento?.Mensagem}; C={resultado.Clientes?.Mensagem}; P={resultado.Produtos?.Mensagem}; Fu={resultado.Funcionarios?.Mensagem}; E={resultado.Empresa?.Mensagem}");
-        Assert.All(visitadas.Where(v => !v.Contains("authentication")), v => Assert.Contains("softauth/api/v2/", v));
+        Assert.True(resultado.TudoComSucesso, $"Auth={resultado.AutenticacaoSucesso}; F={resultado.FormasPagamento?.Mensagem}; C={resultado.Clientes?.Mensagem}; P={resultado.Produtos?.Mensagem}; Fu={resultado.Funcionarios?.Mensagem}; E={resultado.Empresa?.Mensagem}; Ca={resultado.Cartoes?.Mensagem}");
+        Assert.All(visitadas.Where(v => !v.Contains("authentication") && !v.Contains("financeiros/cartoes")), v => Assert.Contains("softauth/api/v2/", v));
+        Assert.Contains(visitadas, v => v.EndsWith("softauth/api/financeiros/cartoes/page/1"));   // a exceção: sem o v2
     }
 
     [Fact]

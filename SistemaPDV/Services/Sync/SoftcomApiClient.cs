@@ -82,6 +82,74 @@ public class SoftcomApiClient
         return ResultadoBusca<T>.ComSucesso(itens, dateSync);
     }
 
+    // Rotas de paginação "por número" (cartões): {dominio}/{caminhoBase}/{n}, com o envelope PaginaMetaApiDto — a
+    // próxima página vem em meta.page.next (número; null na última). Diferente de BuscarTudoAsync, NUNCA segue uma URL
+    // devolvida pelo servidor: monta cada URL sozinho, então não há como ser levado a outro domínio com o token.
+    public async Task<ResultadoBusca<T>> BuscarPaginasAsync<T>(
+        string dominio, string caminhoBase, string accessToken, CancellationToken ct = default)
+    {
+        if (!ConexaoSegura.Permitida(dominio))
+            return ResultadoBusca<T>.ComFalha(ConexaoSegura.MensagemRecusa);
+
+        var itens = new List<T>();
+        long? dateSync = null;
+        var pagina = 1;
+
+        for (var lidas = 0; lidas < MaximoPaginasPorBusca; lidas++)
+        {
+            using var requisicao = new HttpRequestMessage(HttpMethod.Get, $"{dominio}/{caminhoBase}/{pagina}");
+            requisicao.Headers.Add("Api-Version", "v2");
+            requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var resposta = await httpClient.SendAsync(requisicao, ct);
+            var conteudo = await resposta.Content.ReadAsStringAsync(ct);
+
+            if (!resposta.IsSuccessStatusCode)
+            {
+                // A API responde 500 "Invalid pagination interval." a uma página fora do intervalo — na 1ª página isso é
+                // "não há nenhum registro", não uma falha.
+                if (pagina == 1 && conteudo.Contains("Invalid pagination interval", StringComparison.OrdinalIgnoreCase))
+                    return ResultadoBusca<T>.ComSucesso(itens, dateSync);
+
+                return ResultadoBusca<T>.ComFalha($"Falha ao consultar {caminhoBase}/{pagina}: {(int)resposta.StatusCode} {resposta.ReasonPhrase}. {conteudo}");
+            }
+
+            var dto = SoftcomJson.TentarDesserializar<PaginaMetaApiDto<T>>(conteudo);
+            if (dto is null)
+                return ResultadoBusca<T>.ComFalha($"Resposta inesperada da API: {conteudo}");
+
+            itens.AddRange(dto.Data);
+            dateSync = TentarLerDateSync(conteudo) ?? dateSync;
+
+            var proxima = dto.Meta?.Page?.Next;
+            if (proxima is not { } proximaPagina)
+                return ResultadoBusca<T>.ComSucesso(itens, dateSync);
+
+            // Uma "próxima" que não avança prenderia o laço baixando a mesma página (mesma proteção de BuscarTudoAsync).
+            if (proximaPagina <= pagina)
+                return ResultadoBusca<T>.ComFalha($"A API repetiu a página {proximaPagina} — paginação interrompida para não entrar em laço.");
+
+            pagina = proximaPagina;
+        }
+
+        return ResultadoBusca<T>.ComFalha($"Mais de {MaximoPaginasPorBusca} páginas em {caminhoBase} — paginação interrompida.");
+    }
+
+    private const int MaximoPaginasPorBusca = 200;
+
+    private static long? TentarLerDateSync(string conteudo)
+    {
+        try
+        {
+            using var documento = JsonDocument.Parse(conteudo);
+            return documento.RootElement.TryGetProperty("date_sync", out var valor) && valor.TryGetInt64(out var segundos) ? segundos : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     // Usado pelos endpoints de escrita (caixa-funcoes/abrir, /fechar, vendas) — monta
     // a requisição (headers padrão), envia, e classifica a resposta num dos quatro
     // tipos. Cada chamador só precisa saber montar o corpo e reagir ao Tipo.

@@ -10,6 +10,7 @@ public class ResultadoSincronizacaoCompleta
     public ResultadoSincronizacaoRecurso? Produtos { get; init; }
     public ResultadoSincronizacaoRecurso? Funcionarios { get; init; }
     public ResultadoSincronizacaoRecurso? Empresa { get; init; }
+    public ResultadoSincronizacaoRecurso? Cartoes { get; init; }
 
     public bool TudoComSucesso =>
         AutenticacaoSucesso &&
@@ -17,5 +18,6 @@ public class ResultadoSincronizacaoCompleta
         (Clientes?.Sucesso ?? false) &&
         (Produtos?.Sucesso ?? false) &&
         (Funcionarios?.Sucesso ?? false) &&
-        (Empresa?.Sucesso ?? false);
+        (Empresa?.Sucesso ?? false) &&
+        (Cartoes?.Sucesso ?? false);
 }
