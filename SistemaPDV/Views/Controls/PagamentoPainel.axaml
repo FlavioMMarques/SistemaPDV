@@ -69,6 +69,13 @@
               </StackPanel>
             </Grid>
 
+            <!-- Pagamentos acima do total (ex: um item saiu do cupom depois de pagar): diz o que fazer, em vez de só bloquear
+                 o Confirmar sem explicação. -->
+            <Border IsVisible="{Binding PagamentosPassamDoTotal}" Background="{StaticResource AccentRedDimBrush}"
+                    BorderBrush="{StaticResource AccentRedBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusMedium}" Padding="14,10">
+              <TextBlock Text="{Binding AvisoExcesso}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap" />
+            </Border>
+
             <!-- Meios de pagamento -->
             <StackPanel Spacing="8">
               <TextBlock Text="SELECIONE O MEIO DE PAGAMENTO:" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" />
@@ -99,7 +106,7 @@
             </StackPanel>
 
             <!-- Lançamento da forma escolhida: valor (no dinheiro, o RECEBIDO — o troco vem daí), bandeira (cartão) -->
-            <Border IsVisible="{Binding TemFormaSelecionada}"
+            <Border Name="AreaLancamento" IsVisible="{Binding TemFormaSelecionada}"
                     Background="{StaticResource BgInputBrush}"
                     BorderBrush="{StaticResource BorderColorBrush}"
                     BorderThickness="1"

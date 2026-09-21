@@ -50,6 +50,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         {
             Renumerar();
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+            this.RaisePropertyChanged(nameof(PagamentosPassamDoTotal));
+            this.RaisePropertyChanged(nameof(AvisoExcesso));
             this.RaisePropertyChanged(nameof(PodeConfirmar));
             this.RaisePropertyChanged(nameof(TrocoPrevisto));
             this.RaisePropertyChanged(nameof(Total));
@@ -64,6 +66,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         Pagamentos.CollectionChanged += (_, _) =>
         {
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+            this.RaisePropertyChanged(nameof(PagamentosPassamDoTotal));
+            this.RaisePropertyChanged(nameof(AvisoExcesso));
             this.RaisePropertyChanged(nameof(PodeConfirmar));
             this.RaisePropertyChanged(nameof(TrocoPrevisto));
             this.RaisePropertyChanged(nameof(TotalPago));
@@ -100,7 +104,6 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         // públicos, que os testes chamam direto sem precisar passar por comando.
         AdicionarItemCommand = ReactiveCommand.Create<Produto>(AdicionarItem);
         RemoverItemCommand = ReactiveCommand.Create<ItemCarrinho>(RemoverItem);
-        AdicionarPagamentoCommand = ReactiveCommand.Create<FormaPagamento>(AdicionarPagamento);
         RemoverPagamentoCommand = ReactiveCommand.Create<PagamentoAlocado>(RemoverPagamento);
     }
 
@@ -281,6 +284,10 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     // Painel de pagamento: quanto já foi pago, quanto falta e o troco (pago a mais — dinheiro).
     public decimal TotalPago => Pagamentos.Sum(p => p.Valor);
     public decimal Restante => Math.Max(Total - TotalPago, 0m);
+
+    // O que falta pagar EM CENTAVOS, como a tela mostra (R$ {0:F2}) e como o operador digita: com total fracionado
+    // (0,333 kg × 9,99 = 3,32667) o valor válido é 3,33, e comparar com 3,32667 recusaria o pagamento certo.
+    private decimal FaltaEmCentavos => Math.Round(Restante, 2, MidpointRounding.AwayFromZero);
     // Troco = o que o cliente entregou a mais no DINHEIRO (só ele dá troco; ver AdicionarPagamento).
     public decimal Troco => Pagamentos.Sum(p => p.Troco);
 
@@ -290,11 +297,17 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         private set => this.RaiseAndSetIfChanged(ref emPagamento, value);
     }
 
-    // Achado numa revisão de código (2026-09-18): carrinho não vazio sozinho não
-    // bastava — dava pra finalizar com pagamento parcial ou nenhum. Pagar A MAIS
-    // do que o total é permitido (dinheiro com troco); a MENOS, não. Troco em si
-    // não é modelado ainda.
-    public bool PodeFinalizarVenda => Itens.Count > 0 && Pagamentos.Sum(p => p.Valor) >= Total;
+    // Precisa de item, de pagamento que COBRE o total e de pagamento que NÃO passe do total. O dinheiro nunca passa (só o
+    // que falta é lançado; o resto é troco), mas o total pode CAIR depois do pagamento — tirar um item do cupom com um
+    // PIX já lançado deixaria o PIX acima do total —, então isso é conferido aqui, não só na hora de lançar.
+    public bool PodeFinalizarVenda => Itens.Count > 0 && TotalPago >= Total && !PagamentosPassamDoTotal;
+
+    // Uma tolerância de 1 centavo cobre o arredondamento de totais fracionados (0,333 kg × 9,99 = 3,32667 → paga-se 3,33).
+    public bool PagamentosPassamDoTotal => Pagamentos.Count > 0 && TotalPago - Total >= 0.01m;
+
+    public string? AvisoExcesso => PagamentosPassamDoTotal
+        ? $"Os pagamentos somam R$ {ValorMonetario.Formatar(TotalPago)}, acima do total de R$ {ValorMonetario.Formatar(Total)} — remova ou ajuste um pagamento."
+        : null;
 
     // Qualquer coisa já digitada conta (item OU pagamento) — o Shell usa isso pra
     // bloquear a navegação e não descartar o que o operador já montou.
@@ -305,7 +318,6 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<Unit, Unit> CancelarCommand { get; }
     public ReactiveCommand<Produto, Unit> AdicionarItemCommand { get; }
     public ReactiveCommand<ItemCarrinho, Unit> RemoverItemCommand { get; }
-    public ReactiveCommand<FormaPagamento, Unit> AdicionarPagamentoCommand { get; }
     public ReactiveCommand<PagamentoAlocado, Unit> RemoverPagamentoCommand { get; }
     public ReactiveCommand<Unit, Unit> AbrirPagamentoCommand { get; }
     public ReactiveCommand<Unit, Unit> FecharPagamentoCommand { get; }
@@ -363,7 +375,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         }
 
         // Já está toda paga (ou não há nada no cupom): outro lançamento só criaria um pagamento de R$ 0,00.
-        if (Restante <= 0)
+        var falta = FaltaEmCentavos;
+        if (falta <= 0)
         {
             Mensagem = "A venda já está totalmente paga.";
             return;
@@ -385,7 +398,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
         // Só o DINHEIRO dá troco. O que o cliente entregou (valor) pode passar do que falta: lança-se o que falta e a
         // diferença vira troco. As outras formas não passam do que falta pagar (um cartão não cobra a mais).
-        var falta = Restante;
+
         PagamentoAlocado pagamento;
         if (forma.EhDinheiro)
         {
@@ -437,7 +450,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
         if (!PodeFinalizarVenda)
         {
-            Mensagem = $"Falta pagar R$ {ValorMonetario.Formatar(Restante)}.";
+            Mensagem = PagamentosPassamDoTotal ? AvisoExcesso : $"Falta pagar R$ {ValorMonetario.Formatar(Restante)}.";
             return;
         }
 
@@ -456,7 +469,14 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         EmPagamento = true;
     }
 
-    private void FecharPagamento() => EmPagamento = false;
+    // Volta ao cupom. Os pagamentos já lançados ficam; a forma escolhida e a mensagem não: reabrir começa limpo.
+    private void FecharPagamento()
+    {
+        EmPagamento = false;
+        FormaSelecionada = null;
+        BandeiraSelecionada = null;
+        Mensagem = null;
+    }
 
     // F10: fecha o ciclo em duas batidas — com o painel fechado ele ABRE; com o painel aberto e o valor pago, CONFIRMA.
     private async Task AvancarAsync()
