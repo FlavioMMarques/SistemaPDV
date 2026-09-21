@@ -562,6 +562,8 @@ public class ShellViewModel : ViewModelBase
     private async Task IrParaCadastrosAsync()
     {
         var viewModel = new CadastrosViewModel(cadastroLocalService);
+        // Cliente ou produto novo = mais um item esperando envio: a pílula "Sync: N pendentes" acompanha na hora.
+        viewModel.CadastroCriado.Subscribe(criado => _ = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync));
         await viewModel.IniciarAsync();
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Cadastros;

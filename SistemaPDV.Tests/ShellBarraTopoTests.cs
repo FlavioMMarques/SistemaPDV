@@ -202,6 +202,70 @@ public class ShellBarraTopoTests
         Assert.Equal(antes + 1, shell.PendentesSync);   // a venda nova espera envio
     }
 
+    // Cadastrar cliente/produto grava local e vira mais um item esperando envio: a pílula "Sync: N pendentes" tem de subir NA HORA
+    // (antes só atualizava no próximo ciclo de sincronização ou ao trocar de conta, e o operador achava que nada tinha sido salvo).
+    [Fact]
+    public async Task CadastrarUmClienteSobeAContagemDePendentes()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var shell = await CriarShellLogadoAsync(fixture);
+        await shell.WhenAnyValue(s => s.PendentesSync).Where(n => n == 1).FirstAsync().Timeout(TimeSpan.FromSeconds(5)).ToTask();   // o caixa aberto
+        var antes = shell.PendentesSync;
+        await shell.IrParaCadastrosCommand.Execute();
+        var cadastros = (CadastrosViewModel)shell.CurrentViewModel!;
+        await cadastros.NovoClienteCommand.Execute();
+        cadastros.NovoNome = "Ana Lima";
+        cadastros.NovoCpfCnpj = "529.982.247-25";
+
+        await cadastros.CriarClienteCommand.Execute();
+        await shell.WhenAnyValue(s => s.PendentesSync).Where(n => n == antes + 1).FirstAsync().Timeout(TimeSpan.FromSeconds(5)).ToTask();
+
+        Assert.Equal(antes + 1, shell.PendentesSync);
+    }
+
+    [Fact]
+    public async Task CadastrarUmProdutoSobeAContagemDePendentes()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Grupos.Add(new Grupo { Nome = "Mercearia", IdExterno = 7 });
+            await context.SaveChangesAsync();
+        }
+        var shell = await CriarShellLogadoAsync(fixture);
+        await shell.WhenAnyValue(s => s.PendentesSync).Where(n => n == 1).FirstAsync().Timeout(TimeSpan.FromSeconds(5)).ToTask();
+        var antes = shell.PendentesSync;
+        await shell.IrParaCadastrosCommand.Execute();
+        var cadastros = (CadastrosViewModel)shell.CurrentViewModel!;
+        await cadastros.NovoProdutoCommand.Execute();
+        cadastros.FormProduto.Nome = "Café Torrado 500g";
+        cadastros.FormProduto.CategoriaSelecionada = cadastros.FormProduto.Categorias.Single();
+        cadastros.FormProduto.Preco = "12,50";
+
+        await cadastros.FormProduto.SalvarCommand.Execute();
+        await shell.WhenAnyValue(s => s.PendentesSync).Where(n => n == antes + 1).FirstAsync().Timeout(TimeSpan.FromSeconds(5)).ToTask();
+
+        Assert.Equal(antes + 1, shell.PendentesSync);
+    }
+
+    [Fact]
+    public async Task CadastroComErroDeValidacaoNaoMexeNaContagem()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var shell = await CriarShellLogadoAsync(fixture);
+        await shell.WhenAnyValue(s => s.PendentesSync).Where(n => n == 1).FirstAsync().Timeout(TimeSpan.FromSeconds(5)).ToTask();
+        await shell.IrParaCadastrosCommand.Execute();
+        var cadastros = (CadastrosViewModel)shell.CurrentViewModel!;
+        await cadastros.NovoClienteCommand.Execute();
+        cadastros.NovoNome = "Ana Lima";
+        cadastros.NovoCpfCnpj = "123.456.789-00";   // inválido: nada é gravado
+
+        await cadastros.CriarClienteCommand.Execute();
+        await Task.Delay(200);                       // dá tempo de uma recontagem indevida acontecer
+
+        Assert.Equal(1, shell.PendentesSync);
+    }
+
     // ---- rótulo da conexão ----
 
     [Theory]

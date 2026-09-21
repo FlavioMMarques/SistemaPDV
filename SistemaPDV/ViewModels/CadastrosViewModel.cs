@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Services;
@@ -45,6 +46,7 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private bool formularioClienteAberto;
     private string? mensagemProdutoSalvo;
     private readonly ObservableAsPropertyHelper<bool> modalAberto;
+    private readonly Subject<Unit> cadastroCriado = new();
 
     public CadastrosViewModel(CadastroLocalService cadastroLocalService)
     {
@@ -155,6 +157,10 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<Unit, Unit> NovoProdutoCommand { get; }
 
     public ProdutoFormViewModel FormProduto { get; }
+
+    // Dispara quando um cliente ou produto novo acaba de ser gravado (pendente de envio): o Shell atualiza na hora o "Sync: N pendentes"
+    // da barra do topo, do mesmo jeito que faz ao finalizar uma venda.
+    public IObservable<Unit> CadastroCriado => cadastroCriado;
 
     // Um dos modais (cliente ou produto) está aberto: a tela de trás fica desabilitada.
     public bool ModalAberto => modalAberto.Value;
@@ -294,6 +300,7 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     // O modal já fechou e o produto está gravado (pendente): limpa a busca (uma busca ativa poderia escondê-lo) e recarrega.
     private async Task RecarregarAposCriarProdutoAsync()
     {
+        cadastroCriado.OnNext(Unit.Default);
         MensagemProdutoSalvo = "Produto salvo. Ele será enviado à API na próxima sincronização.";
         Busca = string.Empty;
         await BuscarAsync();
@@ -344,6 +351,7 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         MensagemForm = "Cliente salvo. Ele será enviado à API na próxima sincronização.";
         FormularioClienteAberto = false;
         LimparFormulario();
+        cadastroCriado.OnNext(Unit.Default);
 
         // Busca ativa poderia esconder o cliente recém-criado — limpa pra ele aparecer.
         Busca = string.Empty;
