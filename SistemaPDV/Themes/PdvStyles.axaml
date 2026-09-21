@@ -82,7 +82,8 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
-    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="Padding" Value="8,8" />
+    <Setter Property="FontSize" Value="13" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Cursor" Value="Hand" />
   </Style>
@@ -95,8 +96,19 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource BrandYellowBrush}" />
   </Style>
+  <!-- Desabilitada (sem caixa aberto / venda em andamento): esmaecida e sem o fundo cinza do tema. A aba da tela ATUAL
+       continua bem visível mesmo desabilitada — o operador precisa saber onde está. -->
   <Style Selector="Button.nav:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <Style Selector="Button.nav.ativa:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrandYellowBrush}" />
+    <Setter Property="Opacity" Value="1" />
   </Style>
 
   <!-- Pílula de status (sistema, conexão, sync) -->

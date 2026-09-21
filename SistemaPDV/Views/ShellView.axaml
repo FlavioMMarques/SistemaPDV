@@ -3,88 +3,152 @@
              xmlns:vm="using:SistemaPDV.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="650"
+             mc:Ignorable="d" d:DesignWidth="1860" d:DesignHeight="650"
              x:Class="SistemaPDV.Views.ShellView"
              x:DataType="vm:ShellViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <DockPanel>
+  <!-- Janela estreita (classe "compacto", ver ShellView.axaml.cs): some a pílula do sistema e os rótulos da navegação
+       (ficam os ícones, com dica no mouse) pra a barra do topo caber sem cortar. -->
+  <UserControl.Styles>
+    <Style Selector="DockPanel.compacto Border.somenteAmplo">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="DockPanel.compacto TextBlock.rotulo">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </UserControl.Styles>
 
-    <!-- Header: operador + caixa (protótipo mockado) + indicador de conexão (Task 50) —
-         pendências ainda não têm indicador. -->
+  <DockPanel Name="Raiz">
+
+    <!-- Barra do topo (protótipo): logo, pílula do sistema, navegação com a aba atual destacada, chip do operador/caixa e
+         pílulas de conexão e de sincronização. Navegação habilitada com caixa aberto e sem venda em andamento (ver
+         ShellViewModel); Configurações só exige operador logado. -->
     <Border DockPanel.Dock="Top"
             Background="{StaticResource BgCardBrush}"
             BorderBrush="{StaticResource BorderColorBrush}"
             BorderThickness="0,0,0,1"
             Padding="16,10">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0"
-                   Text="SoftcomPDV"
-                   FontWeight="Bold"
-                   Foreground="{StaticResource TextMainBrush}"
-                   VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
 
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-          <!-- Indicador de conexão (Task 50): ícone + texto, nunca só cor. A dica mostra o
-               motivo quando está offline (ex: URL sem HTTPS). -->
-          <TextBlock Text="{Binding Conexao, Converter={StaticResource EstadoConexaoParaTextoConverter}}"
-                     Foreground="{Binding Conexao, Converter={StaticResource EstadoConexaoParaCorConverter}}"
-                     VerticalAlignment="Center"
-                     ToolTip.Tip="{Binding DetalheConexao}"
-                     AutomationProperties.Name="Estado da conexão com a API" />
-          <TextBlock Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center">
-            <TextBlock.Text>
-              <MultiBinding StringFormat="{}{0} • Cx {1}">
-                <Binding Path="OperadorLogado.Nome" FallbackValue="" />
-                <Binding Path="CaixaAberto.Id" FallbackValue="—" />
-              </MultiBinding>
-            </TextBlock.Text>
-          </TextBlock>
+        <!-- Logo: pasta amarela + "softcom" (desenhado aqui; o arquivo oficial do logo não está no repositório) -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                    AutomationProperties.Name="Softcom">
+          <Viewbox Width="36" Height="30">
+            <Canvas Width="36" Height="30">
+              <Path Fill="{StaticResource BrandYellowBrush}"
+                    Data="M0,5 Q0,0 5,0 L13,0 L17,5 L31,5 Q36,5 36,10 L36,25 Q36,30 31,30 L5,30 Q0,30 0,25 Z" />
+              <Path Fill="{StaticResource BgCardBrush}" Opacity="0.28" Data="M3,12 L33,12 L33,13.5 L3,13.5 Z" />
+            </Canvas>
+          </Viewbox>
+          <TextBlock Text="softcom" FontSize="30" FontWeight="ExtraBold" Foreground="{StaticResource TextMainBrush}"
+                     VerticalAlignment="Center" LetterSpacing="-0.5" />
+        </StackPanel>
+
+        <Border Grid.Column="1" Classes="pill somenteAmplo"
+                Background="{StaticResource BrandYellowDimBrush}"
+                BorderBrush="{StaticResource BrandYellowBrush}"
+                VerticalAlignment="Center">
+          <TextBlock Text="SOFTCOMPDV DESKTOP • OFFLINE-FIRST" FontSize="11" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
+        </Border>
+
+        <!-- Navegação -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+          <Button Classes="nav" Classes.ativa="{Binding DashboardAtivo}"
+                  Command="{Binding IrParaDashboardCommand}"
+                  ToolTip.Tip="Painel Principal"
+                  AutomationProperties.Name="Ir para o painel principal">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="📊" />
+              <TextBlock Classes="rotulo" Text="Painel Principal" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Classes.ativa="{Binding PdvAtivo}"
+                  Command="{Binding IrParaPdvCommand}"
+                  ToolTip.Tip="Vendas (PDV)"
+                  AutomationProperties.Name="Ir para vendas, o PDV">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="🛒" />
+              <TextBlock Classes="rotulo" Text="Vendas (PDV)" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Classes.ativa="{Binding PedidosAtivo}"
+                  Command="{Binding IrParaListaPedidosCommand}"
+                  ToolTip.Tip="Listagem de Pedidos"
+                  AutomationProperties.Name="Ir para a listagem de pedidos">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="📋" />
+              <TextBlock Classes="rotulo" Text="Listagem de Pedidos" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Classes.ativa="{Binding CadastrosAtivo}"
+                  Command="{Binding IrParaCadastrosCommand}"
+                  ToolTip.Tip="Cadastros"
+                  AutomationProperties.Name="Ir para cadastros">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="📦" />
+              <TextBlock Classes="rotulo" Text="Cadastros" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Classes.ativa="{Binding FecharCaixaAtivo}"
+                  Command="{Binding IrParaFecharCaixaCommand}"
+                  ToolTip.Tip="Fechar caixa"
+                  AutomationProperties.Name="Ir para fechar caixa">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="🔒" />
+              <TextBlock Classes="rotulo" Text="Fechar caixa" />
+            </StackPanel>
+          </Button>
+          <Button Classes="nav" Classes.ativa="{Binding ConfiguracoesAtivo}"
+                  Command="{Binding IrParaConfiguracoesCommand}"
+                  ToolTip.Tip="Configurações"
+                  AutomationProperties.Name="Ir para configurações">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="⚙" />
+              <TextBlock Classes="rotulo" Text="Configurações" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+
+        <!-- Operador + caixa, conexão e sincronização -->
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+
+          <Border Classes="pill" Padding="8,5,16,5"
+                  IsVisible="{Binding OperadorLogado, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  AutomationProperties.Name="Operador e caixa">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource BrandYellowDimBrush}">
+                <TextBlock Text="{Binding InicialOperador}" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding RotuloOperadorCaixa}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
+                <TextBlock Text="{Binding SituacaoCaixa, StringFormat='● {0}'}" FontSize="10" Foreground="{StaticResource AccentGreenBrush}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Conexão: bolinha colorida + texto (nunca só cor). A dica mostra o motivo quando está offline. -->
+          <Border Classes="pill" ToolTip.Tip="{Binding DetalheConexao}" AutomationProperties.Name="Estado da conexão com a API">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                       Fill="{Binding Conexao, Converter={StaticResource EstadoConexaoParaCorConverter}}" />
+              <TextBlock Text="{Binding Conexao, Converter={StaticResource EstadoConexaoParaRotuloConverter}}"
+                         FontSize="12" FontWeight="SemiBold"
+                         Foreground="{Binding Conexao, Converter={StaticResource EstadoConexaoParaCorConverter}}" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="pill" ToolTip.Tip="Itens que ainda não chegaram à API (caixas, vendas e clientes novos)"
+                  AutomationProperties.Name="Sincronização">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="☁" FontSize="12" Foreground="{StaticResource AccentBlueBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="Sync:" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBlueBrush}" />
+              <TextBlock Text="{Binding TextoSync}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
+            </StackPanel>
+          </Border>
         </StackPanel>
       </Grid>
-    </Border>
-
-    <!-- Navegação persistente entre Dashboard/Nova Venda/Pedidos/Cadastros — habilitada com
-         caixa aberto (ver ShellViewModel). Resolve o que ficou pendente nas Tasks
-         42/43/45 sobre não ter como voltar depois de sair do Dashboard. Cadastros só
-         exige operador logado (não depende de caixa aberto). -->
-    <Border DockPanel.Dock="Top"
-            Background="{StaticResource BgCardBrush}"
-            BorderBrush="{StaticResource BorderColorBrush}"
-            BorderThickness="0,0,0,1"
-            Padding="16,8">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="📊 Painel"
-                Command="{Binding IrParaDashboardCommand}"
-                Background="Transparent"
-                Foreground="{StaticResource TextMainBrush}"
-                AutomationProperties.Name="Ir para o painel" />
-        <Button Content="🛒 Nova Venda"
-                Command="{Binding IrParaPdvCommand}"
-                Background="Transparent"
-                Foreground="{StaticResource TextMainBrush}"
-                AutomationProperties.Name="Ir para nova venda" />
-        <Button Content="📋 Pedidos"
-                Command="{Binding IrParaListaPedidosCommand}"
-                Background="Transparent"
-                Foreground="{StaticResource TextMainBrush}"
-                AutomationProperties.Name="Ir para lista de pedidos" />
-        <Button Content="📇 Cadastros"
-                Command="{Binding IrParaCadastrosCommand}"
-                Background="Transparent"
-                Foreground="{StaticResource TextMainBrush}"
-                AutomationProperties.Name="Ir para cadastros" />
-        <Button Content="🔒 Fechar caixa"
-                Command="{Binding IrParaFecharCaixaCommand}"
-                Background="Transparent"
-                Foreground="{StaticResource TextMainBrush}"
-                AutomationProperties.Name="Ir para fechar caixa" />
-        <Button Content="⚙ Configurações"
-                Command="{Binding IrParaConfiguracoesCommand}"
-                Background="Transparent"
-                Foreground="{StaticResource TextMainBrush}"
-                AutomationProperties.Name="Ir para configurações" />
-      </StackPanel>
     </Border>
 
     <!-- Falha inesperada de navegação (fire-and-forget capturado, ver

@@ -33,6 +33,7 @@ public class ShellViewModel : ViewModelBase
     private Models.Caixa? caixaAberto;
     private string? mensagem;
     private bool vendaEmAndamento;
+    private int pendentesSync;
     private EstadoConexao conexao;
     private string? detalheConexao;
     private readonly Subject<Unit> dispositivoVinculado = new();
@@ -94,8 +95,59 @@ public class ShellViewModel : ViewModelBase
     public Tela TelaAtual
     {
         get => telaAtual;
-        private set => this.RaiseAndSetIfChanged(ref telaAtual, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref telaAtual, value);
+            // A aba da barra do topo que corresponde à tela atual fica destacada (ver as classes "ativa" no ShellView).
+            this.RaisePropertyChanged(nameof(DashboardAtivo));
+            this.RaisePropertyChanged(nameof(PdvAtivo));
+            this.RaisePropertyChanged(nameof(PedidosAtivo));
+            this.RaisePropertyChanged(nameof(CadastrosAtivo));
+            this.RaisePropertyChanged(nameof(FecharCaixaAtivo));
+            this.RaisePropertyChanged(nameof(ConfiguracoesAtivo));
+        }
     }
+
+    public bool DashboardAtivo => TelaAtual == Tela.Dashboard;
+    public bool PdvAtivo => TelaAtual == Tela.Pdv;
+    public bool PedidosAtivo => TelaAtual == Tela.ListaPedidos;
+    public bool CadastrosAtivo => TelaAtual == Tela.Cadastros;
+    public bool FecharCaixaAtivo => TelaAtual == Tela.FecharCaixa;
+    public bool ConfiguracoesAtivo => TelaAtual == Tela.Configuracoes;
+
+    // ---- chip do operador e pílula de sincronização da barra do topo ----
+
+    // "Carlos • Caixa 02" (o número é o do caixa local, com dois dígitos como no protótipo).
+    public string RotuloOperadorCaixa => OperadorLogado is null
+        ? string.Empty
+        : CaixaAberto is null ? OperadorLogado.Nome : $"{OperadorLogado.Nome} • Caixa {CaixaAberto.Id:00}";
+
+    public string InicialOperador => string.IsNullOrWhiteSpace(OperadorLogado?.Nome) ? "?" : OperadorLogado!.Nome.Trim()[..1].ToUpperInvariant();
+
+    // Sob o nome, no lugar do "JWT Ativo" do protótipo (que não existe neste app): o estado que importa ao operador.
+    public string SituacaoCaixa => CaixaAberto is null ? "Sem caixa aberto" : "Caixa aberto";
+
+    // Itens que ainda não chegaram à API (caixas, vendas, clientes novos): "Sync: 3 pendentes".
+    public int PendentesSync
+    {
+        get => pendentesSync;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref pendentesSync, value);
+            this.RaisePropertyChanged(nameof(TextoSync));
+        }
+    }
+
+    public string TextoSync => PendentesSync switch
+    {
+        0 => "tudo enviado",
+        1 => "1 pendente",
+        var n => $"{n} pendentes",
+    };
+
+    // Recontagem barata (só as três contagens do outbox). Chamada quando o operador entra, quando uma venda é finalizada
+    // e quando a sincronização em segundo plano mexeu no banco.
+    private async Task AtualizarPendentesAsync() => PendentesSync = await dashboardService.ContarPendentesAsync();
 
     public ViewModelBase? CurrentViewModel
     {
@@ -106,13 +158,23 @@ public class ShellViewModel : ViewModelBase
     public Funcionario? OperadorLogado
     {
         get => operadorLogado;
-        private set => this.RaiseAndSetIfChanged(ref operadorLogado, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref operadorLogado, value);
+            this.RaisePropertyChanged(nameof(RotuloOperadorCaixa));
+            this.RaisePropertyChanged(nameof(InicialOperador));
+        }
     }
 
     public Models.Caixa? CaixaAberto
     {
         get => caixaAberto;
-        private set => this.RaiseAndSetIfChanged(ref caixaAberto, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref caixaAberto, value);
+            this.RaisePropertyChanged(nameof(RotuloOperadorCaixa));
+            this.RaisePropertyChanged(nameof(SituacaoCaixa));
+        }
     }
 
     // Mensagem mostra na tela o erro que ExecutarComTratamentoDeErroAsync capturou (o detalhe vai pro log), em vez
@@ -155,6 +217,8 @@ public class ShellViewModel : ViewModelBase
     {
         if (CurrentViewModel is IAtualizavelPorSincronizacao tela)
             _ = ExecutarComTratamentoDeErroAsync(tela.AtualizarAposSincronizacaoAsync);
+
+        _ = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync);   // "Sync: N pendentes" da barra do topo
     }
 
     // Erro inesperado de um comando (ver TratamentoDeErros): vira o banner em vez de derrubar o app.
@@ -249,6 +313,7 @@ public class ShellViewModel : ViewModelBase
     {
         OperadorLogado = funcionario;
         CaixaAberto = await caixaService.ObterCaixaAbertoAsync(funcionario.Id);
+        await AtualizarPendentesAsync();
 
         await IrParaTelaInicialAsync();
     }
@@ -304,6 +369,9 @@ public class ShellViewModel : ViewModelBase
         var viewModel = new PdvViewModel(vendaService, catalogoLocalService, caixaId);
         await viewModel.IniciarAsync();
         viewModel.WhenAnyValue(vm => vm.TemVendaEmAndamento).Subscribe(emAndamento => VendaEmAndamento = emAndamento);
+        // Venda finalizada = mais um item esperando envio: a pílula "Sync: N pendentes" acompanha na hora.
+        viewModel.FinalizarVendaCommand.Where(venda => venda is not null)
+            .Subscribe(venda => _ = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync));
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Pdv;
     }

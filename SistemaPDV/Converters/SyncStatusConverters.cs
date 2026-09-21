@@ -80,3 +80,21 @@ public class EstadoConexaoParaCorConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+// Rótulo da pílula de conexão da barra do topo (sem emoji: a bolinha colorida vem de EstadoConexaoParaCorConverter e o
+// texto diz o estado — nunca só cor). "Offline" explica o que isso significa num PDV offline-first: as vendas seguem.
+public class EstadoConexaoParaRotuloConverter : IValueConverter
+{
+    public static readonly EstadoConexaoParaRotuloConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        EstadoConexao.Online => "Online",
+        EstadoConexao.OnlineComFalhas => "Online (com falhas)",
+        EstadoConexao.Offline => "Offline (contingência ativa)",
+        _ => "Conexão não verificada",
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

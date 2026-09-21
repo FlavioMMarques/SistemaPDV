@@ -20,6 +20,22 @@ public class DashboardService
         this.contextFactory = contextFactory;
     }
 
+    // Quantos itens ainda não chegaram à API (caixas, vendas e clientes novos) — o "Sync: N pendentes" da barra do topo.
+    // Só as três contagens: não calcula faturamento nem estoque como o resumo do painel.
+    public async Task<int> ContarPendentesAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        return await ContarPendentesAsync(context, ct);
+    }
+
+    private static async Task<int> ContarPendentesAsync(AppDbContext context, CancellationToken ct)
+    {
+        var caixasPendentes = await context.Caixas.CountAsync(c => c.SyncStatus != SyncStatus.Sincronizado, ct);
+        var vendasPendentes = await context.Vendas.Where(VendaFiltros.NaoEnviada).CountAsync(ct);
+        var clientesPendentes = await context.Clientes.CountAsync(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado, ct);
+        return caixasPendentes + vendasPendentes + clientesPendentes;
+    }
+
     // caixaId nullable: com ExigirAberturaCaixa=false, o Shell pode chegar aqui sem
     // nenhum caixa aberto — nesse caso não tem faturamento nenhum pra mostrar ainda,
     // não é um erro.
@@ -41,10 +57,7 @@ public class DashboardService
 
         var estoqueTotal = await context.Produtos.SumAsync(p => p.EstoqueAtual, ct);
 
-        var caixasPendentes = await context.Caixas.CountAsync(c => c.SyncStatus != SyncStatus.Sincronizado, ct);
-        var vendasPendentes = await context.Vendas.Where(VendaFiltros.NaoEnviada).CountAsync(ct);
-        var clientesPendentes = await context.Clientes.CountAsync(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado, ct);
-        var pendentesOutbox = caixasPendentes + vendasPendentes + clientesPendentes;
+        var pendentesOutbox = await ContarPendentesAsync(context, ct);
 
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct);
         var candidatosUltimaSincronizacao = new[]
