@@ -35,6 +35,9 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string valorPagamentoAdicionar = string.Empty;
     private string? mensagem;
     private bool emPagamento;
+    private Produto? produtoAguardandoPreco;
+    private string precoInformado = string.Empty;
+    private string? mensagemPreco;
     private IReadOnlyList<OpcaoPagamento> opcoesPagamento = Array.Empty<OpcaoPagamento>();
     private FormaPagamento? formaSelecionada;
 
@@ -85,7 +88,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
         // Painel de pagamento (protótipo): "FINALIZAR VENDA (F10)" no cupom só ABRE o painel; a venda é registrada pelo
         // botão de confirmar dele. F10 faz as duas coisas em sequência (abre; com o painel aberto e o valor pago, confirma).
-        var podeAbrirPagamento = this.WhenAnyValue(vm => vm.TemItens, vm => vm.EmPagamento, (temItens, aberto) => temItens && !aberto);
+        var podeAbrirPagamento = this.WhenAnyValue(vm => vm.TemItens, vm => vm.ModalAberto, (temItens, modalAberto) => temItens && !modalAberto);
         AbrirPagamentoCommand = ReactiveCommand.Create(AbrirPagamento, podeAbrirPagamento);
         FecharPagamentoCommand = ReactiveCommand.Create(FecharPagamento);
         AvancarCommand = ReactiveCommand.CreateFromTask(AvancarAsync);
@@ -106,6 +109,10 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         AdicionarItemCommand = ReactiveCommand.Create<Produto>(AdicionarItem);
         RemoverItemCommand = ReactiveCommand.Create<ItemCarrinho>(RemoverItem);
         RemoverPagamentoCommand = ReactiveCommand.Create<PagamentoAlocado>(RemoverPagamento);
+
+        // Painel de preço (produto com preço zero no cadastro): confirmar lança o item; cancelar descarta o lançamento.
+        ConfirmarPrecoCommand = ReactiveCommand.Create(ConfirmarPreco);
+        CancelarPrecoCommand = ReactiveCommand.Create(CancelarPreco);
     }
 
     public ObservableCollection<ItemCarrinho> Itens { get; } = new();
@@ -295,7 +302,11 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public bool EmPagamento
     {
         get => emPagamento;
-        private set => this.RaiseAndSetIfChanged(ref emPagamento, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref emPagamento, value);
+            this.RaisePropertyChanged(nameof(ModalAberto));
+        }
     }
 
     // Precisa de item, de pagamento que COBRE o total e de pagamento que NÃO passe do total. O dinheiro nunca passa (só o
@@ -352,17 +363,107 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             BandeiraSelecionada = null;
     }
 
+    // ---- produto sem preço no cadastro (R$ 0,00): o operador informa o preço na hora de lançar ----
+
+    // Um produto com preço zero NÃO entra no cupom sozinho (sairia de graça por engano): o painel de preço abre e só o
+    // lançamento com um preço maior que zero o coloca no cupom. O preço digitado vale só para ESTE item do cupom — não altera o
+    // cadastro — e é o que a venda grava e envia à API (o preço do item já viajava na requisição).
+    public Produto? ProdutoAguardandoPreco
+    {
+        get => produtoAguardandoPreco;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref produtoAguardandoPreco, value);
+            this.RaisePropertyChanged(nameof(PedindoPreco));
+            this.RaisePropertyChanged(nameof(ModalAberto));
+        }
+    }
+
+    public bool PedindoPreco => ProdutoAguardandoPreco is not null;
+
+    // Algum painel modal está aberto por cima do cupom (pagamento ou preço): a tela de trás fica desabilitada.
+    public bool ModalAberto => EmPagamento || PedindoPreco;
+
+    public string PrecoInformado
+    {
+        get => precoInformado;
+        set => this.RaiseAndSetIfChanged(ref precoInformado, value);
+    }
+
+    public string? MensagemPreco
+    {
+        get => mensagemPreco;
+        private set => this.RaiseAndSetIfChanged(ref mensagemPreco, value);
+    }
+
+    public ReactiveCommand<Unit, Unit> ConfirmarPrecoCommand { get; }
+    public ReactiveCommand<Unit, Unit> CancelarPrecoCommand { get; }
+
+    // Teto de sanidade: acima disso quase certamente é erro de digitação (1250 no lugar de 12,50 é mais provável que 1.250 reais
+    // num item de PDV, mas esse a tela não tem como saber — o cupom mostra o total e o operador confere).
+    public const decimal PrecoMaximoInformado = 1_000_000m;
+
+    private void PedirPreco(Produto produto)
+    {
+        PrecoInformado = string.Empty;
+        MensagemPreco = null;
+        ProdutoAguardandoPreco = produto;
+    }
+
+    private void ConfirmarPreco()
+    {
+        var produto = ProdutoAguardandoPreco;
+        if (produto is null)
+            return;
+
+        if (!ValorMonetario.TentarLer(PrecoInformado, out var preco) || preco <= 0)
+        {
+            MensagemPreco = "Informe um preço maior que zero (ex: 12,50).";
+            return;
+        }
+
+        if (preco > PrecoMaximoInformado)
+        {
+            MensagemPreco = $"Confira o valor: o preço máximo aceito é R$ {ValorMonetario.Formatar(PrecoMaximoInformado)}.";
+            return;
+        }
+
+        ProdutoAguardandoPreco = null;
+        MensagemPreco = null;
+        LancarItem(produto, preco, precoInformado: true);
+    }
+
+    private void CancelarPreco()
+    {
+        ProdutoAguardandoPreco = null;
+        MensagemPreco = null;
+        PrecoInformado = string.Empty;
+    }
+
     // Avisa a tela ("Sabonete" adicionado ao cupom) sem o ViewModel conhecer o canto da tela onde o aviso aparece.
     public IObservable<string> ItemLancado => itemLancado;
     private readonly Subject<string> itemLancado = new();
 
+    // Todos os caminhos de lançamento (clique no card, Enter da busca, leitor de código de barras) passam por aqui — então a
+    // regra do preço zero vale em todos eles.
     public void AdicionarItem(Produto produto)
+    {
+        if (produto.PrecoVenda <= 0)
+        {
+            PedirPreco(produto);
+            return;
+        }
+
+        LancarItem(produto, produto.PrecoVenda, precoInformado: false);
+    }
+
+    private void LancarItem(Produto produto, decimal preco, bool precoInformado)
     {
         var quantidade = ValorMonetario.TentarLer(QuantidadeAdicionar, out var valor, casasDecimais: 3) && valor > 0
             ? valor
             : 1m;
 
-        Itens.Add(new ItemCarrinho { Produto = produto, Quantidade = quantidade, PrecoUnitario = produto.PrecoVenda });
+        Itens.Add(new ItemCarrinho { Produto = produto, Quantidade = quantidade, PrecoUnitario = preco, PrecoInformado = precoInformado });
         itemLancado.OnNext(produto.Nome);
     }
 
@@ -487,6 +588,10 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     // F10: fecha o ciclo em duas batidas — com o painel fechado ele ABRE; com o painel aberto e o valor pago, CONFIRMA.
     private async Task AvancarAsync()
     {
+        // Pedindo o preço de um produto: o F10 não paga nada por baixo do painel (o preço se confirma com Enter).
+        if (PedindoPreco)
+            return;
+
         if (!EmPagamento)
         {
             if (TemItens)
@@ -500,6 +605,13 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     // Esc: com o painel de pagamento aberto só o fecha (volta ao cupom); senão cancela a venda em andamento.
     private async Task EscAsync()
     {
+        // O painel de preço é o que está por cima: o Esc o descarta (o item não entra) antes de qualquer outra coisa.
+        if (PedindoPreco)
+        {
+            CancelarPreco();
+            return;
+        }
+
         if (EmPagamento)
         {
             FecharPagamento();
@@ -570,6 +682,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
     private Task LimparAsync()
     {
+        CancelarPreco();
         Itens.Clear();
         Pagamentos.Clear();
         ClienteSelecionado = null;
