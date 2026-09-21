@@ -40,6 +40,10 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string? mensagemPreco;
     private IReadOnlyList<OpcaoPagamento> opcoesPagamento = Array.Empty<OpcaoPagamento>();
     private FormaPagamento? formaSelecionada;
+    private string descontoDigitado = string.Empty;
+    private bool descontoEmPercentual;
+    private decimal? descontoAplicado;       // o que o operador pediu (R$ ou %): vale para o cupom, mesmo quando os itens mudam
+    private bool descontoAplicadoEmPercentual;
 
     public PdvViewModel(VendaService vendaService, CatalogoLocalService catalogoLocalService, int caixaId)
     {
@@ -53,6 +57,7 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         Itens.CollectionChanged += (_, _) =>
         {
             Renumerar();
+            ReaplicarDesconto();
             this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
             this.RaisePropertyChanged(nameof(PagamentosPassamDoTotal));
             this.RaisePropertyChanged(nameof(AvisoExcesso));
@@ -61,6 +66,9 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             this.RaisePropertyChanged(nameof(Total));
             this.RaisePropertyChanged(nameof(Subtotal));
             this.RaisePropertyChanged(nameof(TotalDescontos));
+            this.RaisePropertyChanged(nameof(TemDesconto));
+            this.RaisePropertyChanged(nameof(RotuloDesconto));
+            this.RaisePropertyChanged(nameof(TextoDesconto));
             this.RaisePropertyChanged(nameof(ResumoItens));
             this.RaisePropertyChanged(nameof(TemItens));
             this.RaisePropertyChanged(nameof(Restante));
@@ -109,6 +117,11 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         AdicionarItemCommand = ReactiveCommand.Create<Produto>(AdicionarItem);
         RemoverItemCommand = ReactiveCommand.Create<ItemCarrinho>(RemoverItem);
         RemoverPagamentoCommand = ReactiveCommand.Create<PagamentoAlocado>(RemoverPagamento);
+
+        // Desconto na venda toda (R$ ou %), rateado entre os itens — a API só aceita desconto por item.
+        AplicarDescontoCommand = ReactiveCommand.Create(AplicarDesconto);
+        RemoverDescontoCommand = ReactiveCommand.Create(RemoverDesconto);
+        AlternarTipoDescontoCommand = ReactiveCommand.Create(() => { DescontoEmPercentual = !DescontoEmPercentual; });
 
         // Painel de preço (produto com preço zero no cadastro): confirmar lança o item; cancelar descarta o lançamento.
         ConfirmarPrecoCommand = ReactiveCommand.Create(ConfirmarPreco);
@@ -285,6 +298,161 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public decimal Subtotal => Itens.Sum(item => item.Quantidade * item.PrecoUnitario + item.AcrescimoItem);
     public decimal TotalDescontos => Itens.Sum(item => item.DescontoItem);
     public bool TemItens => Itens.Count > 0;
+
+    // ---- desconto na venda toda ----
+
+    // O que o operador está digitando ("5,00" ou "10" / "10%") e se é percentual (botão R$ | %).
+    public string DescontoDigitado
+    {
+        get => descontoDigitado;
+        set => this.RaiseAndSetIfChanged(ref descontoDigitado, value);
+    }
+
+    public bool DescontoEmPercentual
+    {
+        get => descontoEmPercentual;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref descontoEmPercentual, value);
+            this.RaisePropertyChanged(nameof(TextoTipoDesconto));
+        }
+    }
+
+    // O botão da tela mostra o tipo ATUAL ("R$" ou "%") e, ao clicar, troca.
+    public string TextoTipoDesconto => DescontoEmPercentual ? "%" : "R$";
+    public ReactiveCommand<Unit, Unit> AlternarTipoDescontoCommand { get; }
+
+    public bool TemDesconto => TotalDescontos > 0;
+
+    // "Desconto (10%):" quando foi dado em percentual — o operador confere o que digitou; em reais é só "Desconto:".
+    public string RotuloDesconto => TemDesconto && descontoAplicadoEmPercentual && descontoAplicado is { } p
+        ? $"Desconto ({p.ToString("0.##", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))}%):"
+        : "Desconto:";
+
+    // "− R$ 2,45" com desconto; "R$ 0,00" sem (um sinal de menos diante de zero engana).
+    public string TextoDesconto => TemDesconto ? $"− R$ {ValorMonetario.Formatar(TotalDescontos)}" : "R$ 0,00";
+
+    public ReactiveCommand<Unit, Unit> AplicarDescontoCommand { get; }
+    public ReactiveCommand<Unit, Unit> RemoverDescontoCommand { get; }
+
+    // O desconto NÃO vira preço menor nem some do cupom: fica em cada item (DescontoItem), repartido proporcionalmente
+    // (RateioDeDesconto), que é a única forma que a API aceita. Um desconto novo SUBSTITUI o anterior, não soma.
+    private void AplicarDesconto()
+    {
+        Mensagem = null;
+        if (!TemItens)
+        {
+            Mensagem = "Lance um item antes de dar desconto.";
+            return;
+        }
+
+        var texto = DescontoDigitado.Trim();
+        var percentual = DescontoEmPercentual;
+        if (texto.EndsWith('%'))
+        {
+            percentual = true;
+            texto = texto[..^1].TrimEnd();
+        }
+
+        if (!ValorMonetario.TentarLer(texto, out var valor) || valor <= 0)
+        {
+            Mensagem = percentual
+                ? "Informe um percentual de desconto maior que zero (ex: 10)."
+                : "Informe um valor de desconto maior que zero (ex: 5,00).";
+            return;
+        }
+
+        if (percentual && valor >= 100m)
+        {
+            Mensagem = "O percentual de desconto deve ser menor que 100.";
+            return;
+        }
+
+        var emReais = EmReais(valor, percentual);
+        if (emReais <= 0)
+        {
+            Mensagem = "Esse percentual dá menos de R$ 0,01 de desconto neste cupom.";
+            return;
+        }
+
+        if (emReais >= Subtotal)
+        {
+            Mensagem = $"O desconto tem de ser menor que o subtotal (R$ {ValorMonetario.Formatar(Subtotal)}).";
+            return;
+        }
+
+        descontoAplicado = valor;
+        descontoAplicadoEmPercentual = percentual;
+        DescontoDigitado = string.Empty;
+        Ratear(emReais);
+        AvisarMudancaDoDesconto();
+    }
+
+    private void RemoverDesconto()
+    {
+        Mensagem = null;
+        LimparDesconto();
+        AvisarMudancaDoDesconto();
+    }
+
+    // Item entrou/saiu do cupom: o desconto pedido continua valendo. Percentual acompanha o novo subtotal; valor fixo só deixa de
+    // valer se já não cabe (avisa o operador, para o total não mudar sem ele perceber).
+    private void ReaplicarDesconto()
+    {
+        if (descontoAplicado is not { } pedido)
+            return;
+
+        if (!TemItens)
+        {
+            LimparDesconto();
+            return;
+        }
+
+        var emReais = EmReais(pedido, descontoAplicadoEmPercentual);
+        if (emReais <= 0 || emReais >= Subtotal)
+        {
+            LimparDesconto();
+            Mensagem = "Desconto removido: ele deixou de caber no subtotal do cupom.";
+            return;
+        }
+
+        Ratear(emReais);
+    }
+
+    private decimal EmReais(decimal valor, bool percentual) =>
+        percentual ? decimal.Round(Subtotal * valor / 100m, 2, MidpointRounding.AwayFromZero) : valor;
+
+    private void Ratear(decimal emReais)
+    {
+        var partes = RateioDeDesconto.Ratear(emReais, Itens.Select(i => i.Quantidade * i.PrecoUnitario + i.AcrescimoItem).ToList());
+        for (var i = 0; i < Itens.Count; i++)
+            Itens[i].DescontoItem = partes[i];
+    }
+
+    private void LimparDesconto()
+    {
+        descontoAplicado = null;
+        descontoAplicadoEmPercentual = false;
+        foreach (var item in Itens)
+            item.DescontoItem = 0m;
+    }
+
+    // Os totais dependem dos itens (que avisam sozinhos); aqui avisa o que a tela lê do cupom.
+    private void AvisarMudancaDoDesconto()
+    {
+        this.RaisePropertyChanged(nameof(TotalDescontos));
+        this.RaisePropertyChanged(nameof(TemDesconto));
+        this.RaisePropertyChanged(nameof(RotuloDesconto));
+        this.RaisePropertyChanged(nameof(TextoDesconto));
+        this.RaisePropertyChanged(nameof(Total));
+        this.RaisePropertyChanged(nameof(Restante));
+        this.RaisePropertyChanged(nameof(PodeFinalizarVenda));
+        this.RaisePropertyChanged(nameof(PagamentosPassamDoTotal));
+        this.RaisePropertyChanged(nameof(AvisoExcesso));
+        this.RaisePropertyChanged(nameof(PodeConfirmar));
+        this.RaisePropertyChanged(nameof(TrocoPrevisto));
+        this.RaisePropertyChanged(nameof(Troco));
+    }
 
     // "2 item(ns)" — o selo amarelo do cabeçalho do cupom.
     public string ResumoItens => $"{Itens.Count} item(ns)";
@@ -685,6 +853,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         CancelarPreco();
         Itens.Clear();
         Pagamentos.Clear();
+        DescontoDigitado = string.Empty;   // (o desconto aplicado já caiu com o cupom esvaziado)
+        DescontoEmPercentual = false;
         ClienteSelecionado = null;
         QuantidadeAdicionar = "1";
         ValorPagamentoAdicionar = string.Empty;
