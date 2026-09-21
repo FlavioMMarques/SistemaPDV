@@ -8,10 +8,10 @@
              x:DataType="vm:ShellViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <!-- Janela estreita (classe "compacto", ver ShellView.axaml.cs): some a pílula do sistema e os rótulos da navegação
-       (ficam os ícones, com dica no mouse) pra a barra do topo caber sem cortar. -->
+  <!-- Barra do topo em dois degraus (classes na raiz, ver ShellView.axaml.cs): "estreito" some com a pílula do sistema; "compacto"
+       também some com os rótulos da navegação (ficam os ícones, com dica no mouse) — pra barra caber sem cortar nada. -->
   <UserControl.Styles>
-    <Style Selector="DockPanel.compacto Border.somenteAmplo">
+    <Style Selector="DockPanel.estreito Border.somenteAmplo">
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="DockPanel.compacto TextBlock.rotulo">

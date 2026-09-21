@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -189,6 +190,9 @@ public class VendaLocalService
         var formaIds = vendas.SelectMany(v => v.Pagamentos.Select(p => p.FormaPagamentoId)).Distinct().ToList();
         var formas = await context.FormasPagamento.Where(f => formaIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, ct);
 
+        var produtoIds = vendas.SelectMany(v => v.Itens.Select(i => i.ProdutoId)).Distinct().ToList();
+        var nomesProdutos = await context.Produtos.Where(p => produtoIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Nome, ct);
+
         return vendas.Select(v => new VendaResumo(
             v.Id,
             v.NumeroPedido,
@@ -200,7 +204,25 @@ public class VendaLocalService
             v.SyncStatus,
             v.SyncStatus == SyncStatus.Descartada
                 ? TextoDoDescarte(v, autorizadores)
-                : v.UltimoErroSync))
+                : v.UltimoErroSync,
+            ResumirItens(v, nomesProdutos),
+            DetalharItens(v, nomesProdutos)))
             .ToList();
     }
+
+    // "3 itens: Arroz Parboilizado 1kg" — a coluna "Resumo itens" da listagem (a interface corta com reticências).
+    private static string ResumirItens(Venda venda, IReadOnlyDictionary<int, string> nomes)
+    {
+        var quantidade = venda.Itens.Count;
+        if (quantidade == 0)
+            return "Sem itens";
+
+        var primeiro = nomes.GetValueOrDefault(venda.Itens.First().ProdutoId, "?");
+        return $"{quantidade} {(quantidade == 1 ? "item" : "itens")}: {primeiro}";
+    }
+
+    // Um item por linha ("4 × Queijo Mussarela Fatiado 200g"): a dica que mostra a lista inteira ao passar o mouse.
+    private static string DetalharItens(Venda venda, IReadOnlyDictionary<int, string> nomes) =>
+        string.Join(Environment.NewLine, venda.Itens.Select(i =>
+            $"{i.Quantidade.ToString("0.###", CultureInfo.GetCultureInfo("pt-BR"))} × {nomes.GetValueOrDefault(i.ProdutoId, "?")}"));
 }

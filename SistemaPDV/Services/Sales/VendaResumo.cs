@@ -12,7 +12,9 @@ public record VendaResumo(
     decimal Total,
     string FormasPagamento,
     SyncStatus SyncStatus,
-    string? UltimoErroSync = null);
+    string? UltimoErroSync = null,
+    string ResumoItens = "",
+    string ItensDetalhe = "");
 
 // O que as vendas do caixa somam em cada forma de pagamento — o "esperado" do fechamento de caixa.
 public record TotalFormaPagamento(int FormaPagamentoId, string Nome, decimal Total);
