@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reactive;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Services;
@@ -32,6 +34,9 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string buscaAplicada = string.Empty;
     private string novoNome = string.Empty;
     private string novoCpfCnpj = string.Empty;
+    private string novoTelefone = string.Empty;
+    private string novoEmail = string.Empty;
+    private string novaCidadeUf = string.Empty;
     private string? mensagemForm;
     private bool mensagemFormEhErro;
     private string? mensagemReenvio;
@@ -39,6 +44,9 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private ContagemCadastros contagem = new(0, 0, 0);
     private IReadOnlyList<OperadorResumo> operadores = Array.Empty<OperadorResumo>();
     private bool formularioClienteAberto;
+    private string? mensagemProdutoSalvo;
+    private readonly ObservableAsPropertyHelper<bool> modalAberto;
+    private readonly Subject<Unit> cadastroCriado = new();
 
     public CadastrosViewModel(CadastroLocalService cadastroLocalService)
     {
@@ -48,15 +56,23 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
 
         SelecionarAbaCommand = ReactiveCommand.Create<AbaCadastros>(aba => { AbaAtual = aba; });
-        // "Novo Cliente" (no topo ou na aba de clientes): leva à aba de clientes e abre o formulário.
-        NovoClienteCommand = ReactiveCommand.Create(() =>
-        {
-            AbaAtual = AbaCadastros.Clientes;
-            FormularioClienteAberto = true;
-        });
-        FecharFormularioClienteCommand = ReactiveCommand.Create(() => { FormularioClienteAberto = false; });
+        // "Novo Cliente" (no topo ou na aba de clientes): leva à aba de clientes e abre o modal de cadastro.
+        NovoClienteCommand = ReactiveCommand.CreateFromTask(AbrirFormularioAsync);
 
-        var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, nome => !string.IsNullOrWhiteSpace(nome));
+        // "＋ Novo Produto": abre o modal de cadastro de produto (formulário à parte, ver ProdutoFormViewModel).
+        FormProduto = new ProdutoFormViewModel(cadastroLocalService, RecarregarAposCriarProdutoAsync);
+        NovoProdutoCommand = ReactiveCommand.CreateFromTask(AbrirFormularioProdutoAsync);
+
+        // Qualquer dos dois modais aberto: a tela de trás fica desabilitada.
+        this.WhenAnyValue(vm => vm.FormularioClienteAberto)
+            .CombineLatest(FormProduto.WhenAnyValue(f => f.Aberto), (cliente, produto) => cliente || produto)
+            .ToProperty(this, vm => vm.ModalAberto, out modalAberto);
+        // Cancelar / ✕ / Esc: fecha e descarta o que foi digitado (o modal sempre abre limpo).
+        FecharFormularioClienteCommand = ReactiveCommand.Create(FecharFormulario);
+
+        // Nome e CPF/CNPJ são obrigatórios (os dois com * no modal); o resto é opcional.
+        var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, vm => vm.NovoCpfCnpj,
+            (nome, documento) => !string.IsNullOrWhiteSpace(nome) && !string.IsNullOrWhiteSpace(documento));
         CriarClienteCommand = ReactiveCommand.CreateFromTask(CriarClienteAsync, podeCriar);
     }
 
@@ -138,6 +154,23 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
     public ReactiveCommand<AbaCadastros, Unit> SelecionarAbaCommand { get; }
     public ReactiveCommand<Unit, Unit> NovoClienteCommand { get; }
+    public ReactiveCommand<Unit, Unit> NovoProdutoCommand { get; }
+
+    public ProdutoFormViewModel FormProduto { get; }
+
+    // Dispara quando um cliente ou produto novo acaba de ser gravado (pendente de envio): o Shell atualiza na hora o "Sync: N pendentes"
+    // da barra do topo, do mesmo jeito que faz ao finalizar uma venda.
+    public IObservable<Unit> CadastroCriado => cadastroCriado;
+
+    // Um dos modais (cliente ou produto) está aberto: a tela de trás fica desabilitada.
+    public bool ModalAberto => modalAberto.Value;
+
+    // "Produto salvo": o modal fecha ao salvar e o aviso fica na tela de trás, junto da lista.
+    public string? MensagemProdutoSalvo
+    {
+        get => mensagemProdutoSalvo;
+        private set => this.RaiseAndSetIfChanged(ref mensagemProdutoSalvo, value);
+    }
     public ReactiveCommand<Unit, Unit> FecharFormularioClienteCommand { get; }
 
     public string Busca
@@ -156,6 +189,25 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     {
         get => novoCpfCnpj;
         set => this.RaiseAndSetIfChanged(ref novoCpfCnpj, value);
+    }
+
+    public string NovoTelefone
+    {
+        get => novoTelefone;
+        set => this.RaiseAndSetIfChanged(ref novoTelefone, value);
+    }
+
+    public string NovoEmail
+    {
+        get => novoEmail;
+        set => this.RaiseAndSetIfChanged(ref novoEmail, value);
+    }
+
+    // Já abre preenchida com a cidade da empresa (ver AbrirFormularioAsync); o operador troca se o cliente for de outra.
+    public string NovaCidadeUf
+    {
+        get => novaCidadeUf;
+        set => this.RaiseAndSetIfChanged(ref novaCidadeUf, value);
     }
 
     public string? MensagemForm
@@ -234,26 +286,72 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         var reenviados = await cadastroLocalService.ReenviarFalhasAsync();
         MensagemReenvio = reenviados == 0
             ? "Nenhuma falha para reenviar."
-            : $"{reenviados} cliente(s) voltaram para a fila e serão enviados no próximo ciclo (até 30 s).";
+            : $"{reenviados} cadastro(s) voltaram para a fila e serão enviados no próximo ciclo (até 30 s).";
         await CarregarAsync();
+    }
+
+    private async Task AbrirFormularioProdutoAsync()
+    {
+        AbaAtual = AbaCadastros.Produtos;
+        MensagemProdutoSalvo = null;
+        await FormProduto.AbrirAsync();
+    }
+
+    // O modal já fechou e o produto está gravado (pendente): limpa a busca (uma busca ativa poderia escondê-lo) e recarrega.
+    private async Task RecarregarAposCriarProdutoAsync()
+    {
+        cadastroCriado.OnNext(Unit.Default);
+        MensagemProdutoSalvo = "Produto salvo. Ele será enviado à API na próxima sincronização.";
+        Busca = string.Empty;
+        await BuscarAsync();
+    }
+
+    private async Task AbrirFormularioAsync()
+    {
+        AbaAtual = AbaCadastros.Clientes;
+        MensagemForm = null;
+
+        if (string.IsNullOrWhiteSpace(NovaCidadeUf))
+            NovaCidadeUf = await cadastroLocalService.ObterCidadeUfPadraoAsync();
+
+        FormularioClienteAberto = true;
+    }
+
+    private void FecharFormulario()
+    {
+        FormularioClienteAberto = false;
+        LimparFormulario();
+        MensagemForm = null;
+    }
+
+    private void LimparFormulario()
+    {
+        NovoNome = string.Empty;
+        NovoCpfCnpj = string.Empty;
+        NovoTelefone = string.Empty;
+        NovoEmail = string.Empty;
+        NovaCidadeUf = string.Empty;   // a próxima abertura traz de novo a cidade da empresa
     }
 
     private async Task CriarClienteAsync()
     {
-        var resultado = await cadastroLocalService.CriarClienteAsync(NovoNome, NovoCpfCnpj);
+        var resultado = await cadastroLocalService.CriarClienteAsync(
+            new NovoClienteDados(NovoNome, NovoCpfCnpj, NovoTelefone, NovoEmail, NovaCidadeUf));
 
         if (!resultado.Sucesso)
         {
-            // Mantém o que o operador digitou pra ele corrigir sem redigitar.
+            // Mantém o modal aberto e o que o operador digitou pra ele corrigir sem redigitar; o erro aparece no próprio modal.
             MensagemFormEhErro = true;
             MensagemForm = resultado.Mensagem;
             return;
         }
 
+        // Salvou: o modal fecha e o aviso verde fica na tela de trás, junto da lista onde o cliente acabou de aparecer.
         MensagemFormEhErro = false;
         MensagemForm = "Cliente salvo. Ele será enviado à API na próxima sincronização.";
-        NovoNome = string.Empty;
-        NovoCpfCnpj = string.Empty;
+        FormularioClienteAberto = false;
+        LimparFormulario();
+        cadastroCriado.OnNext(Unit.Default);
 
         // Busca ativa poderia esconder o cliente recém-criado — limpa pra ele aparecer.
         Busca = string.Empty;

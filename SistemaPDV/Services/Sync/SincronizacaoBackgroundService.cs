@@ -337,6 +337,10 @@ public class SincronizacaoBackgroundService : IDisposable
             await ExecutarEtapaAsync("Clientes novos",
                 quantidade => $"POST /clientes: {quantidade} cliente(s) novo(s) enviado(s) com sucesso!",
                 () => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
+            // Produto novo antes das vendas: a venda que o contém precisa dos ids que a API devolve no cadastro.
+            await ExecutarEtapaAsync("Produtos novos",
+                quantidade => $"POST /produtos: {quantidade} produto(s) novo(s) enviado(s) com sucesso!",
+                () => catalogSyncService.SincronizarProdutosNovosPendentesAsync(accessToken, ct));
             // Ordem: abrir caixa -> vendas -> fechar caixa. A venda referencia o caixa aberto, e o FECHAMENTO resume
             // o caixa: se chegasse à API antes das vendas, ela fecharia um caixa "sem vendas".
             await ExecutarEtapaAsync("Abertura de caixa",
@@ -469,7 +473,12 @@ public class SincronizacaoBackgroundService : IDisposable
             .Where(PoliticaRetentativa.Elegivel<Cliente>(agora))
             .CountAsync(ct);
 
-        return caixas + vendas + clientes;
+        var produtos = await context.Produtos
+            .Where(p => p.IdExterno == null && p.SyncStatus != SyncStatus.Sincronizado)
+            .Where(PoliticaRetentativa.Elegivel<Produto>(agora))
+            .CountAsync(ct);
+
+        return caixas + vendas + clientes + produtos;
     }
 
     // null = dispositivo ainda não vinculado: todos os ciclos ficam pausados.

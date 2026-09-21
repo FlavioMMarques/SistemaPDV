@@ -20,8 +20,8 @@ public class DashboardService
         this.contextFactory = contextFactory;
     }
 
-    // Quantos itens ainda não chegaram à API (caixas, vendas e clientes novos) — o "Sync: N pendentes" da barra do topo.
-    // Só as três contagens: não calcula faturamento nem estoque como o resumo do painel.
+    // Quantos itens ainda não chegaram à API (caixas, vendas, clientes e produtos novos) — o "Sync: N pendentes" da barra do topo.
+    // Só as contagens da fila: não calcula faturamento nem estoque como o resumo do painel.
     public async Task<int> ContarPendentesAsync(CancellationToken ct = default)
     {
         await using var context = contextFactory();
@@ -33,7 +33,8 @@ public class DashboardService
         var caixasPendentes = await context.Caixas.CountAsync(c => c.SyncStatus != SyncStatus.Sincronizado, ct);
         var vendasPendentes = await context.Vendas.Where(VendaFiltros.NaoEnviada).CountAsync(ct);
         var clientesPendentes = await context.Clientes.CountAsync(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado, ct);
-        return caixasPendentes + vendasPendentes + clientesPendentes;
+        var produtosPendentes = await context.Produtos.CountAsync(p => p.IdExterno == null && p.SyncStatus != SyncStatus.Sincronizado, ct);
+        return caixasPendentes + vendasPendentes + clientesPendentes + produtosPendentes;
     }
 
     // caixaId nullable: com ExigirAberturaCaixa=false, o Shell pode chegar aqui sem

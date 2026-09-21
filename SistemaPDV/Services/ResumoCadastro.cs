@@ -27,7 +27,8 @@ public record ProdutoResumo(
     SyncStatus SyncStatus,
     string? Codigo = null,
     string? Categoria = null,
-    string? Unidade = null);
+    string? Unidade = null,
+    string? UltimoErroSync = null);
 
 public enum SituacaoOperador
 {
@@ -67,4 +68,25 @@ public class ResultadoCriacaoCliente
 
     public static ResultadoCriacaoCliente ComSucesso(int clienteId) => new() { Sucesso = true, ClienteId = clienteId };
     public static ResultadoCriacaoCliente ComFalha(string mensagem) => new() { Sucesso = false, Mensagem = mensagem };
+}
+
+// O que o modal "Cadastrar Cliente" preenche. Só Nome e CPF/CNPJ são obrigatórios; o resto é opcional.
+// Telefone: "(83) 99999-8888" (DDD + número); CidadeUf: "João Pessoa - PB".
+public record NovoClienteDados(string? Nome, string? CpfCnpj, string? Telefone = null, string? Email = null, string? CidadeUf = null);
+
+// O que o modal "Cadastrar Produto" preenche. Preço e estoque chegam como texto digitado ("12,50" / "50"); a categoria é o
+// IdExterno do Grupo sincronizado (a API exige um grupo que já exista lá).
+public record NovoProdutoDados(string? Nome, string? Codigo, int? GrupoId, string? Preco, string? Estoque = null);
+
+// Uma categoria do combo do modal: só grupos que já têm par na API (IdExterno) — sem isso o produto não seria aceito lá.
+public record CategoriaResumo(int GrupoId, string Nome);
+
+public class ResultadoCriacaoProduto
+{
+    public bool Sucesso { get; private init; }
+    public string? Mensagem { get; private init; }
+    public int? ProdutoId { get; private init; }
+
+    public static ResultadoCriacaoProduto ComSucesso(int produtoId) => new() { Sucesso = true, ProdutoId = produtoId };
+    public static ResultadoCriacaoProduto ComFalha(string mensagem) => new() { Sucesso = false, Mensagem = mensagem };
 }

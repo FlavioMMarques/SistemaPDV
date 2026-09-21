@@ -367,8 +367,22 @@ public partial class CatalogSyncService
             Pessoa = juridica ? "JURIDICA" : "FISICA",
             Nome = nome,
             CpfCnpj = temDocumento ? documento : null,
-            RazaoSocial = juridica ? (string.IsNullOrWhiteSpace(cliente.RazaoSocial) ? nome : cliente.RazaoSocial.Trim()) : null,
+            // Sempre enviada, também para pessoa física (usa o nome): o Swagger diz "obrigatório só para JURIDICA", mas a API
+            // real grava numa coluna que não aceita nulo e recusa o cliente (erro 1048, 1º envio real em 2026-09-21).
+            RazaoSocial = string.IsNullOrWhiteSpace(cliente.RazaoSocial) ? nome : cliente.RazaoSocial.Trim(),
         };
+
+        // Telefone (e e-mail) do modal de cadastro: a API só aceita o "contato" completo (nome + DDD + telefone).
+        if (!string.IsNullOrWhiteSpace(cliente.ContatoDdd) && !string.IsNullOrWhiteSpace(cliente.ContatoTelefone))
+        {
+            corpo.Contato = new ClienteNovoContatoDto
+            {
+                Nome = string.IsNullOrWhiteSpace(cliente.ContatoNome) ? nome : cliente.ContatoNome.Trim(),
+                Ddd = cliente.ContatoDdd.Trim(),
+                Telefone = cliente.ContatoTelefone.Trim(),
+                Email = string.IsNullOrWhiteSpace(cliente.ContatoEmail) ? null : cliente.ContatoEmail.Trim(),
+            };
+        }
 
         var resultado = await apiClient.EnviarAsync(
             HttpMethod.Post, SoftcomRotas.ClientesCriar(dominio), corpo, accessToken, ct);

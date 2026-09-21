@@ -14,6 +14,7 @@ public class ProdutoConfiguration : IEntityTypeConfiguration<Produto>
         builder.Property(p => p.Sku).HasMaxLength(50);
         builder.Property(p => p.CodigoBarras).HasMaxLength(50);
         builder.Property(p => p.SyncStatus).HasConversion<string>();
+        builder.Property(p => p.UltimoErroSync).HasMaxLength(500);
         builder.HasIndex(p => p.IdExterno).IsUnique();
 
         // Diferente de OwnsOne (TabelaPreco em Cliente), uma coleção owned precisa de

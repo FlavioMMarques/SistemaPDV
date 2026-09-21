@@ -28,6 +28,7 @@ public class ShellViewModel : ViewModelBase
     private readonly CatalogoLocalService catalogoLocalService;
     private readonly VendaLocalService vendaLocalService;
     private readonly CadastroLocalService cadastroLocalService;
+    private readonly CaixasApiService? caixasApiService;   // consulta dos caixas da API (Configurações); opcional para os testes de outras telas
 
     private Tela telaAtual;
     private ViewModelBase? currentViewModel;
@@ -63,7 +64,8 @@ public class ShellViewModel : ViewModelBase
         VendaService vendaService,
         CatalogoLocalService catalogoLocalService,
         VendaLocalService vendaLocalService,
-        CadastroLocalService cadastroLocalService)
+        CadastroLocalService cadastroLocalService,
+        CaixasApiService? caixasApiService = null)
     {
         this.configuracaoService = configuracaoService;
         this.loginOperadorService = loginOperadorService;
@@ -73,6 +75,7 @@ public class ShellViewModel : ViewModelBase
         this.catalogoLocalService = catalogoLocalService;
         this.vendaLocalService = vendaLocalService;
         this.cadastroLocalService = cadastroLocalService;
+        this.caixasApiService = caixasApiService;
 
         // Navegação persistente entre as 3 telas pós-caixa-aberto (Dashboard/Pdv/
         // ListaPedidos) — só habilitada com CaixaAberto preenchido, já que nenhuma
@@ -110,7 +113,7 @@ public class ShellViewModel : ViewModelBase
         SairCommand = ReactiveCommand.CreateFromTask(SairAsync, logadoSemVendaEmAndamento);
 
         // Painel lateral da fila outbox (abre pela pílula "Sync: N pendentes" da barra do topo). Disponível em qualquer tela
-        // depois do login — inclusive sem caixa aberto (a fila pode ter clientes novos) — e fecha com Esc.
+        // depois do login — inclusive sem caixa aberto (a fila pode ter clientes e produtos novos) — e fecha com Esc.
         AbrirPainelOutboxCommand = ReactiveCommand.Create(() => { PainelOutboxAberto = true; });
         FecharPainelOutboxCommand = ReactiveCommand.Create(
             () => { PainelOutboxAberto = false; },
@@ -153,7 +156,7 @@ public class ShellViewModel : ViewModelBase
     // Sob o nome, no lugar do "JWT Ativo" do protótipo (que não existe neste app): o estado que importa ao operador.
     public string SituacaoCaixa => CaixaAberto is null ? "Sem caixa aberto" : "Caixa aberto";
 
-    // Itens que ainda não chegaram à API (caixas, vendas, clientes novos): "Sync: 3 pendentes".
+    // Itens que ainda não chegaram à API (caixas, vendas, clientes e produtos novos): "Sync: 3 pendentes".
     public int PendentesSync
     {
         get => pendentesSync;
@@ -378,7 +381,7 @@ public class ShellViewModel : ViewModelBase
     [SupportedOSPlatform("windows")]
     private async Task IrParaConfiguracoesAsync(bool exigirSupervisor = false)
     {
-        var viewModel = new ConfiguracoesViewModel(configuracaoService, exigirSupervisor);
+        var viewModel = new ConfiguracoesViewModel(configuracaoService, exigirSupervisor, caixasApiService);
 
         // Vincular com sucesso é o que destrava o resto (login, sincronização): leva ao
         // Login sem reabrir o app e avisa quem quiser sincronizar já, em vez de esperar o
@@ -562,6 +565,8 @@ public class ShellViewModel : ViewModelBase
     private async Task IrParaCadastrosAsync()
     {
         var viewModel = new CadastrosViewModel(cadastroLocalService);
+        // Cliente ou produto novo = mais um item esperando envio: a pílula "Sync: N pendentes" acompanha na hora.
+        viewModel.CadastroCriado.Subscribe(criado => _ = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync));
         await viewModel.IniciarAsync();
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Cadastros;
