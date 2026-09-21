@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Reactive;
 using System.Threading.Tasks;
 using ReactiveUI;
@@ -8,12 +10,30 @@ using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.ViewModels;
 
+// Uma escolha do filtro de status ("Todos os Status", "Sincronizado"…). Status nulo = sem filtro.
+public record OpcaoStatus(string Rotulo, SyncStatus? Status);
+
 // Lista as vendas do caixa atual. "Atualiza sozinha sem F5" (Success Criterion da
 // spec) vem do SincronizacaoBackgroundService (Task 50): quando um ciclo mexe no banco,
 // o Shell chama AtualizarAposSincronizacaoAsync. AtualizarCommand segue como botão manual
 // (decisão de 2026-09-18, mantido de apoio).
+//
+// Visual do protótipo (Fase 8): 4 indicadores no topo (sobre TODAS as vendas do caixa), busca e filtros de status/forma
+// de pagamento (só afetam a tabela) e o botão Detalhes de cada linha.
 public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
+    public const string TodasAsFormas = "Todas Formas";
+
+    // Fixa e na ordem do protótipo. "Pendente" inclui a venda em espera crescente (é a mesma: ainda vai ser enviada).
+    public static readonly IReadOnlyList<OpcaoStatus> OpcoesStatus = new[]
+    {
+        new OpcaoStatus("Todos os Status", null),
+        new OpcaoStatus("Sincronizado", SyncStatus.Sincronizado),
+        new OpcaoStatus("Pendente de envio", SyncStatus.PendenteSync),
+        new OpcaoStatus("Falha no envio", SyncStatus.FalhaSync),
+        new OpcaoStatus("Descartada", SyncStatus.Descartada),
+    };
+
     private readonly VendaLocalService vendaLocalService;
     private readonly int caixaId;
     private readonly int? operadorId;
@@ -24,6 +44,10 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string motivoDescarte = string.Empty;
     private string chaveSupervisor = string.Empty;
     private string? mensagemDescarte;
+    private string busca = string.Empty;
+    private OpcaoStatus statusSelecionado = OpcoesStatus[0];
+    private string formaSelecionada = TodasAsFormas;
+    private IReadOnlyList<string> opcoesForma = new[] { TodasAsFormas };
 
     // operadorId = quem PEDE o descarte (o operador logado); quem AUTORIZA é o supervisor, pela chave.
     public ListaPedidosViewModel(VendaLocalService vendaLocalService, int caixaId, int? operadorId = null)
@@ -35,6 +59,15 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         AtualizarCommand = ReactiveCommand.CreateFromTask(CarregarAsync);
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
 
+        // Só emitem: o Shell escuta e decide (navegar para o PDV, pedir a sincronização ao serviço de fundo).
+        NovaVendaCommand = ReactiveCommand.Create(() => Unit.Default);
+        SincronizarAgoraCommand = ReactiveCommand.Create(() => Unit.Default);
+
+        // Detalhes: por enquanto seleciona a linha (é onde mora o descarte de uma venda em falha); o modal com os itens e a
+        // requisição chega na Task 71.
+        DetalhesCommand = ReactiveCommand.Create<VendaResumo>(venda => VendaSelecionada = venda);
+        LimparFiltrosCommand = ReactiveCommand.Create(LimparFiltros);
+
         // Descartar: precisa de uma venda EM FALHA selecionada, do motivo e — só se a política do app exige
         // (PoliticaSupervisor) — da chave do supervisor.
         var podeDescartar = this.WhenAnyValue(vm => vm.VendaSelecionada, vm => vm.MotivoDescarte, vm => vm.ChaveSupervisor,
@@ -43,16 +76,121 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         DescartarCommand = ReactiveCommand.CreateFromTask(DescartarAsync, podeDescartar);
     }
 
+    // Todas as vendas do caixa (a base dos indicadores); a tabela mostra VendasFiltradas.
     public IReadOnlyList<VendaResumo> Vendas
     {
         get => vendas;
-        private set => this.RaiseAndSetIfChanged(ref vendas, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref vendas, value);
+            OpcoesForma = new[] { TodasAsFormas }
+                .Concat(value.SelectMany(NomesDasFormas).Distinct().OrderBy(nome => nome, StringComparer.CurrentCultureIgnoreCase))
+                .ToList();
+            AvisarMudancaDeLista();
+            this.RaisePropertyChanged(nameof(TotalPedidos));
+            this.RaisePropertyChanged(nameof(VolumeFaturado));
+            this.RaisePropertyChanged(nameof(Sincronizados));
+            this.RaisePropertyChanged(nameof(Pendentes));
+            this.RaisePropertyChanged(nameof(DetalhePendentes));
+            this.RaisePropertyChanged(nameof(TemFalhas));
+        }
     }
+
+    // ---- indicadores (todas as vendas do caixa; a descartada é tratada como cancelada e não entra) ----
+
+    public int TotalPedidos => Vendas.Count(v => v.SyncStatus != SyncStatus.Descartada);
+
+    public decimal VolumeFaturado => Vendas.Where(v => v.SyncStatus != SyncStatus.Descartada).Sum(v => v.Total);
+
+    public int Sincronizados => Vendas.Count(v => v.SyncStatus == SyncStatus.Sincronizado);
+
+    // Ainda não chegaram à API: pendentes e em falha (a descartada não vai mais).
+    public int Pendentes => Vendas.Count(v => v.SyncStatus is SyncStatus.PendenteSync or SyncStatus.FalhaSync);
+
+    public int Falhas => Vendas.Count(v => v.SyncStatus == SyncStatus.FalhaSync);
+
+    // O botão "Reenviar falhas" só aparece quando há o que reenviar.
+    public bool TemFalhas => Falhas > 0;
+
+    public string DetalhePendentes => Falhas > 0 ? $"{Falhas} com falha de envio" : "Aguardando disparo assíncrono";
+
+    // "Carlos Silva" + "Caixa 01" na coluna Operador: o caixa é o mesmo de todas as linhas.
+    public string RotuloCaixa => $"Caixa {caixaId:00}";
+
+    // ---- busca e filtros da tabela ----
+
+    public string Busca
+    {
+        get => busca;
+        set
+        {
+            this.RaiseAndSetIfChanged(ref busca, value);
+            AvisarMudancaDeLista();
+        }
+    }
+
+    public OpcaoStatus StatusSelecionado
+    {
+        get => statusSelecionado;
+        set
+        {
+            if (value is null)
+                return;
+
+            this.RaiseAndSetIfChanged(ref statusSelecionado, value);
+            AvisarMudancaDeLista();
+        }
+    }
+
+    // As formas que realmente aparecem nas vendas do caixa (uma venda com duas formas conta nas duas). A lista só é
+    // trocada quando o CONTEÚDO muda: recarregar a cada ciclo de sincronização e reatribuir a mesma lista faria o ComboBox
+    // perder a forma que o operador escolheu.
+    public IReadOnlyList<string> OpcoesForma
+    {
+        get => opcoesForma;
+        private set
+        {
+            if (!opcoesForma.SequenceEqual(value))
+                this.RaiseAndSetIfChanged(ref opcoesForma, value);
+        }
+    }
+
+    public string FormaSelecionada
+    {
+        get => formaSelecionada;
+        set
+        {
+            // O ComboBox pode mandar null por um instante ao trocar a lista de opções: isso não é uma escolha do operador.
+            if (value is null)
+                return;
+
+            this.RaiseAndSetIfChanged(ref formaSelecionada, value);
+            AvisarMudancaDeLista();
+        }
+    }
+
+    public IReadOnlyList<VendaResumo> VendasFiltradas => Vendas.Where(Passa).ToList();
+
+    public bool TemFiltro => busca.Trim().Length > 0 || statusSelecionado.Status is not null || formaSelecionada != TodasAsFormas;
+
+    // Vazio por falta de vendas é diferente de vazio por causa dos filtros: a mensagem (e o botão de limpar) dizem qual.
+    public bool SemPedidos => VendasFiltradas.Count == 0;
+
+    public string TextoSemPedidos => Vendas.Count == 0
+        ? "Nenhum pedido registrado neste caixa ainda."
+        : "Nenhum pedido encontrado com esses filtros.";
+
+    public bool PodeLimparFiltros => Vendas.Count > 0 && TemFiltro;
 
     public ReactiveCommand<Unit, Unit> AtualizarCommand { get; }
 
     // Vendas (e o caixa) que falharam ou desistiram voltam à fila de envio — ver PoliticaRetentativa.
     public ReactiveCommand<Unit, Unit> ReenviarFalhasCommand { get; }
+
+    public ReactiveCommand<Unit, Unit> NovaVendaCommand { get; }
+    public ReactiveCommand<Unit, Unit> SincronizarAgoraCommand { get; }
+    public ReactiveCommand<VendaResumo, Unit> DetalhesCommand { get; }
+    public ReactiveCommand<Unit, Unit> LimparFiltrosCommand { get; }
 
     public string? MensagemReenvio
     {
@@ -107,6 +245,47 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     // sozinha sem F5" da spec) — o botão Atualizar continua valendo.
     public Task AtualizarAposSincronizacaoAsync() => CarregarAsync();
 
+    // "Dinheiro, Pix" -> ["Dinheiro", "Pix"] (VendaResumo junta os nomes numa frase só).
+    private static IEnumerable<string> NomesDasFormas(VendaResumo venda) =>
+        venda.FormasPagamento.Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    // Sem acento e sem diferença de maiúscula: "joao" acha "João" e "cafe" acha "Café".
+    private static bool Contem(string texto, string trecho) =>
+        CultureInfo.CurrentCulture.CompareInfo.IndexOf(texto, trecho, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
+
+    private bool Passa(VendaResumo venda)
+    {
+        if (statusSelecionado.Status is { } status && venda.SyncStatus != status)
+            return false;
+
+        if (formaSelecionada != TodasAsFormas && !NomesDasFormas(venda).Contains(formaSelecionada, StringComparer.CurrentCultureIgnoreCase))
+            return false;
+
+        // Busca por número do pedido ("1003" ou "#1003") ou por parte do nome do cliente.
+        var termo = busca.Trim();
+        if (termo.Length == 0)
+            return true;
+
+        var numero = termo.TrimStart('#');
+        return (numero.Length > 0 && venda.Numero?.ToString().Contains(numero) == true) || Contem(venda.ClienteNome, termo);
+    }
+
+    private void LimparFiltros()
+    {
+        Busca = string.Empty;
+        StatusSelecionado = OpcoesStatus[0];
+        FormaSelecionada = TodasAsFormas;
+    }
+
+    private void AvisarMudancaDeLista()
+    {
+        this.RaisePropertyChanged(nameof(VendasFiltradas));
+        this.RaisePropertyChanged(nameof(SemPedidos));
+        this.RaisePropertyChanged(nameof(TextoSemPedidos));
+        this.RaisePropertyChanged(nameof(TemFiltro));
+        this.RaisePropertyChanged(nameof(PodeLimparFiltros));
+    }
+
     private async Task DescartarAsync()
     {
         var venda = VendaSelecionada!;
@@ -138,5 +317,9 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private async Task CarregarAsync()
     {
         Vendas = await vendaLocalService.ListarVendasDoCaixaAsync(caixaId);
+
+        // A forma escolhida pode ter sumido da lista (a venda que a tinha foi descartada, por exemplo): volta a "Todas".
+        if (formaSelecionada != TodasAsFormas && !OpcoesForma.Contains(formaSelecionada))
+            FormaSelecionada = TodasAsFormas;
     }
 }

@@ -3,127 +3,292 @@
              xmlns:vm="using:SistemaPDV.ViewModels"
              xmlns:sales="using:SistemaPDV.Services.Sales"
              xmlns:controls="using:SistemaPDV.Views.Controls"
+             xmlns:views="using:SistemaPDV.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+             mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="760"
              x:Class="SistemaPDV.Views.ListaPedidosView"
              x:DataType="vm:ListaPedidosViewModel"
+             views:AtalhosDeTela.Ativos="True"
              Background="{StaticResource BgMainBrush}">
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24">
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="F2" Command="{Binding NovaVendaCommand}" />
+  </UserControl.KeyBindings>
 
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
-      <TextBlock Grid.Column="0" Text="📋 Listagem de Pedidos" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <Button Content="🔁 Reenviar falhas"
-                Command="{Binding ReenviarFalhasCommand}"
-                Background="{StaticResource BgCardBrush}"
-                Foreground="{StaticResource TextMainBrush}"
-                CornerRadius="{StaticResource RadiusMedium}"
-                Padding="16,8"
-                ToolTip.Tip="Devolve à fila de envio as vendas que falharam ou desistiram"
-                AutomationProperties.Name="Reenviar vendas com falha" />
-        <Button Content="🔄 Atualizar"
-                Command="{Binding AtualizarCommand}"
-                Background="{StaticResource BgCardBrush}"
-                Foreground="{StaticResource TextMainBrush}"
-                CornerRadius="{StaticResource RadiusMedium}"
-                Padding="16,8"
-                AutomationProperties.Name="Atualizar lista de pedidos" />
+  <!-- A linha da tabela é a única "seleção" da tela: a selecionada ganha o fundo âmbar do tema (é nela que o descarte de uma
+       venda em falha age). Sem o padding do item padrão, para a grade de colunas ocupar a largura toda. -->
+  <UserControl.Styles>
+    <Style Selector="ListBox.pedidos">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.pedidos ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="ListBox.pedidos ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.pedidos ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    </Style>
+    <Style Selector="ListBox.pedidos ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Listagem de Pedidos no visual do protótipo: título e ações, 4 indicadores, e a tabela com busca e filtros. Conteúdo
+       com largura máxima e centralizado, como as outras telas; a página rola se a janela for baixa. -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel MaxWidth="1400" Margin="24" Spacing="20">
+
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="📋 Listagem de Pedidos &amp; Vendas" FontSize="26" FontWeight="Bold"
+                     Foreground="{DynamicResource TextMainBrush}" />
+          <TextBlock Text="Histórico detalhado de vendas locais, status na fila Outbox e sincronização com a nuvem SoftcomShop."
+                     FontSize="13" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Button Classes="secundario" Content="🔄 Sincronizar Fila Outbox"
+                  Command="{Binding SincronizarAgoraCommand}" FontWeight="SemiBold" Padding="18,12"
+                  ToolTip.Tip="Envia agora o que está pendente, sem esperar o próximo ciclo automático"
+                  AutomationProperties.Name="Sincronizar a fila outbox agora" />
+          <Button Classes="primario" Content="🛒 Nova Venda no PDV (F2)"
+                  Command="{Binding NovaVendaCommand}" HorizontalAlignment="Right" Padding="20,12"
+                  AutomationProperties.Name="Nova venda no PDV, atalho F2" />
+        </StackPanel>
+      </Grid>
+
+      <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="16">
+        <controls:CartaoIndicador Grid.Column="0"
+                                  Titulo="TOTAL DE PEDIDOS"
+                                  Valor="{Binding TotalPedidos}"
+                                  Detalhe="Emitidos neste terminal"
+                                  CorFaixa="{DynamicResource BrandYellowBrush}"
+                                  CorValor="{DynamicResource TextMainBrush}" />
+        <controls:CartaoIndicador Grid.Column="1"
+                                  Titulo="VOLUME TOTAL FATURADO"
+                                  Valor="{Binding VolumeFaturado, StringFormat='R$ {0:F2}'}"
+                                  Detalhe="Total de pedidos processados"
+                                  CorFaixa="{DynamicResource BrandYellowBrush}"
+                                  CorValor="{DynamicResource TextMainBrush}" />
+        <controls:CartaoIndicador Grid.Column="2"
+                                  Titulo="SINCRONIZADOS CLOUD"
+                                  Valor="{Binding Sincronizados}"
+                                  Detalhe="Integrados com SoftcomShop API"
+                                  CorFaixa="{DynamicResource AccentGreenBrush}"
+                                  CorValor="{DynamicResource AccentGreenBrush}" />
+        <controls:CartaoIndicador Grid.Column="3"
+                                  Titulo="PENDENTES NA FILA OUTBOX"
+                                  Valor="{Binding Pendentes}"
+                                  Detalhe="{Binding DetalhePendentes}"
+                                  CorFaixa="{DynamicResource AccentBlueBrush}"
+                                  CorValor="{DynamicResource BrandYellowBrush}" />
+      </Grid>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding MensagemReenvio}"
+                   Foreground="{DynamicResource TextMutedBrush}"
+                   IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <!-- Resultado do descarte (também quando deu certo e o painel some). -->
+        <TextBlock Text="{Binding MensagemDescarte}"
+                   Foreground="{DynamicResource TextMutedBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding MensagemDescarte, Converter={x:Static ObjectConverters.IsNotNull}}" />
       </StackPanel>
-    </Grid>
 
-    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
-      <TextBlock Text="{Binding MensagemReenvio}"
-                 Foreground="{StaticResource TextMutedBrush}"
-                 IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <!-- Resultado do descarte (também quando deu certo e o painel some). -->
-      <TextBlock Text="{Binding MensagemDescarte}"
-                 Foreground="{StaticResource TextMutedBrush}"
-                 TextWrapping="Wrap"
-                 IsVisible="{Binding MensagemDescarte, Converter={x:Static ObjectConverters.IsNotNull}}" />
-    </StackPanel>
+      <Border Background="{DynamicResource BgCardBrush}"
+              BorderBrush="{DynamicResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}">
+        <StackPanel>
 
-    <Border Grid.Row="2"
-            Background="{StaticResource BgCardBrush}"
-            BorderBrush="{StaticResource BorderColorBrush}"
-            BorderThickness="1"
-            CornerRadius="{StaticResource RadiusCard}"
-            Padding="8">
-      <ListBox ItemsSource="{Binding Vendas}" SelectedItem="{Binding VendaSelecionada, Mode=TwoWay}" Background="Transparent">
-        <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="sales:VendaResumo">
-            <StackPanel Margin="4">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto">
-              <TextBlock Grid.Column="0" Text="{Binding Numero, StringFormat='#{0}', TargetNullValue='—'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMutedBrush}" Width="60" />
-              <TextBlock Grid.Column="1" Text="{Binding DataHora, StringFormat='{}{0:dd/MM HH:mm}'}" Foreground="{StaticResource TextMutedBrush}" Width="110" />
-              <TextBlock Grid.Column="2" Text="{Binding ClienteNome}" Foreground="{StaticResource TextMainBrush}" Margin="8,0" />
-              <TextBlock Grid.Column="3" Text="{Binding OperadorNome}" Foreground="{StaticResource TextMutedBrush}" Width="120" />
-              <TextBlock Grid.Column="4" Text="{Binding FormasPagamento}" Foreground="{StaticResource TextMutedBrush}" Width="120" />
-              <TextBlock Grid.Column="5" Text="{Binding Total, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource TextMainBrush}" Width="90" />
-              <controls:SyncStatusIndicator Grid.Column="6" Status="{Binding SyncStatus}" />
-            </Grid>
-              <!-- Motivo da falha (e o aviso "parou de tentar") — sem isso um 🔴 seria indiagnosticável. -->
-              <TextBlock Text="{Binding UltimoErroSync}"
-                         Foreground="{StaticResource AccentRedBrush}"
-                         FontSize="12" TextWrapping="Wrap"
-                         IsVisible="{Binding UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <!-- Título, busca e filtros. Os filtros só mexem na tabela; os indicadores de cima contam todas as vendas. -->
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="12" Margin="20,16">
+            <TextBlock Grid.Column="0" Text="📦 Todos os Pedidos Registrados" FontSize="16" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <TextBox Grid.Column="2" Width="260"
+                     Text="{Binding Busca, Mode=TwoWay}"
+                     PlaceholderText="🔍 Buscar por # Pedido, Cliente"
+                     Background="{DynamicResource BgInputBrush}"
+                     BorderBrush="{DynamicResource BorderColorBrush}"
+                     Foreground="{DynamicResource TextMainBrush}"
+                     CornerRadius="{DynamicResource RadiusMedium}"
+                     AutomationProperties.Name="Buscar por número do pedido ou cliente" />
+            <ComboBox Grid.Column="3" Width="190"
+                      ItemsSource="{x:Static vm:ListaPedidosViewModel.OpcoesStatus}"
+                      SelectedItem="{Binding StatusSelecionado, Mode=TwoWay}"
+                      AutomationProperties.Name="Filtrar por status">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:OpcaoStatus">
+                  <TextBlock Text="{Binding Rotulo}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox Grid.Column="4" Width="170"
+                      ItemsSource="{Binding OpcoesForma}"
+                      SelectedItem="{Binding FormaSelecionada, Mode=TwoWay}"
+                      AutomationProperties.Name="Filtrar por forma de pagamento" />
+          </Grid>
+
+          <!-- Só aparece com filtro ativo: atalho para limpá-lo sem procurar o botão no meio da tabela. -->
+          <Grid ColumnDefinitions="*,Auto" Margin="20,0,20,12"
+                IsVisible="{Binding PodeLimparFiltros}">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <Button Classes="fantasma" Content="✕ Limpar filtros" Command="{Binding LimparFiltrosCommand}"
+                      AutomationProperties.Name="Limpar filtros" />
             </StackPanel>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-    </Border>
+          </Grid>
 
-    <!-- Descarte de venda EM FALHA (só aparece com uma delas selecionada): só supervisor, com motivo. A venda continua
-         na lista como "⚫ Descartada" (auditoria) e deixa de travar o fechamento do caixa. -->
-    <Border Grid.Row="3"
-            Background="{StaticResource BgCardBrush}"
-            BorderBrush="{StaticResource BorderColorBrush}"
-            BorderThickness="1"
-            CornerRadius="{StaticResource RadiusCard}"
-            Padding="16" Margin="0,12,0,0"
-            IsVisible="{Binding PodeDescartar}">
-      <StackPanel Spacing="8">
-        <TextBlock Text="🗑 Descartar venda em falha" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-        <TextBlock Text="{Binding TextoDescarte}"
-                   Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
-        <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
-          <TextBox Grid.Column="0"
-                   Text="{Binding MotivoDescarte, Mode=TwoWay}"
-                   PlaceholderText="Motivo do descarte (obrigatório)"
-                   MaxLength="300"
-                   Background="{StaticResource BgInputBrush}"
-                   BorderBrush="{StaticResource BorderColorBrush}"
-                   Foreground="{StaticResource TextMainBrush}"
-                   CornerRadius="{StaticResource RadiusSmall}"
-                   AutomationProperties.Name="Motivo do descarte" />
-          <!-- Só aparece quando a política do app exige a chave (PoliticaSupervisor). -->
-          <TextBox Grid.Column="1"
-                   IsVisible="{Binding ExigeChave}"
-                   Text="{Binding ChaveSupervisor, Mode=TwoWay}"
-                   PasswordChar="●"
-                   PlaceholderText="Chave do supervisor"
-                   Background="{StaticResource BgInputBrush}"
-                   BorderBrush="{StaticResource BorderColorBrush}"
-                   Foreground="{StaticResource TextMainBrush}"
-                   CornerRadius="{StaticResource RadiusSmall}"
-                   AutomationProperties.Name="Chave do supervisor">
-            <TextBox.KeyBindings>
-              <KeyBinding Gesture="Enter" Command="{Binding DescartarCommand}" />
-            </TextBox.KeyBindings>
-          </TextBox>
-          <Button Grid.Column="2"
-                  Content="Descartar"
-                  Command="{Binding DescartarCommand}"
-                  Background="{StaticResource AccentRedDimBrush}"
-                  Foreground="{StaticResource AccentRedBrush}"
-                  CornerRadius="{StaticResource RadiusMedium}"
-                  Padding="16,8"
-                  AutomationProperties.Name="Descartar venda" />
-        </Grid>
-      </StackPanel>
-    </Border>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel MinWidth="1280">
 
-  </Grid>
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                <Grid ColumnDefinitions="90,110,*,150,200,170,110,190,100">
+                  <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="# PEDIDO" />
+                  <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="DATA / HORA" />
+                  <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="CLIENTE" />
+                  <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="OPERADOR" />
+                  <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="RESUMO ITENS" />
+                  <TextBlock Grid.Column="5" Classes="colunaTitulo" Text="PAGAMENTO" />
+                  <TextBlock Grid.Column="6" Classes="colunaTitulo" Text="VALOR TOTAL" />
+                  <TextBlock Grid.Column="7" Classes="colunaTitulo" Text="STATUS CLOUD" />
+                  <TextBlock Grid.Column="8" Classes="colunaTitulo" Text="AÇÕES" />
+                </Grid>
+              </Border>
+
+              <!-- Sem pedidos (ou nenhum bate com os filtros): a mensagem diz qual dos dois, no lugar de uma tabela em branco. -->
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,28"
+                      IsVisible="{Binding SemPedidos}">
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                  <TextBlock Text="{Binding TextoSemPedidos}" HorizontalAlignment="Center"
+                             Foreground="{DynamicResource TextMutedBrush}" />
+                  <Button Classes="secundario" Content="Limpar filtros" HorizontalAlignment="Center"
+                          Command="{Binding LimparFiltrosCommand}" IsVisible="{Binding TemFiltro}" />
+                </StackPanel>
+              </Border>
+
+              <ListBox Classes="pedidos"
+                       ItemsSource="{Binding VendasFiltradas}"
+                       SelectedItem="{Binding VendaSelecionada, Mode=TwoWay}"
+                       ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="sales:VendaResumo">
+                    <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                      <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="90,110,*,150,200,170,110,190,100">
+                          <TextBlock Grid.Column="0" Text="{Binding Numero, StringFormat='#{0}', TargetNullValue='—'}"
+                                     FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DataHora, StringFormat='{}{0:dd/MM/yyyy}'}" Foreground="{DynamicResource TextMainBrush}" />
+                            <TextBlock Text="{Binding DataHora, StringFormat='{}{0:HH:mm:ss}'}" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="2" Text="{Binding ClienteNome}" TextTrimming="CharacterEllipsis"
+                                     Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                          <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding OperadorNome}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding $parent[ListBox].((vm:ListaPedidosViewModel)DataContext).RotuloCaixa}" FontSize="12"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="4" Text="{Binding ResumoItens}" TextTrimming="CharacterEllipsis"
+                                     ToolTip.Tip="{Binding ItensDetalhe}" FontSize="12"
+                                     Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                          <Border Grid.Column="5" Classes="chip" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding FormasPagamento}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                          </Border>
+                          <TextBlock Grid.Column="6" Text="{Binding Total, StringFormat='R$ {0:F2}'}"
+                                     FontFamily="{DynamicResource FontMono}" FontWeight="Bold"
+                                     Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+                          <controls:SeloSincronia Grid.Column="7" Status="{Binding SyncStatus}" VerticalAlignment="Center" />
+                          <Button Grid.Column="8" Classes="secundario" Content="👁 Detalhes" FontSize="12" Padding="10,5"
+                                  Command="{Binding $parent[ListBox].((vm:ListaPedidosViewModel)DataContext).DetalhesCommand}"
+                                  CommandParameter="{Binding}" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                  AutomationProperties.Name="Ver detalhes do pedido" />
+                        </Grid>
+                        <!-- Motivo da falha (e o aviso "parou de tentar") — sem isso um selo vermelho seria indiagnosticável. -->
+                        <TextBlock Text="{Binding UltimoErroSync}"
+                                   Foreground="{DynamicResource AccentRedBrush}"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   IsVisible="{Binding UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+            </StackPanel>
+          </ScrollViewer>
+
+          <!-- Rodapé da tabela: as ações de apoio (o normal é a lista atualizar sozinha a cada sincronização). -->
+          <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,10">
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+              <Button Classes="secundario" Content="🔁 Reenviar falhas" Command="{Binding ReenviarFalhasCommand}"
+                      IsVisible="{Binding TemFalhas}" FontSize="12" Padding="12,6"
+                      ToolTip.Tip="Devolve à fila de envio as vendas que falharam ou desistiram"
+                      AutomationProperties.Name="Reenviar vendas com falha" />
+              <Button Classes="secundario" Content="🔄 Atualizar" Command="{Binding AtualizarCommand}"
+                      FontSize="12" Padding="12,6"
+                      AutomationProperties.Name="Atualizar lista de pedidos" />
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+      </Border>
+
+      <!-- Descarte de venda EM FALHA (só aparece com uma delas selecionada): só supervisor, com motivo. A venda continua
+           na lista como "⚫ Descartada" (auditoria) e deixa de travar o fechamento do caixa. -->
+      <Border Background="{DynamicResource BgCardBrush}"
+              BorderBrush="{DynamicResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}"
+              Padding="16"
+              IsVisible="{Binding PodeDescartar}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="🗑 Descartar venda em falha" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" />
+          <TextBlock Text="{Binding TextoDescarte}"
+                     Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
+            <TextBox Grid.Column="0"
+                     Text="{Binding MotivoDescarte, Mode=TwoWay}"
+                     PlaceholderText="Motivo do descarte (obrigatório)"
+                     MaxLength="300"
+                     Background="{DynamicResource BgInputBrush}"
+                     BorderBrush="{DynamicResource BorderColorBrush}"
+                     Foreground="{DynamicResource TextMainBrush}"
+                     CornerRadius="{DynamicResource RadiusSmall}"
+                     AutomationProperties.Name="Motivo do descarte" />
+            <!-- Só aparece quando a política do app exige a chave (PoliticaSupervisor). -->
+            <TextBox Grid.Column="1"
+                     IsVisible="{Binding ExigeChave}"
+                     Text="{Binding ChaveSupervisor, Mode=TwoWay}"
+                     PasswordChar="●"
+                     PlaceholderText="Chave do supervisor"
+                     Background="{DynamicResource BgInputBrush}"
+                     BorderBrush="{DynamicResource BorderColorBrush}"
+                     Foreground="{DynamicResource TextMainBrush}"
+                     CornerRadius="{DynamicResource RadiusSmall}"
+                     AutomationProperties.Name="Chave do supervisor">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding DescartarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+            <Button Grid.Column="2"
+                    Content="Descartar"
+                    Command="{Binding DescartarCommand}"
+                    Background="{DynamicResource AccentRedDimBrush}"
+                    Foreground="{DynamicResource AccentRedBrush}"
+                    CornerRadius="{DynamicResource RadiusMedium}"
+                    Padding="16,8"
+                    AutomationProperties.Name="Descartar venda" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
 
 </UserControl>

@@ -71,6 +71,8 @@ public partial class App : Application
             sincronizacao.DadosAlterados.Subscribe(_ =>
                 Dispatcher.UIThread.Post(shellViewModel.NotificarDadosSincronizados));
             shellViewModel.DispositivoVinculado.Subscribe(_ => sincronizacao.SolicitarAgora());
+            // "Sincronizar agora" da listagem de pedidos: roda o ciclo já, sem esperar os 30 s (o serviço serializa os ciclos).
+            shellViewModel.SincronizacaoSolicitada.Subscribe(_ => sincronizacao.SolicitarAgora());
             sincronizacao.Iniciar();
             desktop.Exit += (_, _) =>
             {

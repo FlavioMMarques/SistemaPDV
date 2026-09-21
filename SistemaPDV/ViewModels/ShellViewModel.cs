@@ -38,6 +38,7 @@ public class ShellViewModel : ViewModelBase
     private EstadoConexao conexao;
     private string? detalheConexao;
     private readonly Subject<Unit> dispositivoVinculado = new();
+    private readonly Subject<Unit> sincronizacaoSolicitada = new();
 
     // A conexão voltou e o operador ainda não foi avisado de que a fila esvaziou (ver AvisarMudancaDeConexao).
     private bool avisarFilaVazia;
@@ -230,6 +231,16 @@ public class ShellViewModel : ViewModelBase
     // Emite quando o dispositivo acabou de ser vinculado com sucesso (App liga isso ao
     // serviço de sincronização pra rodar já, sem esperar os 30 s).
     public IObservable<Unit> DispositivoVinculado => dispositivoVinculado;
+
+    // O operador pediu "sincronizar agora" (botão da listagem de pedidos): o App liga isto ao serviço de sincronização.
+    public IObservable<Unit> SincronizacaoSolicitada => sincronizacaoSolicitada;
+
+    public void SolicitarSincronizacao()
+    {
+        // O aviso primeiro: o operador vê a resposta ao clique antes de o serviço começar a trabalhar.
+        Toasts.Publicar("Sincronizando a fila outbox...", "🔄", chave: "sincronizacao", duracao: TimeSpan.FromSeconds(2.5));
+        sincronizacaoSolicitada.OnNext(Unit.Default);
+    }
 
     // Um ciclo de sincronização mexeu no banco: se a tela aberta lista esses dados,
     // recarrega. Chamar na thread de UI (o App faz o Post).
@@ -436,6 +447,9 @@ public class ShellViewModel : ViewModelBase
         await viewModel.IniciarAsync();
         if (vendaParaSelecionar is { } vendaId)
             viewModel.VendaSelecionada = viewModel.Vendas.FirstOrDefault(v => v.Id == vendaId);
+        // Só emitem (mesmo padrão do painel): o Shell decide navegar ou pedir a sincronização.
+        viewModel.NovaVendaCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(() => IrParaPdvAsync(caixaId)));
+        viewModel.SincronizarAgoraCommand.Subscribe(evento => SolicitarSincronizacao());
         CurrentViewModel = viewModel;
         TelaAtual = Tela.ListaPedidos;
     }
