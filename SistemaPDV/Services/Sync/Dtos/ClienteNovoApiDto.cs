@@ -20,7 +20,8 @@ public class ClienteNovoRequestDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CpfCnpj { get; set; }
 
-    // Obrigatório pela API quando pessoa = JURIDICA.
+    // O Swagger diz "obrigatório quando JURIDICA", mas a API real exige SEMPRE (coluna sem nulo): quem monta o corpo envia
+    // o nome quando não há razão social.
     [JsonPropertyName("razao_social")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RazaoSocial { get; set; }
