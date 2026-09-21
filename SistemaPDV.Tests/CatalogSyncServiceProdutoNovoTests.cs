@@ -98,6 +98,11 @@ public class CatalogSyncServiceProdutoNovoTests
         Assert.Equal(12.5m, p.GetProperty("preco_venda").GetDecimal());
         Assert.Equal("7891234567890", p.GetProperty("codigo_barras").GetString());
         Assert.False(p.TryGetProperty("referencia", out _));   // nulo não vai
+        // Custo, margem e comissão NÃO vão (nem zerados): com eles a API pode recalcular o preço de venda a partir do custo e da
+        // margem e anular o preço informado (o produto de teste chegou com preco_venda 0,00 na empresa, 2026-09-21).
+        Assert.False(p.TryGetProperty("preco_compra", out _));
+        Assert.False(p.TryGetProperty("margem_lucro", out _));
+        Assert.False(p.TryGetProperty("percentual_comissao_produto", out _));
         // Os padrões do Swagger vão explícitos (a API real grava todas as colunas).
         Assert.True(p.GetProperty("vender").GetBoolean());
         Assert.True(p.GetProperty("controlar_estoque").GetBoolean());
