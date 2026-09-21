@@ -28,6 +28,7 @@ public class ShellViewModel : ViewModelBase
     private readonly CatalogoLocalService catalogoLocalService;
     private readonly VendaLocalService vendaLocalService;
     private readonly CadastroLocalService cadastroLocalService;
+    private readonly CaixasApiService? caixasApiService;   // consulta dos caixas da API (Configurações); opcional para os testes de outras telas
 
     private Tela telaAtual;
     private ViewModelBase? currentViewModel;
@@ -63,7 +64,8 @@ public class ShellViewModel : ViewModelBase
         VendaService vendaService,
         CatalogoLocalService catalogoLocalService,
         VendaLocalService vendaLocalService,
-        CadastroLocalService cadastroLocalService)
+        CadastroLocalService cadastroLocalService,
+        CaixasApiService? caixasApiService = null)
     {
         this.configuracaoService = configuracaoService;
         this.loginOperadorService = loginOperadorService;
@@ -73,6 +75,7 @@ public class ShellViewModel : ViewModelBase
         this.catalogoLocalService = catalogoLocalService;
         this.vendaLocalService = vendaLocalService;
         this.cadastroLocalService = cadastroLocalService;
+        this.caixasApiService = caixasApiService;
 
         // Navegação persistente entre as 3 telas pós-caixa-aberto (Dashboard/Pdv/
         // ListaPedidos) — só habilitada com CaixaAberto preenchido, já que nenhuma
@@ -378,7 +381,7 @@ public class ShellViewModel : ViewModelBase
     [SupportedOSPlatform("windows")]
     private async Task IrParaConfiguracoesAsync(bool exigirSupervisor = false)
     {
-        var viewModel = new ConfiguracoesViewModel(configuracaoService, exigirSupervisor);
+        var viewModel = new ConfiguracoesViewModel(configuracaoService, exigirSupervisor, caixasApiService);
 
         // Vincular com sucesso é o que destrava o resto (login, sincronização): leva ao
         // Login sem reabrir o app e avisa quem quiser sincronizar já, em vez de esperar o

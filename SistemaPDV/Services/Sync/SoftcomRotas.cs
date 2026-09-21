@@ -29,6 +29,8 @@ public static class SoftcomRotas
     // Escrita (URL completa: EnviarAsync recebe a URL inteira).
     public static string CaixaAbrir(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/abrir";
     public static string CaixaFechar(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes/fechar";
+    // GET: lista os caixas da empresa (últimos 7 dias, ou o intervalo informado) — só leitura, tela "Caixas no SoftcomShop".
+    public static string CaixasListar(string dominio) => $"{dominio}/{Prefixo}/financeiro/caixa-funcoes";
     public static string Vendas(string dominio) => $"{dominio}/{Prefixo}/vendas";
     public static string ClientesCriar(string dominio) => $"{dominio}/{Prefixo}/clientes/clientes";
     public static string ProdutosCriar(string dominio) => $"{dominio}/{Prefixo}/produtos/produtos";
