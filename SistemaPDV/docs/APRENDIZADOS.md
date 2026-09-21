@@ -817,6 +817,16 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 
 **Atualização do #90 (mesmo dia, 1º teste real do endereço):** o cliente de teste subiu e a API o guardou COM `c_cidade` aceito — devolveu `codigo_cidade 2507507` e resolveu sozinha o `cidade_id` interno (1336) —, então o envio do código IBGE está confirmado. Dois ajustes: (1) o **complemento** que o ViaCEP devolve é uma faixa de numeração ("de 5242 ao fim - lado par"), não o complemento do cliente; deixou lixo no cadastro (`5242`) e o app **parou de lê-lo** (`EnderecoCep` não tem mais esse campo; o campo Complemento é só do operador). (2) O **bairro** enviado ("Torre") chegou e a API o devolve na listagem no campo `bairro`, no mesmo formato de texto livre dos clientes criados pelo próprio SoftcomShop ("Cabo Branco", "SANTA MARTA"…); mesmo assim a TELA de cadastro do SoftcomShop não o exibe — o dado está certo na API, então a diferença está em como a tela dele o lê (ainda por descobrir).
 
+## 91. Painel da fila outbox: estado ao vivo, pendências por tipo e log em blocos por ciclo
+
+**Pedido:** "melhore o log de execução do outbox, principalmente quando tiver algo pendente e for sincronizar, deixando visualmente melhor". O painel era só "N itens" + botão + uma lista de linhas coloridas, sem separar uma rodada da outra e sem mostrar que um envio estava em curso.
+
+**O que mudou:** (1) **Cartão de estado** — 🟢 Tudo enviado / 🟡 Aguardando envio / 🔄 Sincronizando… (com a etapa: "Enviando: Vendas" e barra de progresso) / 🔴 Sem conexão; ícone + título + detalhe, nunca só cor. Sincronizando vence Sem conexão (o ciclo que envia prova que há rede). (2) **Chips por tipo** do que está pendente (Caixas, Vendas, Clientes, Produtos) — `DashboardService.ContarPendenciasPorTipoAsync` devolve `PendenciasPorTipo`, e o total antigo virou `.Total`. (3) **Botão vivo**: "Sincronizando…" e desabilitado durante o envio (`AndamentoDoEnvio` publicado pelo serviço de fundo, levado à interface pelo App). (4) **Log em blocos**: `EntradaDeLog` ganhou `MarcaDeLog` (`InicioDeCiclo`/`FimDeCiclo`); o serviço abre o ciclo, conta enviados e falhas nas etapas e fecha com o resumo e a duração ("Ciclo concluído em 1,2 s: 2 enviado(s), 1 com falha."). Cada item leva ícone por nível; o resumo vem destacado na cor do nível.
+
+**Decisões:** o ciclo ocioso continua **sem escrever nada** (sem marcas, sem andamento) — o painel não vira parede de ruído; falha de autenticação não abre ciclo. A lista segue da mais recente para a mais antiga, então o bloco lê-se resumo → itens → cabeçalho. Nada de segredo ou exceção no texto (regra do log mantida). Não feito, de propósito: filtro por nível e botão "copiar log" (o texto já é selecionável).
+
+**Testes:** 1042 verdes — `FilaOutboxLogTests` (marcas, resumo, etapas do andamento, `FormatarDuracao`), `PainelDaFilaEstadoTests`, `PendenciasPorTipoTests`.
+
 ## 92. Desconto na venda: campo no cupom, rateado entre os itens (a API só aceita desconto por item)
 
 **O que faltava:** o cupom mostrava a linha "Desconto:", mas ela só somava `ItemCarrinho.DescontoItem`, que nenhuma tela preenchia — ficava sempre R$ 0,00. O modelo e o envio já existiam (`ItemVenda.DescontoItem` → `desconto_valor_item`); faltava onde informar.

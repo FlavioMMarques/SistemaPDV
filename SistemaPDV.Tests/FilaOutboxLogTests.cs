@@ -240,6 +240,114 @@ public class FilaOutboxLogTests
         Assert.DoesNotContain(service.Log.Recentes, e => e.Texto.Contains("token-fake") || e.Texto.Contains("Bearer"));
     }
 
+    // ---- o ciclo em blocos: início, itens e um resumo no fim ----
+
+    [Fact]
+    public async Task CicloBemSucedidoAbreEFechaComUmResumoQueContaOsEnviados()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var numero = await SemearVendaPendenteAsync(fixture);
+        using var service = CriarService(fixture, new RedeFake());
+
+        await service.ExecutarCicloOutboxAsync();
+
+        var naOrdem = service.Log.Recentes.Reverse().ToList();
+        Assert.Equal(MarcaDeLog.InicioDeCiclo, naOrdem[0].Marca);
+        Assert.Equal(MarcaDeLog.FimDeCiclo, naOrdem[^1].Marca);
+        Assert.Contains(naOrdem, e => e.Texto.Contains($"Pedido #{numero} sincronizado com sucesso"));
+        var fim = naOrdem[^1];
+        Assert.Equal(NivelAtividade.Sucesso, fim.Nivel);
+        Assert.StartsWith("Ciclo concluído em ", fim.Texto);
+        Assert.Contains("1 item(ns) enviado(s)", fim.Texto);
+        Assert.Single(naOrdem, e => e.Marca == MarcaDeLog.InicioDeCiclo);
+        Assert.Single(naOrdem, e => e.Marca == MarcaDeLog.FimDeCiclo);
+    }
+
+    [Fact]
+    public async Task CicloComPedidoRecusadoTerminaEmAvisoContandoAFalha()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearVendaPendenteAsync(fixture);
+        using var service = CriarService(fixture, new RedeFake { RespostaDaVenda = HttpStatusCode.UnprocessableEntity });
+
+        await service.ExecutarCicloOutboxAsync();
+
+        var fim = service.Log.Recentes.Single(e => e.Marca == MarcaDeLog.FimDeCiclo);
+        Assert.Equal(NivelAtividade.Aviso, fim.Nivel);
+        Assert.Contains("0 enviado(s), 1 com falha", fim.Texto);
+    }
+
+    [Fact]
+    public async Task CicloOciosoNaoTemInicioNemFim()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearVendaPendenteAsync(fixture);
+        await using (var context = fixture.CriarContexto())
+        {
+            (await context.Vendas.SingleAsync()).SyncStatus = SyncStatus.Sincronizado;
+            await context.SaveChangesAsync();
+        }
+        using var service = CriarService(fixture, new RedeFake());
+        var andamentos = new List<AndamentoDoEnvio>();
+        using var assinatura = service.AndamentoAlterado.Subscribe(andamentos.Add);
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Empty(service.Log.Recentes);
+        Assert.Equal(new[] { AndamentoDoEnvio.Ocioso }, andamentos);        // só o estado inicial: nada de "sincronizando" à toa
+    }
+
+    [Fact]
+    public async Task AndamentoPassaPorCadaEtapaEVoltaAOciosoNoFim()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearVendaPendenteAsync(fixture);
+        using var service = CriarService(fixture, new RedeFake());
+        var andamentos = new List<AndamentoDoEnvio>();
+        using var assinatura = service.AndamentoAlterado.Subscribe(andamentos.Add);
+        Assert.False(service.Andamento.Sincronizando);
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Equal(AndamentoDoEnvio.Ocioso, andamentos[0]);                                       // o que já valia ao assinar
+        Assert.True(andamentos[1].Sincronizando);
+        Assert.Null(andamentos[1].Etapa);                                                          // começou, ainda sem etapa
+        var etapas = andamentos.Where(a => a.Etapa is not null).Select(a => a.Etapa).ToList();
+        Assert.Equal(new[] { "Clientes novos", "Produtos novos", "Abertura de caixa", "Vendas", "Fechamento de caixa" }, etapas);
+        Assert.All(andamentos.Skip(1).SkipLast(1), a => Assert.True(a.Sincronizando));
+        Assert.Equal(AndamentoDoEnvio.Ocioso, andamentos[^1]);
+        Assert.False(service.Andamento.Sincronizando);
+    }
+
+    [Fact]
+    public async Task SemConseguirAutenticarNaoHaAndamentoNemBloco()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearVendaPendenteAsync(fixture);
+        using var service = CriarService(fixture, new RedeFake { AutenticacaoRecusada = true });
+        var andamentos = new List<AndamentoDoEnvio>();
+        using var assinatura = service.AndamentoAlterado.Subscribe(andamentos.Add);
+
+        await service.ExecutarCicloOutboxAsync();
+
+        Assert.Equal(new[] { AndamentoDoEnvio.Ocioso }, andamentos);
+        Assert.DoesNotContain(service.Log.Recentes, e => e.Marca != MarcaDeLog.Nenhuma);
+    }
+
+    [Theory]
+    [InlineData(0, "0 ms")]
+    [InlineData(820, "820 ms")]
+    [InlineData(999, "999 ms")]
+    [InlineData(1000, "1,0 s")]
+    [InlineData(1240, "1,2 s")]
+    [InlineData(59_000, "59,0 s")]
+    [InlineData(65_000, "1 min 05 s")]
+    [InlineData(600_000, "10 min 00 s")]
+    public void DuracaoEscritaComoPessoaLe(int milissegundos, string esperado)
+    {
+        Assert.Equal(esperado, SincronizacaoBackgroundService.FormatarDuracao(TimeSpan.FromMilliseconds(milissegundos)));
+    }
+
     // ---- o Shell e o painel ----
 
     private static ShellViewModel CriarShell(SqliteInMemoryFixture fixture) => new(

@@ -81,6 +81,9 @@ public partial class App : Application
                 shellViewModel.AdicionarAtividade(atividade);
             sincronizacao.Log.Novas.Subscribe(atividade =>
                 Dispatcher.UIThread.Post(() => shellViewModel.AdicionarAtividade(atividade)));
+            // O que o envio está fazendo agora ("Sincronizando… (Vendas)"): o painel da fila mostra e desabilita o botão enquanto dura.
+            sincronizacao.AndamentoAlterado.Subscribe(andamento =>
+                Dispatcher.UIThread.Post(() => shellViewModel.DefinirAndamento(andamento)));
             sincronizacao.Iniciar();
             desktop.Exit += (_, _) =>
             {

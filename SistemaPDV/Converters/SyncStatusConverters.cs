@@ -83,6 +83,40 @@ public class NivelAtividadeParaCorConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+// Ícone de cada nível no log da fila outbox — o nível nunca é só cor: o ícone acompanha (✅ enviou, ⚠️ recusou/aguarda, ❌ erro, ℹ️ informação).
+public class NivelAtividadeParaIconeConverter : IValueConverter
+{
+    public static readonly NivelAtividadeParaIconeConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        NivelAtividade.Sucesso => "✅",
+        NivelAtividade.Aviso => "⚠️",
+        NivelAtividade.Erro => "❌",
+        _ => "ℹ️",
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+// Fundo suave (a cor do nível a ~15%) do círculo do ícone e do resumo do ciclo. Mesmos valores do tema, como o conversor de cor.
+public class NivelAtividadeParaFundoConverter : IValueConverter
+{
+    public static readonly NivelAtividadeParaFundoConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        NivelAtividade.Sucesso => new SolidColorBrush(Color.Parse("#2610B981")),
+        NivelAtividade.Aviso => new SolidColorBrush(Color.Parse("#26F59E0B")),
+        NivelAtividade.Erro => new SolidColorBrush(Color.Parse("#26F43F5E")),
+        _ => new SolidColorBrush(Color.Parse("#2638BDF8")),
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 // Indicador de conexão do header (Task 50) — como nos converters de SyncStatus, nunca só
 // cor: cada estado combina ícone + texto.
 public class EstadoConexaoParaTextoConverter : IValueConverter

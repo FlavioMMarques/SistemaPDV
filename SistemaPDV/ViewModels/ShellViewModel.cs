@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
@@ -46,6 +47,8 @@ public class ShellViewModel : ViewModelBase
     // A conexão voltou e o operador ainda não foi avisado de que a fila esvaziou (ver AvisarMudancaDeConexao).
     private bool avisarFilaVazia;
     private bool painelOutboxAberto;
+    private AndamentoDoEnvio andamentoDoEnvio = AndamentoDoEnvio.Ocioso;
+    private PendenciasPorTipo pendencias = new(0, 0, 0, 0);
 
     // A recontagem disparada ao reconectar roda em segundo plano; quem precisa esperá-la (os testes, antes de soltar o banco)
     // usa isto. Em produção ninguém aguarda.
@@ -121,7 +124,9 @@ public class ShellViewModel : ViewModelBase
         FecharPainelOutboxCommand = ReactiveCommand.Create(
             () => { PainelOutboxAberto = false; },
             this.WhenAnyValue(vm => vm.PainelOutboxAberto));
-        SincronizarAgoraCommand = ReactiveCommand.Create(SolicitarSincronizacao);
+        // Desabilitado enquanto um envio está em curso: um segundo "disparar" não adianta nada (o serviço serializa os ciclos) e o botão
+        // parado deixa claro que já está trabalhando.
+        SincronizarAgoraCommand = ReactiveCommand.Create(SolicitarSincronizacao, this.WhenAnyValue(vm => vm.Sincronizando).Select(ocupado => !ocupado));
     }
 
     public Tela TelaAtual
@@ -168,7 +173,97 @@ public class ShellViewModel : ViewModelBase
             this.RaiseAndSetIfChanged(ref pendentesSync, value);
             this.RaisePropertyChanged(nameof(TextoSync));
             this.RaisePropertyChanged(nameof(TextoFilaLocal));
+            RaiseEstadoDaFilaChanged();
         }
+    }
+
+    // O que está esperando, por tipo (o total é o PendentesSync). Atualizada junto com o contador, em AtualizarPendentesAsync.
+    public PendenciasPorTipo Pendencias
+    {
+        get => pendencias;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref pendencias, value);
+            this.RaisePropertyChanged(nameof(ChipsDePendencias));
+        }
+    }
+
+    // ---- cartão de estado do painel da fila ----
+
+    // O envio da fila está rodando agora? (O App leva o andamento do serviço de fundo para a thread de interface: DefinirAndamento.)
+    public bool Sincronizando => andamentoDoEnvio.Sincronizando;
+
+    public void DefinirAndamento(AndamentoDoEnvio novo)
+    {
+        andamentoDoEnvio = novo;
+        this.RaisePropertyChanged(nameof(Sincronizando));
+        this.RaisePropertyChanged(nameof(TextoBotaoSincronizar));
+        RaiseEstadoDaFilaChanged();
+    }
+
+    // Uma palavra para o estado. Sincronizando vence tudo (um ciclo que está enviando prova que há conexão); depois a falta de
+    // conexão; depois o que está esperando.
+    public EstadoDaFila EstadoDaFila =>
+        Sincronizando ? EstadoDaFila.Sincronizando
+        : Conexao == EstadoConexao.Offline ? EstadoDaFila.SemConexao
+        : PendentesSync > 0 ? EstadoDaFila.Aguardando
+        : EstadoDaFila.TudoEnviado;
+
+    public string IconeEstadoDaFila => EstadoDaFila switch
+    {
+        EstadoDaFila.Sincronizando => "🔄",
+        EstadoDaFila.SemConexao => "🔴",
+        EstadoDaFila.Aguardando => "🟡",
+        _ => "🟢",
+    };
+
+    public string TituloEstadoDaFila => EstadoDaFila switch
+    {
+        EstadoDaFila.Sincronizando => "Sincronizando…",
+        EstadoDaFila.SemConexao => "Sem conexão",
+        EstadoDaFila.Aguardando => "Aguardando envio",
+        _ => "Tudo enviado",
+    };
+
+    public string DetalheEstadoDaFila => EstadoDaFila switch
+    {
+        EstadoDaFila.Sincronizando => andamentoDoEnvio.Etapa is { } etapa ? $"Enviando: {etapa}" : "Preparando o envio…",
+        EstadoDaFila.SemConexao => "O que está na fila sai assim que a internet voltar.",
+        EstadoDaFila.Aguardando => $"{TextoFilaLocal} na fila local.",
+        _ => "Nenhuma pendência na fila local.",
+    };
+
+    // Um booleano por estado só para a tela pintar o cartão (classes de estilo); a fonte é o EstadoDaFila.
+    public bool FilaTudoEnviado => EstadoDaFila == EstadoDaFila.TudoEnviado;
+    public bool FilaAguardando => EstadoDaFila == EstadoDaFila.Aguardando;
+    public bool FilaSemConexao => EstadoDaFila == EstadoDaFila.SemConexao;
+
+    // O botão diz o que está acontecendo (fica parado enquanto o envio dura).
+    public string TextoBotaoSincronizar => Sincronizando ? "🔄 Sincronizando…" : "🔄 Disparar Sincronização Agora";
+
+    // "🧾 Vendas 2 · 👥 Clientes 1": só os tipos que têm algo esperando, sempre na mesma ordem.
+    public IReadOnlyList<PendenciaChip> ChipsDePendencias
+    {
+        get
+        {
+            var chips = new List<PendenciaChip>();
+            if (Pendencias.Caixas > 0) chips.Add(new PendenciaChip("🏦", "Caixas", Pendencias.Caixas));
+            if (Pendencias.Vendas > 0) chips.Add(new PendenciaChip("🧾", "Vendas", Pendencias.Vendas));
+            if (Pendencias.Clientes > 0) chips.Add(new PendenciaChip("👥", "Clientes", Pendencias.Clientes));
+            if (Pendencias.Produtos > 0) chips.Add(new PendenciaChip("📦", "Produtos", Pendencias.Produtos));
+            return chips;
+        }
+    }
+
+    private void RaiseEstadoDaFilaChanged()
+    {
+        this.RaisePropertyChanged(nameof(EstadoDaFila));
+        this.RaisePropertyChanged(nameof(IconeEstadoDaFila));
+        this.RaisePropertyChanged(nameof(TituloEstadoDaFila));
+        this.RaisePropertyChanged(nameof(DetalheEstadoDaFila));
+        this.RaisePropertyChanged(nameof(FilaTudoEnviado));
+        this.RaisePropertyChanged(nameof(FilaAguardando));
+        this.RaisePropertyChanged(nameof(FilaSemConexao));
     }
 
     // ---- painel lateral da fila outbox ----
@@ -218,7 +313,9 @@ public class ShellViewModel : ViewModelBase
     // e quando a sincronização em segundo plano mexeu no banco.
     private async Task AtualizarPendentesAsync()
     {
-        PendentesSync = await dashboardService.ContarPendentesAsync();
+        var porTipo = await dashboardService.ContarPendenciasPorTipoAsync();
+        Pendencias = porTipo;
+        PendentesSync = porTipo.Total;
 
         if (avisarFilaVazia && PendentesSync == 0)
         {
@@ -274,7 +371,11 @@ public class ShellViewModel : ViewModelBase
     public EstadoConexao Conexao
     {
         get => conexao;
-        private set => this.RaiseAndSetIfChanged(ref conexao, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref conexao, value);
+            RaiseEstadoDaFilaChanged();
+        }
     }
 
     // Dica do indicador: por que ficou offline (ex: URL sem HTTPS), qual recurso falhou, ou o
