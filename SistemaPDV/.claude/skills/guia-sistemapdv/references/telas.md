@@ -41,7 +41,7 @@ O que cada tela deve mostrar e fazer, de onde vêm os dados e as regras que não
 ## 5. Vendas (o PDV)
 - **Busca grande** por nome, código ou código de barras: **Enter** com um código de barras já adiciona o produto (leitor). Botão Limpar.
 - **Grade de cartões de produto:** código • categoria, nome, preço, estoque. Produto **sem preço (R$ 0,00)** mostra "Informar preço" e abre um painel que exige um valor > 0 (vale só para aquele item).
-- **Cupom à direita:** itens numerados, quantidade (fracionada até 3 casas, para venda por peso), cliente (padrão "Consumidor Final"), subtotal, desconto, **total**, botão amarelo **Finalizar (F10)**.
+- **Cupom à direita:** itens numerados, quantidade (fracionada até 3 casas, para venda por peso), cliente (padrão "Consumidor Final"), subtotal, **desconto na venda toda** (campo em R$ ou %, com Enter/Aplicar; repartido entre os itens porque a API só aceita desconto por item), **total**, botão amarelo **Finalizar (F10)**.
 - **Painel de pagamento:** formas em cartões (2 colunas), **pagamento misto** (adiciona uma forma de cada vez), no dinheiro o campo "valor recebido" e o **troco** em tempo real (só o dinheiro pode passar do que falta), e a **bandeira** do cartão (combo, obrigatória se houver bandeiras sincronizadas).
 - **Atalhos:** F2 novo, F4 buscar, F10 pagar, Esc cancelar/voltar. Finalizar **não faz chamada de rede**: grava local e volta.
 

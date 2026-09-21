@@ -10,6 +10,7 @@ namespace SistemaPDV.ViewModels;
 public class ItemCarrinho : ReactiveObject
 {
     private int numero;
+    private decimal descontoItem;
 
     public required Produto Produto { get; init; }
     public decimal Quantidade { get; set; }
@@ -17,7 +18,23 @@ public class ItemCarrinho : ReactiveObject
 
     // O preço veio do operador (produto sem preço no cadastro), não do cadastro: o cupom avisa, para ninguém achar que é o preço de tabela.
     public bool PrecoInformado { get; init; }
-    public decimal DescontoItem { get; set; }
+
+    // O desconto que a API recebe (desconto_valor_item). Vem do desconto da venda, rateado entre os itens (PdvViewModel): muda com
+    // o cupom, então a linha do item se atualiza sozinha.
+    public decimal DescontoItem
+    {
+        get => descontoItem;
+        set
+        {
+            if (descontoItem == value)
+                return;
+            this.RaiseAndSetIfChanged(ref descontoItem, value);
+            this.RaisePropertyChanged(nameof(Total));
+            this.RaisePropertyChanged(nameof(TemDesconto));
+        }
+    }
+
+    public bool TemDesconto => DescontoItem > 0;
     public decimal AcrescimoItem { get; set; }
 
     public decimal Total => Quantidade * PrecoUnitario - DescontoItem + AcrescimoItem;
