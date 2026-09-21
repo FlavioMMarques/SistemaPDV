@@ -1089,8 +1089,8 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 ---
 
 ### Checkpoint: Foundation (pdv-ui)
-- [ ] `dotnet build` sem erros
-- [ ] `dotnet test` verde
+- [x] `dotnet build` sem erros (0 avisos, conferido em 2026-09-21)
+- [x] `dotnet test` verde (821 testes, conferido em 2026-09-21)
 
 ## Task 40: LoginViewModel / LoginView
 
@@ -1123,7 +1123,7 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 **Acceptance criteria:**
 - [x] Formulário de vínculo grava `client_secret` protegido (nunca em texto puro na tela nem no banco) — confirmado em teste comparando o valor salvo com o original via `Desproteger`
 - [x] Toggle `ExigirAberturaCaixa` persiste e é lido de volta corretamente
-- [ ] Sem `ConfiguracaoSincronizacao` preenchida, o app direciona pra essa tela antes de qualquer outra — **adiado pra Task 42**: essa é uma decisão de navegação do `ShellViewModel`, que ainda não existe; `ConfiguracoesViewModel`/`View` já estão prontos pra serem exibidos quando o Shell decidir
+- [x] Sem `ConfiguracaoSincronizacao` preenchida, o app direciona pra essa tela antes de qualquer outra — **feito na Task 42 (ver [x] da Task 42):** essa é uma decisão de navegação do `ShellViewModel`, que ainda não existe; `ConfiguracoesViewModel`/`View` já estão prontos pra serem exibidos quando o Shell decidir
 
 **Verification:**
 - [x] Tests pass: `dotnet test --filter Configuracoes` — 9 testes novos (5 `ConfiguracaoServiceTests` + 4 `ConfiguracoesViewModelTests`), 122 no total
@@ -1292,7 +1292,7 @@ Testes: 153 → 159. Build limpo, 0 avisos.
 
 **Acceptance criteria:**
 - [x] Reflete o `SyncStatus` real de cada venda com indicador visual — via `SyncStatusIndicator` (reaproveitado da Task 45)
-- [ ] Atualiza sozinha quando uma venda muda de status (ex: depois que o background service sincroniza) — via binding reativo, sem precisar de F5 manual — **adiado pra Task 50**, decisão confirmada com o usuário (2026-09-18): depende de algo rodando em background que ainda não existe; por ora `AtualizarCommand` (botão "🔄 Atualizar") recarrega manualmente
+- [x] Atualiza sozinha quando uma venda muda de status (ex: depois que o background service sincroniza) — via binding reativo, sem precisar de F5 manual — **feito na Task 50 (`DadosAlterados` → `IAtualizavelPorSincronizacao`)**; decisão original, decisão confirmada com o usuário (2026-09-18): depende de algo rodando em background que ainda não existe; por ora `AtualizarCommand` (botão "🔄 Atualizar") recarrega manualmente
 
 **Verification:**
 - [x] Tests pass: `dotnet test --filter ListaPedidos` — 2 testes de `ListaPedidosViewModel` + 4 de `VendaLocalService` + 2 novos de navegação em `ShellViewModelTests`, 167 no total
