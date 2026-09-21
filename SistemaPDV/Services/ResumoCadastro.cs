@@ -4,9 +4,60 @@ namespace SistemaPDV.Services;
 
 // Linhas de leitura da tela de Cadastros — projeção enxuta em vez da entidade
 // inteira (Cliente tem ~40 campos), mesmo padrão de VendaResumo.
-public record ClienteResumo(int Id, string Nome, string? Documento, SyncStatus SyncStatus, string? UltimoErroSync);
 
-public record ProdutoResumo(int Id, string Nome, string? CodigoBarras, decimal PrecoVenda, int EstoqueAtual, SyncStatus SyncStatus);
+// IdExterno = o id do cliente na API (o "#1" da tabela); nulo = ainda não subiu (cliente criado aqui, pendente de envio).
+public record ClienteResumo(
+    int Id,
+    string Nome,
+    string? Documento,
+    SyncStatus SyncStatus,
+    string? UltimoErroSync,
+    int? IdExterno = null,
+    string? Telefone = null,
+    string? CidadeUf = null);
+
+// Codigo = o que a tabela mostra como "SKU / código" (código de barras, senão SKU, senão o id da API — o mesmo do card do PDV);
+// Categoria = o nome do grupo (nulo se o grupo ainda não sincronizou).
+public record ProdutoResumo(
+    int Id,
+    string Nome,
+    string? CodigoBarras,
+    decimal PrecoVenda,
+    int EstoqueAtual,
+    SyncStatus SyncStatus,
+    string? Codigo = null,
+    string? Categoria = null,
+    string? Unidade = null);
+
+public enum SituacaoOperador
+{
+    Ativo,
+
+    // Desativado no SoftcomShop: não entra mais.
+    Desativado,
+
+    // Sincronizado sem chave do PDV: existe, mas não consegue entrar no app (o login é pela chave).
+    SemChaveDoPdv,
+}
+
+// Operador de caixa (Funcionario). "Perfil" vem da flag de supervisor; "CaixaAberto" é o caixa que ele tem aberto agora neste
+// terminal (nulo = nenhum). O CPF do funcionário fica de fora de propósito: a tela não precisa dele.
+public record OperadorResumo(int Id, string Codigo, string Nome, string Perfil, bool Supervisor, string? CaixaAberto, SituacaoOperador Situacao)
+{
+    public string RotuloSituacao => Situacao switch
+    {
+        SituacaoOperador.Ativo => "Ativo",
+        SituacaoOperador.Desativado => "Desativado",
+        _ => "Sem chave do PDV",
+    };
+
+    public bool Ativo => Situacao == SituacaoOperador.Ativo;
+    public bool Desativado => Situacao == SituacaoOperador.Desativado;
+    public bool SemChave => Situacao == SituacaoOperador.SemChaveDoPdv;
+}
+
+// Quantos cadastros existem NO TOTAL (os números das abas): independem da busca e do corte de LimiteLista da lista.
+public record ContagemCadastros(int Produtos, int Clientes, int Operadores);
 
 public class ResultadoCriacaoCliente
 {

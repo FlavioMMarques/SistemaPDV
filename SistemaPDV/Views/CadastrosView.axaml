@@ -5,212 +5,282 @@
              xmlns:controls="using:SistemaPDV.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+             mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="800"
              x:Class="SistemaPDV.Views.CadastrosView"
              x:DataType="vm:CadastrosViewModel"
              Background="{StaticResource BgMainBrush}">
 
-  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24">
+  <!-- Módulo de Cadastros no visual do protótipo: título e ações, três abas (Produtos, Clientes, Operadores de Caixa) e a tabela
+       da aba escolhida. Além do protótipo: uma busca única para as abas (Enter ou 🔍) e o formulário de novo cliente, que fica
+       recolhido até pedirem. Conteúdo com largura máxima e centralizado, como as outras telas; a página rola se a janela for baixa. -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel MaxWidth="1400" Margin="24" Spacing="20">
 
-    <TextBlock Grid.Row="0" Text="📇 Cadastros" FontSize="22" FontWeight="Bold"
-               Foreground="{StaticResource TextMainBrush}" Margin="0,0,0,16" />
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="📦 Módulo de Cadastros • SoftcomPDV" FontSize="26" FontWeight="Bold"
+                     Foreground="{DynamicResource TextMainBrush}" />
+          <TextBlock Text="Produtos, clientes e operadores no banco local e a sincronização com a nuvem SoftcomShop."
+                     FontSize="13" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Button Classes="secundario" Content="👥 Novo Cliente" Command="{Binding NovoClienteCommand}"
+                  FontWeight="SemiBold" Padding="18,12" AutomationProperties.Name="Novo cliente" />
+          <!-- Cadastro de produto não existe neste app (o catálogo vem do SoftcomShop): o botão do protótipo fica, desabilitado. -->
+          <Button Classes="primario" Content="＋ Novo Produto" IsEnabled="False" HorizontalAlignment="Right" Padding="20,12"
+                  ToolTip.Tip="O cadastro de produtos é feito no SoftcomShop — aqui o catálogo é só sincronizado (em breve)"
+                  AutomationProperties.Name="Novo produto, indisponível" />
+        </StackPanel>
+      </Grid>
 
-    <!-- Busca única pras duas abas: Enter ou o botão dispara BuscarCommand (manual,
-         igual ao "Atualizar" da lista de pedidos). -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
-      <TextBox Grid.Column="0"
-               Text="{Binding Busca, Mode=TwoWay}"
-               PlaceholderText="Buscar por nome, CPF/CNPJ ou código de barras…"
-               Background="{StaticResource BgInputBrush}"
-               BorderBrush="{StaticResource BorderColorBrush}"
-               Foreground="{StaticResource TextMainBrush}"
-               CornerRadius="{StaticResource RadiusSmall}"
-               AutomationProperties.Name="Buscar cadastros"
-               TabIndex="0">
-        <TextBox.KeyBindings>
-          <KeyBinding Gesture="Enter" Command="{Binding BuscarCommand}" />
-        </TextBox.KeyBindings>
-      </TextBox>
-      <Button Grid.Column="1"
-              Content="🔍 Buscar"
-              Command="{Binding BuscarCommand}"
-              Background="{StaticResource BgCardBrush}"
-              Foreground="{StaticResource TextMainBrush}"
-              CornerRadius="{StaticResource RadiusMedium}"
-              Padding="16,8" Margin="8,0,0,0"
-              AutomationProperties.Name="Buscar" />
-      <Button Grid.Column="2"
-              Content="🔁 Reenviar falhas"
-              Command="{Binding ReenviarFalhasCommand}"
-              Background="{StaticResource BgCardBrush}"
-              Foreground="{StaticResource TextMainBrush}"
-              CornerRadius="{StaticResource RadiusMedium}"
-              Padding="16,8" Margin="8,0,0,0"
-              ToolTip.Tip="Devolve à fila de envio os clientes que falharam ou desistiram"
-              AutomationProperties.Name="Reenviar clientes com falha" />
-    </Grid>
+      <!-- Abas + busca -->
+      <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,16">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+            <Button Classes="aba" Classes.ativa="{Binding ProdutosAtiva}" Content="{Binding RotuloProdutos}"
+                    Command="{Binding SelecionarAbaCommand}" CommandParameter="{x:Static vm:AbaCadastros.Produtos}"
+                    AutomationProperties.Name="Aba de produtos" />
+            <Button Classes="aba" Classes.ativa="{Binding ClientesAtiva}" Content="{Binding RotuloClientes}"
+                    Command="{Binding SelecionarAbaCommand}" CommandParameter="{x:Static vm:AbaCadastros.Clientes}"
+                    AutomationProperties.Name="Aba de clientes" />
+            <Button Classes="aba" Classes.ativa="{Binding OperadoresAtiva}" Content="{Binding RotuloOperadores}"
+                    Command="{Binding SelecionarAbaCommand}" CommandParameter="{x:Static vm:AbaCadastros.Operadores}"
+                    AutomationProperties.Name="Aba de operadores de caixa" />
+          </StackPanel>
+          <TextBox Grid.Column="2" Width="390"
+                   Text="{Binding Busca, Mode=TwoWay}"
+                   PlaceholderText="Nome, CPF/CNPJ, código ou categoria…"
+                   Background="{DynamicResource BgInputBrush}"
+                   BorderBrush="{DynamicResource BorderColorBrush}"
+                   Foreground="{DynamicResource TextMainBrush}"
+                   CornerRadius="{DynamicResource RadiusMedium}"
+                   AutomationProperties.Name="Buscar cadastros">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding BuscarCommand}" />
+            </TextBox.KeyBindings>
+            <TextBox.InnerRightContent>
+              <Button Classes="fantasma" Content="🔍" Command="{Binding BuscarCommand}" Padding="8,2"
+                      AutomationProperties.Name="Buscar" />
+            </TextBox.InnerRightContent>
+          </TextBox>
+        </Grid>
+      </Border>
 
-    <TextBlock Grid.Row="2"
-               Text="{Binding MensagemReenvio}"
-               Foreground="{StaticResource TextMutedBrush}"
-               Margin="0,0,0,8"
-               IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <TextBlock Text="{Binding MensagemReenvio}" Foreground="{DynamicResource TextMutedBrush}"
+                 IsVisible="{Binding MensagemReenvio, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-    <TabControl Grid.Row="3" Background="Transparent">
+      <!-- ======================= PRODUTOS ======================= -->
+      <Border Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}" IsVisible="{Binding ProdutosAtiva}">
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto" Margin="20,16">
+            <TextBlock Grid.Column="0" Text="🏷️ Tabela de Produtos no Banco Local (SQLite)" FontSize="16" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Catálogo sincronizado do SoftcomShop" FontSize="12"
+                       Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+          </Grid>
+          <TextBlock Text="{Binding AvisoLimite}" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="20,0,20,10"
+                     IsVisible="{Binding ProdutosCortados}" />
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel MinWidth="1080">
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                <!-- As colunas daqui e as de cada linha (abaixo) TÊM de ser iguais: o Avalonia não compartilha ColumnDefinitions. -->
+                <Grid ColumnDefinitions="170,*,190,130,130,200">
+                  <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="SKU / CÓDIGO" />
+                  <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="DESCRIÇÃO DO PRODUTO" />
+                  <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="CATEGORIA" />
+                  <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="PREÇO VENDA" />
+                  <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="ESTOQUE LOCAL" />
+                  <TextBlock Grid.Column="5" Classes="colunaTitulo" Text="STATUS NUVEM" />
+                </Grid>
+              </Border>
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,28"
+                      IsVisible="{Binding MensagemVazioProdutos, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="{Binding MensagemVazioProdutos}" HorizontalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+              </Border>
+              <ItemsControl ItemsSource="{Binding Produtos}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:ProdutoResumo">
+                    <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                      <Grid ColumnDefinitions="170,*,190,130,130,200">
+                        <TextBlock Grid.Column="0" Text="{Binding Codigo, TargetNullValue='—'}" FontFamily="{DynamicResource FontMono}"
+                                   FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Nome}" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Border Grid.Column="2" Classes="chip" VerticalAlignment="Center"
+                                IsVisible="{Binding Categoria, Converter={x:Static ObjectConverters.IsNotNull}}">
+                          <TextBlock Text="{Binding Categoria}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                     Foreground="{DynamicResource TextMutedBrush}" />
+                        </Border>
+                        <TextBlock Grid.Column="3" Text="{Binding PrecoVenda, StringFormat='R$ {0:F2}'}" FontFamily="{DynamicResource FontMono}"
+                                   FontWeight="Bold" Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="4" Text="{Binding EstoqueAtual, StringFormat='{}{0} un'}"
+                                   Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        <controls:SeloSincronia Grid.Column="5" Status="{Binding SyncStatus}" VerticalAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </StackPanel>
+      </Border>
 
-      <TabItem Header="👥 Clientes">
-        <Grid RowDefinitions="Auto,Auto,*" Margin="0,12,0,0">
+      <!-- ======================= CLIENTES ======================= -->
+      <Border Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}" IsVisible="{Binding ClientesAtiva}">
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto" Margin="20,16">
+            <TextBlock Grid.Column="0" Text="👥 Base Local de Clientes &amp; Empresas" FontSize="16" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <Button Classes="secundario" Content="🔁 Reenviar falhas" Command="{Binding ReenviarFalhasCommand}" FontSize="12" Padding="12,7"
+                      ToolTip.Tip="Devolve à fila de envio os clientes que falharam ou desistiram"
+                      AutomationProperties.Name="Reenviar clientes com falha" />
+              <Button Classes="primario" Content="＋ Cadastrar Cliente" Command="{Binding NovoClienteCommand}" FontSize="12"
+                      HorizontalAlignment="Right" Padding="16,7" AutomationProperties.Name="Cadastrar cliente" />
+            </StackPanel>
+          </Grid>
 
-          <!-- Formulário de novo cliente: só grava local (PendenteSync); o envio à API
-               é do serviço de sincronização. -->
-          <Border Grid.Row="0"
-                  Background="{StaticResource BgCardBrush}"
-                  BorderBrush="{StaticResource BorderColorBrush}"
-                  BorderThickness="1"
-                  CornerRadius="{StaticResource RadiusCard}"
-                  Padding="16" Margin="0,0,0,12">
-            <StackPanel Spacing="8">
-              <TextBlock Text="Novo cliente" FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
+          <!-- Formulário de novo cliente: só grava local (PendenteSync); o envio à API é do serviço de sincronização. -->
+          <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                  BorderThickness="0,1,0,1" Padding="20,16" IsVisible="{Binding FormularioClienteAberto}">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Novo cliente" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="fantasma" Content="✕" Command="{Binding FecharFormularioClienteCommand}"
+                        AutomationProperties.Name="Fechar o formulário de novo cliente" />
+              </Grid>
               <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
-                <TextBox Grid.Column="0"
-                         Text="{Binding NovoNome, Mode=TwoWay}"
-                         PlaceholderText="Nome"
-                         MaxLength="150"
-                         Background="{StaticResource BgInputBrush}"
-                         BorderBrush="{StaticResource BorderColorBrush}"
-                         Foreground="{StaticResource TextMainBrush}"
-                         CornerRadius="{StaticResource RadiusSmall}"
-                         AutomationProperties.Name="Nome do novo cliente"
-                         TabIndex="1" />
-                <TextBox Grid.Column="1"
-                         Text="{Binding NovoCpfCnpj, Mode=TwoWay}"
-                         PlaceholderText="CPF/CNPJ (opcional)"
-                         MaxLength="18"
-                         Background="{StaticResource BgInputBrush}"
-                         BorderBrush="{StaticResource BorderColorBrush}"
-                         Foreground="{StaticResource TextMainBrush}"
-                         FontFamily="{StaticResource FontMono}"
-                         CornerRadius="{StaticResource RadiusSmall}"
-                         AutomationProperties.Name="CPF ou CNPJ do novo cliente"
-                         TabIndex="2">
+                <TextBox Grid.Column="0" Text="{Binding NovoNome, Mode=TwoWay}" PlaceholderText="Nome" MaxLength="150"
+                         Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                         Foreground="{DynamicResource TextMainBrush}" CornerRadius="{DynamicResource RadiusSmall}"
+                         AutomationProperties.Name="Nome do novo cliente" TabIndex="1" />
+                <TextBox Grid.Column="1" Text="{Binding NovoCpfCnpj, Mode=TwoWay}" PlaceholderText="CPF/CNPJ (opcional)" MaxLength="18"
+                         Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                         Foreground="{DynamicResource TextMainBrush}" FontFamily="{DynamicResource FontMono}"
+                         CornerRadius="{DynamicResource RadiusSmall}" AutomationProperties.Name="CPF ou CNPJ do novo cliente" TabIndex="2">
                   <TextBox.KeyBindings>
                     <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
                   </TextBox.KeyBindings>
                 </TextBox>
-                <Button Grid.Column="2"
-                        Content="Salvar"
-                        Command="{Binding CriarClienteCommand}"
-                        Background="{StaticResource BrandYellowBrush}"
-                        Foreground="{StaticResource TextDarkBrush}"
-                        FontWeight="Bold"
-                        CornerRadius="{StaticResource RadiusMedium}"
-                        Padding="20,8"
-                        TabIndex="3"
-                        AutomationProperties.Name="Salvar cliente" />
+                <Button Grid.Column="2" Classes="primario" Content="Salvar" Command="{Binding CriarClienteCommand}"
+                        Padding="22,8" TabIndex="3" AutomationProperties.Name="Salvar cliente" />
               </Grid>
-              <TextBlock Text="{Binding MensagemFormErro}"
-                         Foreground="{StaticResource AccentRedBrush}"
-                         TextWrapping="Wrap"
+              <TextBlock Text="{Binding MensagemFormErro}" Foreground="{DynamicResource AccentRedBrush}" TextWrapping="Wrap"
                          IsVisible="{Binding MensagemFormErro, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              <TextBlock Text="{Binding MensagemFormSucesso}"
-                         Foreground="{StaticResource AccentGreenBrush}"
-                         TextWrapping="Wrap"
+              <TextBlock Text="{Binding MensagemFormSucesso}" Foreground="{DynamicResource AccentGreenBrush}" TextWrapping="Wrap"
                          IsVisible="{Binding MensagemFormSucesso, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
           </Border>
 
-          <TextBlock Grid.Row="1"
-                     Text="{Binding AvisoLimite}"
-                     Foreground="{StaticResource TextMutedBrush}"
-                     Margin="0,0,0,8"
+          <TextBlock Text="{Binding AvisoLimite}" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="20,10,20,0"
                      IsVisible="{Binding ClientesCortados}" />
-
-          <Border Grid.Row="2"
-                  Background="{StaticResource BgCardBrush}"
-                  BorderBrush="{StaticResource BorderColorBrush}"
-                  BorderThickness="1"
-                  CornerRadius="{StaticResource RadiusCard}"
-                  Padding="8">
-            <Grid>
-              <ListBox ItemsSource="{Binding Clientes}" Background="Transparent">
-                <ListBox.ItemTemplate>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel MinWidth="1080">
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                <!-- As colunas daqui e as de cada linha (abaixo) TÊM de ser iguais. -->
+                <Grid ColumnDefinitions="80,*,190,170,200,200">
+                  <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="ID" />
+                  <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="NOME / RAZÃO SOCIAL" />
+                  <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="CPF / CNPJ" />
+                  <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="TELEFONE" />
+                  <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="CIDADE / UF" />
+                  <TextBlock Grid.Column="5" Classes="colunaTitulo" Text="STATUS NUVEM" />
+                </Grid>
+              </Border>
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,28"
+                      IsVisible="{Binding MensagemVazioClientes, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="{Binding MensagemVazioClientes}" HorizontalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+              </Border>
+              <ItemsControl ItemsSource="{Binding Clientes}">
+                <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="svc:ClienteResumo">
-                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="4">
-                      <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding Nome}" Foreground="{StaticResource TextMainBrush}" />
-                        <!-- Falha do envio fica visível: sem isso um cliente em 🔴 seria indiagnosticável. -->
-                        <TextBlock Text="{Binding UltimoErroSync}"
-                                   Foreground="{StaticResource AccentRedBrush}"
-                                   FontSize="12" TextWrapping="Wrap"
+                    <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                      <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="80,*,190,170,200,200">
+                          <TextBlock Grid.Column="0" Text="{Binding IdExterno, StringFormat='#{0}', TargetNullValue='novo'}" FontWeight="Bold"
+                                     Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Text="{Binding Nome}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                     Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                          <TextBlock Grid.Column="2" Text="{Binding Documento, TargetNullValue='—'}" FontFamily="{DynamicResource FontMono}"
+                                     Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding Telefone, TargetNullValue='—'}" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="4" Text="{Binding CidadeUf, TargetNullValue='—'}" TextTrimming="CharacterEllipsis"
+                                     Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                          <controls:SeloSincronia Grid.Column="5" Status="{Binding SyncStatus}" VerticalAlignment="Center" />
+                        </Grid>
+                        <!-- Falha do envio fica visível: sem isso um cliente em falha seria indiagnosticável. -->
+                        <TextBlock Text="{Binding UltimoErroSync}" Foreground="{DynamicResource AccentRedBrush}" FontSize="12" TextWrapping="Wrap"
                                    IsVisible="{Binding UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
                       </StackPanel>
-                      <TextBlock Grid.Column="1" Text="{Binding Documento, TargetNullValue='—'}"
-                                 FontFamily="{StaticResource FontMono}"
-                                 Foreground="{StaticResource TextMutedBrush}"
-                                 Width="160" Margin="8,0" />
-                      <controls:SyncStatusIndicator Grid.Column="2" Status="{Binding SyncStatus}" />
-                    </Grid>
+                    </Border>
                   </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
-              <TextBlock Text="{Binding MensagemVazioClientes}"
-                         Foreground="{StaticResource TextMutedBrush}"
-                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                         TextWrapping="Wrap"
-                         IsVisible="{Binding MensagemVazioClientes, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </Grid>
-          </Border>
-        </Grid>
-      </TabItem>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </StackPanel>
+      </Border>
 
-      <TabItem Header="📦 Produtos">
-        <Grid RowDefinitions="Auto,*" Margin="0,12,0,0">
-          <TextBlock Grid.Row="0"
-                     Text="{Binding AvisoLimite}"
-                     Foreground="{StaticResource TextMutedBrush}"
-                     Margin="0,0,0,8"
-                     IsVisible="{Binding ProdutosCortados}" />
-
-          <Border Grid.Row="1"
-                  Background="{StaticResource BgCardBrush}"
-                  BorderBrush="{StaticResource BorderColorBrush}"
-                  BorderThickness="1"
-                  CornerRadius="{StaticResource RadiusCard}"
-                  Padding="8">
-            <Grid>
-              <ListBox ItemsSource="{Binding Produtos}" Background="Transparent">
-                <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="svc:ProdutoResumo">
-                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="4">
-                      <TextBlock Grid.Column="0" Text="{Binding Nome}" Foreground="{StaticResource TextMainBrush}" />
-                      <TextBlock Grid.Column="1" Text="{Binding CodigoBarras, TargetNullValue='—'}"
-                                 FontFamily="{StaticResource FontMono}"
-                                 Foreground="{StaticResource TextMutedBrush}"
-                                 Width="140" Margin="8,0" />
-                      <TextBlock Grid.Column="2" Text="{Binding EstoqueAtual, StringFormat='{}{0} un'}"
-                                 Foreground="{StaticResource TextMutedBrush}"
-                                 Width="70" />
-                      <TextBlock Grid.Column="3" Text="{Binding PrecoVenda, StringFormat='R$ {0:F2}'}"
-                                 FontFamily="{StaticResource FontMono}"
-                                 Foreground="{StaticResource TextMainBrush}"
-                                 Width="90" />
-                      <controls:SyncStatusIndicator Grid.Column="4" Status="{Binding SyncStatus}" />
-                    </Grid>
+      <!-- ======================= OPERADORES ======================= -->
+      <Border Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}" IsVisible="{Binding OperadoresAtiva}">
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto" Margin="20,16">
+            <TextBlock Grid.Column="0" Text="👤 Operadores Autorizados no Terminal" FontSize="16" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="● Login local pela chave do PDV" FontSize="12"
+                       Foreground="{DynamicResource AccentGreenBrush}" VerticalAlignment="Center" />
+          </Grid>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel MinWidth="900">
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                <!-- As colunas daqui e as de cada linha (abaixo) TÊM de ser iguais. -->
+                <Grid ColumnDefinitions="110,*,230,170,180">
+                  <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="CÓDIGO" />
+                  <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="NOME DO OPERADOR" />
+                  <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="PERFIL DE ACESSO" />
+                  <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="CAIXA ABERTO" />
+                  <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="STATUS" />
+                </Grid>
+              </Border>
+              <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,28"
+                      IsVisible="{Binding MensagemVazioOperadores, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="{Binding MensagemVazioOperadores}" HorizontalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+              </Border>
+              <ItemsControl ItemsSource="{Binding Operadores}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:OperadorResumo">
+                    <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                      <Grid ColumnDefinitions="110,*,230,170,180">
+                        <TextBlock Grid.Column="0" Text="{Binding Codigo}" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Nome}" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Border Grid.Column="2" Classes="chip" Classes.supervisor="{Binding Supervisor}" Classes.operador="{Binding !Supervisor}"
+                                VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Perfil}" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+                        <TextBlock Grid.Column="3" Text="{Binding CaixaAberto, TargetNullValue='—'}" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        <Border Grid.Column="4" Classes="selo" Classes.ok="{Binding Ativo}" Classes.falha="{Binding Desativado}"
+                                Classes.pendente="{Binding SemChave}" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding RotuloSituacao}" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+                      </Grid>
+                    </Border>
                   </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
-              <TextBlock Text="{Binding MensagemVazioProdutos}"
-                         Foreground="{StaticResource TextMutedBrush}"
-                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                         TextWrapping="Wrap"
-                         IsVisible="{Binding MensagemVazioProdutos, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </Grid>
-          </Border>
-        </Grid>
-      </TabItem>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </StackPanel>
+      </Border>
 
-    </TabControl>
-
-  </Grid>
+    </StackPanel>
+  </ScrollViewer>
 
 </UserControl>

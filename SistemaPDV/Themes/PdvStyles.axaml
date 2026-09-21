@@ -216,6 +216,43 @@
     <Setter Property="HorizontalAlignment" Value="Left" />
   </Style>
 
+  <!-- Abas da tela de Cadastros (Produtos / Clientes / Operadores): a aba atual fica com contorno amarelo -->
+  <Style Selector="Button.aba">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="16,9" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.aba:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+  </Style>
+  <Style Selector="Button.aba.ativa /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+
+  <!-- Chip com cor (perfil do operador): amarelo para supervisor, azul para operador -->
+  <Style Selector="Border.chip.supervisor">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Border.chip.supervisor TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Border.chip.operador">
+    <Setter Property="Background" Value="{DynamicResource AccentBlueDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBlueBrush}" />
+  </Style>
+  <Style Selector="Border.chip.operador TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource AccentBlueBrush}" />
+  </Style>
+
   <!-- Cabeçalho de coluna de tabela (maiúsculas, pequeno, apagado) -->
   <Style Selector="TextBlock.colunaTitulo">
     <Setter Property="FontSize" Value="11" />

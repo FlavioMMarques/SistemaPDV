@@ -26,7 +26,21 @@ public class CatalogoLocalService
     public async Task<IReadOnlyList<Produto>> ListarProdutosDisponiveisAsync(CancellationToken ct = default)
     {
         await using var context = contextFactory();
-        return await context.Produtos.Where(p => p.IdExterno != null && p.Vender).ToListAsync(ct);
+        var produtos = await context.Produtos.Where(p => p.IdExterno != null && p.Vender).ToListAsync(ct);
+        await PreencherCategoriasAsync(context, produtos, ct);
+        return produtos;
+    }
+
+    // Preenche Produto.GrupoNome (a categoria) com UMA consulta de grupos, em vez de um join por produto. Grupo que ainda não
+    // sincronizou (ou que sumiu da API) deixa o nome nulo — o card mostra a unidade no lugar.
+    internal static async Task PreencherCategoriasAsync(AppDbContext context, IReadOnlyCollection<Produto> produtos, CancellationToken ct)
+    {
+        if (produtos.Count == 0)
+            return;
+
+        var nomes = await context.Grupos.Where(g => g.IdExterno != null).ToDictionaryAsync(g => g.IdExterno!.Value, g => g.Nome, ct);
+        foreach (var produto in produtos)
+            produto.GrupoNome = produto.GrupoId is { } id && nomes.TryGetValue(id, out var nome) && !string.IsNullOrWhiteSpace(nome) ? nome : null;
     }
 
     public async Task<IReadOnlyList<Cliente>> ListarClientesAsync(CancellationToken ct = default)

@@ -95,11 +95,11 @@
                           CommandParameter="{Binding}"
                           AutomationProperties.Name="{Binding Nome}">
                     <Grid RowDefinitions="Auto,*,Auto">
-                      <TextBlock Grid.Row="0" FontFamily="{StaticResource FontMono}" FontSize="11" Foreground="{StaticResource TextMutedBrush}">
+                      <TextBlock Grid.Row="0" FontFamily="{StaticResource FontMono}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis">
                         <TextBlock.Text>
                           <MultiBinding StringFormat="Cód: {0} • {1}">
                             <Binding Path="CodigoParaExibicao" FallbackValue="—" TargetNullValue="—" />
-                            <Binding Path="UnidadeMedida" FallbackValue="UN" TargetNullValue="UN" />
+                            <Binding Path="CategoriaOuUnidade" FallbackValue="UN" TargetNullValue="UN" />
                           </MultiBinding>
                         </TextBlock.Text>
                       </TextBlock>

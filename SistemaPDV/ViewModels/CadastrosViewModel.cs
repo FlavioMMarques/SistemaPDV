@@ -7,7 +7,15 @@ using SistemaPDV.Services;
 
 namespace SistemaPDV.ViewModels;
 
-// Clientes e produtos do banco local (leitura + busca) e o formulário de criar
+// As três abas da tela de Cadastros.
+public enum AbaCadastros
+{
+    Produtos,
+    Clientes,
+    Operadores,
+}
+
+// Produtos, clientes e operadores do banco local (leitura + busca, em três abas) e o formulário de criar
 // cliente. Tudo local: criar grava PendenteSync e o cliente aparece na hora com
 // 🟡 Pendente — o envio pra API é do serviço de sincronização, nunca desta tela
 // (por isso funciona offline e não trava esperando rede).
@@ -27,6 +35,10 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string? mensagemForm;
     private bool mensagemFormEhErro;
     private string? mensagemReenvio;
+    private AbaCadastros abaAtual = AbaCadastros.Produtos;
+    private ContagemCadastros contagem = new(0, 0, 0);
+    private IReadOnlyList<OperadorResumo> operadores = Array.Empty<OperadorResumo>();
+    private bool formularioClienteAberto;
 
     public CadastrosViewModel(CadastroLocalService cadastroLocalService)
     {
@@ -34,6 +46,15 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 
         BuscarCommand = ReactiveCommand.CreateFromTask(BuscarAsync);
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
+
+        SelecionarAbaCommand = ReactiveCommand.Create<AbaCadastros>(aba => { AbaAtual = aba; });
+        // "Novo Cliente" (no topo ou na aba de clientes): leva à aba de clientes e abre o formulário.
+        NovoClienteCommand = ReactiveCommand.Create(() =>
+        {
+            AbaAtual = AbaCadastros.Clientes;
+            FormularioClienteAberto = true;
+        });
+        FecharFormularioClienteCommand = ReactiveCommand.Create(() => { FormularioClienteAberto = false; });
 
         var podeCriar = this.WhenAnyValue(vm => vm.NovoNome, nome => !string.IsNullOrWhiteSpace(nome));
         CriarClienteCommand = ReactiveCommand.CreateFromTask(CriarClienteAsync, podeCriar);
@@ -60,6 +81,64 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             this.RaisePropertyChanged(nameof(ProdutosCortados));
         }
     }
+
+    // ---- abas ----
+
+    public AbaCadastros AbaAtual
+    {
+        get => abaAtual;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref abaAtual, value);
+            this.RaisePropertyChanged(nameof(ProdutosAtiva));
+            this.RaisePropertyChanged(nameof(ClientesAtiva));
+            this.RaisePropertyChanged(nameof(OperadoresAtiva));
+        }
+    }
+
+    public bool ProdutosAtiva => AbaAtual == AbaCadastros.Produtos;
+    public bool ClientesAtiva => AbaAtual == AbaCadastros.Clientes;
+    public bool OperadoresAtiva => AbaAtual == AbaCadastros.Operadores;
+
+    // "Produtos ( 12 )": o total de cadastros, não o tamanho da lista filtrada nem o corte de 200.
+    public string RotuloProdutos => $"Produtos ( {Contagem.Produtos} )";
+    public string RotuloClientes => $"Clientes ( {Contagem.Clientes} )";
+    public string RotuloOperadores => $"Operadores de Caixa ( {Contagem.Operadores} )";
+
+    public ContagemCadastros Contagem
+    {
+        get => contagem;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref contagem, value);
+            this.RaisePropertyChanged(nameof(RotuloProdutos));
+            this.RaisePropertyChanged(nameof(RotuloClientes));
+            this.RaisePropertyChanged(nameof(RotuloOperadores));
+        }
+    }
+
+    public IReadOnlyList<OperadorResumo> Operadores
+    {
+        get => operadores;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref operadores, value);
+            this.RaisePropertyChanged(nameof(MensagemVazioOperadores));
+        }
+    }
+
+    public string? MensagemVazioOperadores => Operadores.Count > 0 ? null : MensagemVazio("operador");
+
+    // O formulário de novo cliente fica recolhido até pedirem (botão "Novo Cliente" ou "Cadastrar Cliente"): a tela abre limpa.
+    public bool FormularioClienteAberto
+    {
+        get => formularioClienteAberto;
+        private set => this.RaiseAndSetIfChanged(ref formularioClienteAberto, value);
+    }
+
+    public ReactiveCommand<AbaCadastros, Unit> SelecionarAbaCommand { get; }
+    public ReactiveCommand<Unit, Unit> NovoClienteCommand { get; }
+    public ReactiveCommand<Unit, Unit> FecharFormularioClienteCommand { get; }
 
     public string Busca
     {
@@ -146,6 +225,8 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         // contexto, mas em SQLite o ganho de paralelizar é nenhum e a ordem fica simples.
         Clientes = await cadastroLocalService.ListarClientesAsync(buscaAplicada);
         Produtos = await cadastroLocalService.ListarProdutosAsync(buscaAplicada);
+        Operadores = await cadastroLocalService.ListarOperadoresAsync(buscaAplicada);
+        Contagem = await cadastroLocalService.ContarAsync();
     }
 
     private async Task ReenviarFalhasAsync()
@@ -185,7 +266,11 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         this.RaisePropertyChanged(nameof(MensagemFormSucesso));
     }
 
-    private string MensagemVazio(string item) => string.IsNullOrWhiteSpace(buscaAplicada)
-        ? $"Nenhum {item} cadastrado ainda — sincronize com a API ou cadastre o primeiro."
-        : $"Nenhum {item} encontrado para essa busca.";
+    // Só o cliente se cadastra aqui; produtos e operadores vêm da sincronização — a mensagem não pode mandar "cadastrar o
+    // primeiro" onde não há como.
+    private string MensagemVazio(string item) => !string.IsNullOrWhiteSpace(buscaAplicada)
+        ? $"Nenhum {item} encontrado para essa busca."
+        : item == "cliente"
+            ? "Nenhum cliente cadastrado ainda — sincronize com a API ou cadastre o primeiro."
+            : $"Nenhum {item} sincronizado ainda — aguarde a sincronização com a API.";
 }
