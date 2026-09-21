@@ -14,6 +14,9 @@ public class ItemCarrinho : ReactiveObject
     public required Produto Produto { get; init; }
     public decimal Quantidade { get; set; }
     public decimal PrecoUnitario { get; set; }
+
+    // O preço veio do operador (produto sem preço no cadastro), não do cadastro: o cupom avisa, para ninguém achar que é o preço de tabela.
+    public bool PrecoInformado { get; init; }
     public decimal DescontoItem { get; set; }
     public decimal AcrescimoItem { get; set; }
 
@@ -34,7 +37,8 @@ public class ItemCarrinho : ReactiveObject
             var quantidade = Quantidade.ToString("0.###", CultureInfo.GetCultureInfo("pt-BR"));
             var unidade = string.IsNullOrWhiteSpace(Produto.UnidadeMedida) ? "un" : Produto.UnidadeMedida.Trim().ToLowerInvariant();
             var codigo = Produto.CodigoParaExibicao is { Length: > 0 } c ? $" ({c})" : string.Empty;
-            return $"{quantidade} {unidade} x R$ {ValorMonetario.Formatar(PrecoUnitario)}{codigo}";
+            var origem = PrecoInformado ? " · preço informado" : string.Empty;
+            return $"{quantidade} {unidade} x R$ {ValorMonetario.Formatar(PrecoUnitario)}{codigo}{origem}";
         }
     }
 }

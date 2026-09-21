@@ -26,7 +26,7 @@
 
     <!-- Corpo: busca + grade de produtos (esquerda) e cupom (direita). Desabilitado enquanto o painel de pagamento está
          aberto: o Tab não escapa pra trás do modal. -->
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20" Margin="20,16" MaxWidth="1400" HorizontalAlignment="Stretch" IsEnabled="{Binding !EmPagamento}">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20" Margin="20,16" MaxWidth="1400" HorizontalAlignment="Stretch" IsEnabled="{Binding !ModalAberto}">
 
       <!-- ===== Esquerda: busca + produtos ===== -->
       <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="16" MinWidth="420">
@@ -108,7 +108,12 @@
                                  TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                       <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding PrecoVenda, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}"
-                                   FontWeight="Bold" FontSize="16" Foreground="{StaticResource BrandYellowBrush}" />
+                                   FontWeight="Bold" FontSize="16" Foreground="{StaticResource BrandYellowBrush}"
+                                   IsVisible="{Binding !SemPreco}" />
+                        <!-- Sem preço no cadastro: o valor é pedido na hora de lançar. -->
+                        <TextBlock Grid.Column="0" Text="Informar preço" FontWeight="SemiBold" FontSize="13"
+                                   Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Bottom"
+                                   IsVisible="{Binding SemPreco}" />
                         <TextBlock Grid.Column="1" Text="{Binding EstoqueAtual, StringFormat='Estoque: {0}'}" FontSize="11"
                                    Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Bottom" />
                       </Grid>
@@ -285,6 +290,7 @@
 
     <!-- Painel de pagamento (modal) -->
     <controls:PagamentoPainel Name="PainelPagamento" IsVisible="{Binding EmPagamento}" />
+    <controls:PrecoProdutoPainel Name="PainelPreco" IsVisible="{Binding PedindoPreco}" />
 
   </Grid>
 

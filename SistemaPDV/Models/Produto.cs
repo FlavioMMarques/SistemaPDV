@@ -59,6 +59,10 @@ public class Produto : ISincronizavel<int>
     // sincronizados) a unidade, que é o que o card mostrava antes.
     public string CategoriaOuUnidade =>
         !string.IsNullOrWhiteSpace(GrupoNome) ? GrupoNome : !string.IsNullOrWhiteSpace(UnidadeMedida) ? UnidadeMedida : "UN";
+
+    // Sem preço no cadastro (R$ 0,00): o PDV pede o valor na hora de lançar (ver PdvViewModel.AdicionarItem), e o card avisa.
+    public bool SemPreco => PrecoVenda <= 0;
+
     // O código que aparece no card e no cupom: código de barras, senão SKU, senão o id da API. Só leitura (o EF não mapeia).
     public string? CodigoParaExibicao =>
         !string.IsNullOrWhiteSpace(CodigoBarras) ? CodigoBarras : !string.IsNullOrWhiteSpace(Sku) ? Sku : IdExterno?.ToString();

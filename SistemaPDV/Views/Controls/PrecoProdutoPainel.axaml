@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="SistemaPDV.Views.Controls.PrecoProdutoPainel"
+             x:DataType="vm:PdvViewModel">
+
+  <!-- Painel "Informar preço": abre quando o operador lança um produto que está com R$ 0,00 no cadastro. O item só entra no cupom
+       com um preço maior que zero (Enter ou "Lançar item"); Esc ou Cancelar descarta o lançamento. O preço vale só para este
+       item do cupom — o cadastro não muda. O fundo escurecido segura o clique. -->
+  <Grid Background="{DynamicResource OverlayBrush}">
+    <Border Background="{DynamicResource BgCardBrush}"
+            BorderBrush="{DynamicResource BorderColorBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusCard}"
+            Width="520" Margin="24"
+            VerticalAlignment="Center" HorizontalAlignment="Center">
+      <StackPanel>
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,16">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="🏷️" FontSize="18" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Informar preço do produto" FontSize="18" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Classes="fantasma" Content="✕" FontSize="16"
+                    Command="{Binding CancelarPrecoCommand}"
+                    AutomationProperties.Name="Cancelar e não lançar o item" />
+          </Grid>
+        </Border>
+
+        <StackPanel Spacing="14" Margin="24,20">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding ProdutoAguardandoPreco.Nome}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMainBrush}" />
+            <TextBlock Text="Este produto está sem preço no cadastro (R$ 0,00). Informe o valor para lançá-lo; ele vale só para este item do cupom."
+                       FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" />
+          </StackPanel>
+
+          <Border Background="{DynamicResource BrandYellowDimBrush}" BorderBrush="{DynamicResource BrandYellowBrush}"
+                  BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Padding="16,12">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <TextBlock Grid.Column="0" Text="R$" FontFamily="{DynamicResource FontMono}" FontSize="28" FontWeight="Bold"
+                         Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+              <TextBox Grid.Column="1" Name="PrecoTextBox"
+                       Text="{Binding PrecoInformado, Mode=TwoWay}"
+                       PlaceholderText="0,00"
+                       FontFamily="{DynamicResource FontMono}" FontSize="28" FontWeight="Bold"
+                       Background="Transparent" BorderThickness="0"
+                       Foreground="{DynamicResource BrandYellowBrush}"
+                       AutomationProperties.Name="Preço do produto, em reais">
+                <TextBox.KeyBindings>
+                  <KeyBinding Gesture="Enter" Command="{Binding ConfirmarPrecoCommand}" />
+                  <KeyBinding Gesture="Escape" Command="{Binding CancelarPrecoCommand}" />
+                </TextBox.KeyBindings>
+              </TextBox>
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{Binding MensagemPreco}" TextWrapping="Wrap" Foreground="{DynamicResource AccentRedBrush}"
+                     IsVisible="{Binding MensagemPreco, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+
+        <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="Enter lança · Esc cancela" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="secundario" Content="Cancelar" Padding="18,9"
+                    Command="{Binding CancelarPrecoCommand}" AutomationProperties.Name="Cancelar e não lançar o item" />
+            <Button Grid.Column="2" Classes="primario" Content="Lançar item" Padding="20,9"
+                    Command="{Binding ConfirmarPrecoCommand}" AutomationProperties.Name="Lançar o item com este preço" />
+          </Grid>
+        </Border>
+
+      </StackPanel>
+    </Border>
+  </Grid>
+
+</UserControl>

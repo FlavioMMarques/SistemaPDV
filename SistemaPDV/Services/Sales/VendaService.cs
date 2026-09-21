@@ -38,6 +38,11 @@ public class VendaService
         IReadOnlyList<(int FormaPagamentoId, decimal Valor, string? Bandeira)> pagamentos,
         CancellationToken ct = default)
     {
+        // Rede de segurança do domínio: a tela já pede o preço de um produto sem preço (PdvViewModel.AdicionarItem), mas uma
+        // venda com item de preço zero ou negativo nunca deve ser gravada — nem por outro caminho de código que esqueça isso.
+        if (itens.Any(i => i.PrecoUnitario <= 0))
+            throw new ArgumentException("Um item da venda está com preço zero ou negativo.", nameof(itens));
+
         // Número do pedido: sequencial e único neste dispositivo (índice único no banco). Lido do banco — não de um
         // contador em memória — pra continuar de onde parou depois de reabrir o app. Se outro processo do app usando o
         // MESMO banco pegou o mesmo número entre a leitura e a gravação, o índice único recusa: tenta de novo com o

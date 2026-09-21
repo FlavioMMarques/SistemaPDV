@@ -1506,7 +1506,7 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 
 ## Anotado para depois (2026-09-21, pedido do usuário)
 
-- [ ] **Produto com preço zero: permitir informar o preço na hora do lançamento.** Hoje um produto com `PrecoVenda = 0` entra no cupom a R$ 0,00 sem aviso (e a venda pode sair com item de graça por engano). Validação ao adicionar o item: se o preço é zero, pedir o preço (campo/diálogo) antes de lançar; o preço digitado vale só para aquele item do cupom (não altera o cadastro). Definir com o usuário: exigir preço > 0? quem pode (só supervisor)? e como isso segue para a API (o `preco` do item já é enviado).
+- [x] **Produto com preço zero: informar o preço na hora do lançamento** (feito em 2026-09-21). Decisões do usuário: o preço tem de ser MAIOR que zero (Cancelar/Esc não lança o item) e qualquer operador pode informar (a chave de supervisor está desligada). O painel "Informar preço" abre em todos os caminhos de lançamento (card, Enter da busca, leitor de código de barras); o preço vale só para aquele item do cupom (o cadastro não muda) e é o que a venda grava e envia à API; o cupom marca "preço informado"; o card mostra "Informar preço" no lugar de R$ 0,00; o serviço de venda recusa item de preço ≤ 0 mesmo se a tela falhar.
 
 ## Fase 7b — Painel de pagamento igual ao protótipo, com pagamento misto e troco (2026-09-21)
 

@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Disposables;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -28,10 +29,15 @@ public partial class PdvView : UserControl, ITelaComAtalhosExtras
         // Cursor pronto na busca, como no protótipo — e o leitor de código de barras já digita direto nela.
         FocarBusca();
 
-        // Painel de pagamento fechou: devolve o foco à busca (o botão que o tinha acabou de sumir).
-        observaPainel = this.FindControl<PagamentoPainel>("PainelPagamento")?.GetObservable(IsVisibleProperty)
-            .Subscribe(visivel => { if (!visivel) FocarBusca(); });
+        // Painel de pagamento ou de preço fechou: devolve o foco à busca (o botão/campo que o tinha acabou de sumir).
+        observaPainel = new CompositeDisposable(
+            ObservarFechamento("PainelPagamento"),
+            ObservarFechamento("PainelPreco"));
     }
+
+    private IDisposable ObservarFechamento(string nome) =>
+        this.FindControl<Control>(nome)?.GetObservable(IsVisibleProperty).Subscribe(visivel => { if (!visivel) FocarBusca(); })
+        ?? Disposable.Empty;
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
