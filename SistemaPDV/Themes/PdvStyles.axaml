@@ -298,4 +298,41 @@
     <Setter Property="Opacity" Value="0" />
   </Style>
 
+
+  <!-- Combo de seleção (tela de Login): campo como os outros do app e lista aberta em cartão escuro. Global (e não na tela) porque a lista
+       abre numa camada própria, fora da árvore da tela, e não recebe os estilos locais dela. Uso: <ComboBox Classes="campo"> -->
+  <Style Selector="ComboBox.campo">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="10,8,12,8" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="MaxDropDownHeight" Value="264" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="ComboBox.campo:pointerover /template/ Border#Background, ComboBox.campo:focus /template/ Border#Background, ComboBox.campo:dropdownopen /template/ Border#Background">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="ComboBox.campo /template/ Border#PopupBorder">
+    <Setter Property="Background" Value="{DynamicResource BgCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="6" />
+  </Style>
+  <Style Selector="ComboBox.campo ComboBoxItem">
+    <Setter Property="Padding" Value="8,8" />
+    <Setter Property="Margin" Value="0,0,0,2" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+  </Style>
+  <Style Selector="ComboBox.campo ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+  </Style>
+  <Style Selector="ComboBox.campo ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+  </Style>
 </Styles>

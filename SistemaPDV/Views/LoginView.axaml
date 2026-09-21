@@ -10,30 +10,6 @@
              Background="{StaticResource BgMainBrush}">
 
   <UserControl.Styles>
-    <!-- Linha de operador: cartão como os do painel de pagamento; o escolhido fica com borda amarela e fundo âmbar. -->
-    <Style Selector="ListBox.operadores ListBoxItem">
-      <Setter Property="Padding" Value="12,10" />
-      <Setter Property="Margin" Value="0,0,0,6" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="Foreground" Value="{StaticResource TextMainBrush}" />
-    </Style>
-    <Style Selector="ListBox.operadores ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource BgInputBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}" />
-      <Setter Property="BorderThickness" Value="1.5" />
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
-    </Style>
-    <Style Selector="ListBox.operadores ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource BgCardHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
-    </Style>
-    <Style Selector="ListBox.operadores ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource BrandYellowDimBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
-    </Style>
-    <Style Selector="ListBox.operadores ListBoxItem:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="BorderBrush" Value="{StaticResource BrandYellowBrush}" />
-    </Style>
     <!-- Campo da chave: focado com a borda amarela do app (o padrão do tema é fundo preto e borda azul); desabilitado
          (nenhum operador escolhido ainda) fica apagado em vez de cinza. -->
     <Style Selector="TextBox#ChaveTextBox:focus /template/ Border#PART_BorderElement">
@@ -85,18 +61,14 @@
         <StackPanel Spacing="6">
           <TextBlock Classes="rotuloCampo" Text="OPERADOR" />
 
-          <ListBox x:Name="OperadoresListBox" Classes="operadores"
-                   ItemsSource="{Binding Operadores}"
-                   SelectedItem="{Binding OperadorSelecionado, Mode=TwoWay}"
-                   IsVisible="{Binding !SemOperadores}"
-                   MaxHeight="264"
-                   Background="Transparent"
-                   BorderThickness="0"
-                   Padding="0"
-                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                   AutomationProperties.Name="Operadores"
-                   TabIndex="0">
-            <ListBox.ItemTemplate>
+          <ComboBox x:Name="OperadoresComboBox" Classes="campo"
+                    ItemsSource="{Binding Operadores}"
+                    SelectedItem="{Binding OperadorSelecionado, Mode=TwoWay}"
+                    IsVisible="{Binding !SemOperadores}"
+                    PlaceholderText="Selecione o operador"
+                    AutomationProperties.Name="Operador"
+                    TabIndex="0">
+            <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="caixa:OperadorLogin">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                   <Border Width="34" Height="34" CornerRadius="17" Background="{StaticResource BrandYellowDimBrush}">
@@ -114,8 +86,8 @@
                   </Border>
                 </Grid>
               </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
 
           <!-- Catálogo ainda não chegou (1ª vez no aparelho) ou nenhum operador tem chave: nunca uma área em branco. -->
           <Border IsVisible="{Binding SemOperadores}"
