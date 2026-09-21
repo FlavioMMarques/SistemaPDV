@@ -40,9 +40,10 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 | `Funcionario` | Operadores do PDV — inclui `PdvKeyHash` (o hash **bcrypt** que a API manda; nunca a chave em claro). |
 | `Caixa` | Uma sessão de caixa (abertura → vendas → fechamento) — o coração do offline-first: é criado local antes de existir no servidor. Tem `AberturaSincronizada` (bool) separado de `SyncStatus` — rastreiam abertura e fechamento independentemente, porque são duas ações que acontecem em momentos diferentes (ver `docs/APRENDIZADOS.md` #17, achado numa revisão de código). |
 | `ItemVenda` | Um produto dentro de uma venda (quantidade, preço, desconto). |
-| `PagamentoVenda` | Um pagamento dentro de uma venda (pode ter mais de um — pagamento misto). |
+| `PagamentoVenda` | Um pagamento dentro de uma venda (pode ter mais de um — pagamento misto). Guarda a bandeira do cartão como texto; o valor gravado é só o que a venda cobrou (o troco do dinheiro existe só na tela — ver Fase 7b do `tasks/todo.md`). |
 | `Venda` | A venda em si — `Guid` como chave (é também a chave de idempotência enviada pra API). |
 | `ConfiguracaoSincronizacao` | Config local do dispositivo: URL da API, credenciais protegidas, marcador de última sincronização por recurso, id do Consumidor Final. |
+| `Grupo` | Grupo (categoria) de produto do SoftcomShop — `Produto.GrupoId` aponta para ele; só o nome interessa (card do PDV e Cadastros). Leitura pura, sincronizado por substituição, nada volta à API. |
 | `Cartao` | Cartão cadastrado no SoftcomShop (credenciadora × bandeira × tipo × parcelas), sincronizado por substituição; a lista de bandeiras do app é o conjunto dos `BandeiraNome` distintos. Sem o CNPJ da credenciadora. |
 | `DigitacaoCaixa` / `DigitacaoBandeiraCaixa` | A conferência de valores no fechamento do caixa (por forma de pagamento / por bandeira de cartão). |
 
@@ -81,8 +82,8 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 | `PaginaApiDto<T>` | O "envelope" de paginação que toda resposta da API usa (`data[]`, `next_page_url`, `date_sync`...). |
 | `ResultadoBusca<T>` | Resultado de uma busca paginada (sucesso/falha + itens). |
 | `ResultadoSincronizacaoRecurso` | Resultado de sincronizar UM recurso (sucesso/falha + quantidade) — reaproveitado depois em `caixa` e `sales`. |
-| `ResultadoSincronizacaoCompleta` | Resultado de sincronizar TUDO (autenticação + os 5 recursos, cada um com seu próprio resultado). |
-| `Dtos/*ApiDto.cs` | Um DTO por recurso (`ClienteApiDto`, `ProdutoApiDto`, `FormaPagamentoApiDto`, `EmpresaApiDto`, `FuncionarioApiDto`) — o formato exato que a API manda, convertido pra entidade local depois. |
+| `ResultadoSincronizacaoCompleta` | Resultado de sincronizar TUDO (autenticação + cada recurso do catálogo, cada um com seu próprio resultado). |
+| `Dtos/*ApiDto.cs` | Um DTO por recurso (`ClienteApiDto`, `ProdutoApiDto`, `FormaPagamentoApiDto`, `EmpresaApiDto`, `FuncionarioApiDto`, `CartaoApiDto`, `GrupoApiDto`, mais `ClienteNovoApiDto` para o envio de cliente criado no PDV) — o formato exato que a API manda, convertido pra entidade local depois. `BooleanoFlexivelConverter` e `TextoFlexivelConverter` absorvem os campos que a API manda ora como texto, ora como número/booleano. |
 
 ---
 
@@ -123,8 +124,11 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | `Toast` / `ToastCentral` | Avisos temporários no canto inferior direito (conexão caiu/voltou, "item adicionado ao cupom"). A `ToastCentral` (do Shell) guarda a lista `Ativos` e some com cada aviso sozinho (esmaece e sai); avisos da mesma `Chave` se substituem em vez de empilhar. |
 | `CartaoIndicador` / `SeloSincronia` (controles) | Peças do visual do protótipo reutilizadas nas telas: o cartão com faixa colorida, título, valor grande e frase (Painel, Listagem de Pedidos) e o selo de estado de sincronização de uma venda (Painel, Listagem, Detalhes). |
 | `DetalhePedidoPainel` (controle) | O modal "Detalhes do pedido" da Listagem de Pedidos: cabeçalho, itens, pagamento, total líquido e a requisição à API (texto selecionável, token mascarado). Abre pelo Detalhes de uma linha (ou do painel principal) e fecha com ✕, Fechar ou Esc; a página de trás fica desabilitada enquanto ele está aberto. |
+| `PagamentoPainel` (controle) + `OpcaoPagamento` / `PagamentoAlocado` | O painel de pagamento do PDV (F10): cartões de forma de pagamento (`OpcaoPagamento`, só apresentação), pagamento misto (cada `PagamentoAlocado` é uma forma com seu valor e, no cartão, a bandeira), "valor recebido" e troco em tempo real no dinheiro. Só o dinheiro pode passar do que falta; a venda grava só o que falta. |
+| `ItemCarrinho` | Item do cupom em memória, antes de virar `ItemVenda` (numeração, descrição, "preço informado"). Não é entidade do EF. |
 | `PrecoProdutoPainel` (controle) | O painel "Informar preço" do PDV: abre quando se lança um produto com R$ 0,00 no cadastro (`PdvViewModel.AdicionarItem`); o item só entra com um preço maior que zero (Enter), Esc/Cancelar descarta. O preço vale só para aquele item do cupom. |
 | `PainelFilaOutbox` (controle) | O painel lateral da fila outbox (abre pela pílula "Sync: N pendentes" da barra do topo): pendências, botão "Disparar Sincronização Agora" e o log de atividade. A tela de baixo fica desabilitada (e os atalhos dela dormem) enquanto ele está aberto; fecha com ✕, clique no fundo ou Esc. |
+| `GuardaDeFoco` | Comportamento dos painéis modais (fila outbox, detalhes): devolve o foco a quem o tinha antes de o painel abrir — sem isso a caixa de busca do PDV perdia o foco e o leitor de código de barras parava de funcionar. |
 | `AtalhosDeTela` / `ITelaComAtalhosExtras` | Comportamento anexado (`views:AtalhosDeTela.Ativos="True"`) que faz os atalhos de uma tela (KeyBindings do XAML, mais F4 do PDV) funcionarem mesmo sem foco em nenhum controle: um handler na janela, ativo só enquanto a tela está aberta. Usado no Painel e no PDV. |
 | `Tela` | Enum das telas que o Shell sabe mostrar. |
 | `Configuracoes…`, `Login…`, `AbrirCaixa…`, `Dashboard…`, `Pdv…`, `ListaPedidos…`, `Cadastros…` (`ViewModel` + `View`) | Uma dupla por tela. `AbrirCaixaViewModel` lista os 6 turnos do SoftcomShop; `ConfiguracoesViewModel.VincularCommand` devolve se vinculou (o Shell então leva ao Login). |
@@ -140,7 +144,9 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | `CadastroLocalService` | Busca de clientes/produtos (`LIKE` com curingas escapados, teto de 200) e **criação local** de cliente (valida CPF/CNPJ com `DocumentoValidator`; nasce `PendenteSync`). |
 | `FecharCaixaViewModel` / `FecharCaixaView` | Conferência do fechamento: esperado por forma de pagamento (das vendas do caixa), apuração digitada (`LinhaApuracao`) e troco final; só grava local. Depois de fechar o Shell volta a Abrir caixa (com `ExigirAberturaCaixa`) ou ao Dashboard. |
 | `ValorMonetario` | Leitor único dos valores digitados (vírgula ou ponto; ambíguo é recusado; 2 casas pra dinheiro, 3 pra quantidade). |
-| `DashboardService` / `ConfiguracaoService` | Resumo do dia; leitura/gravação da configuração do dispositivo (vínculo protegido com DPAPI). |
+| `VendaResumo` / `ClienteResumo` / `ProdutoResumo` / `OperadorResumo` (`ResumoCadastro.cs`) | Projeções enxutas de leitura para as listas (Pedidos, Cadastros) em vez da entidade inteira. O resumo do operador deixa de fora CPF e chave. |
+| `DashboardService` / `ResumoDashboard` / `ConfiguracaoService` | Resumo do dia (faturamento, produtos, fila, última sincronização); leitura/gravação da configuração do dispositivo (vínculo protegido com DPAPI). |
+| `LimitadorDeTentativas` | Atraso progressivo (5 s até 5 min) depois de erros seguidos de chave no login (`LoginOperadorService`); o estado fica em memória e zera ao reabrir o app. |
 
 ### Sincronização automática
 
