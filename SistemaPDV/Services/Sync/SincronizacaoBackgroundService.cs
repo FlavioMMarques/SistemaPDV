@@ -83,6 +83,8 @@ public class SincronizacaoBackgroundService : IDisposable
     private DispatcherTimer? timerVerificacao;
     private readonly object travaPublicacao = new();
     private bool? ultimaVerificacaoAlcancavel;   // null = ainda não verificou
+    private int tentativasDeRecuperacao;
+    private const int MaximoTentativasDeRecuperacao = 3;
 
     public SincronizacaoBackgroundService(
         Func<AppDbContext> contextFactory,
@@ -203,16 +205,26 @@ public class SincronizacaoBackgroundService : IDisposable
 
         if (!alcancavel)
         {
+            tentativasDeRecuperacao = 0;
             if (Estado != EstadoConexao.Offline)
                 Publicar(EstadoConexao.Offline, "Sem acesso à API (verificação de conexão)");
             return;
         }
 
-        if (anterior == false)
-        {
-            await ExecutarCicloCatalogoAsync(ct);
-            await ExecutarCicloOutboxAsync(ct);
-        }
+        if (anterior != false)
+            return;
+
+        await ExecutarCicloCatalogoAsync(ct);
+        await ExecutarCicloOutboxAsync(ct);
+
+        // Ainda Offline depois de tentar: ou um ciclo que já estava rodando não deixou este rodar (um envio que ficou pendurado
+        // durante a queda e só agora termina — ele mesmo pode publicar Offline por cima do que acabamos de publicar), ou o
+        // catálogo falhou. Tenta de novo na próxima verificação, mas só algumas vezes: com credencial errada e o servidor no ar
+        // isso viraria uma autenticação a cada 15 s.
+        if (Estado == EstadoConexao.Offline && ++tentativasDeRecuperacao < MaximoTentativasDeRecuperacao)
+            ultimaVerificacaoAlcancavel = false;
+        else
+            tentativasDeRecuperacao = 0;
     }
 
     // Tick de 30 s: se o catálogo ainda não foi baixado nesta sessão (app recém-aberto,

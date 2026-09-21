@@ -24,6 +24,7 @@ public class VerificacaoDeConexaoTests
         private readonly List<string> requisicoes = new();
 
         public bool Ligada { get; set; } = true;
+        public bool AutenticacaoRecusada { get; set; }
         public IReadOnlyList<string> Requisicoes { get { lock (trava) return requisicoes.ToList(); } }
         public int Contar(string trecho) => Requisicoes.Count(r => r.Contains(trecho));
 
@@ -37,7 +38,7 @@ public class VerificacaoDeConexaoTests
             if (requisicao.Method == HttpMethod.Head)
                 return new HttpResponseMessage(HttpStatusCode.NotFound);   // o servidor respondeu: é o que basta
             if (caminho.EndsWith("/authentication/token"))
-                return Json("""{ "data": { "token": "token-fake" } }""");
+                return AutenticacaoRecusada ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : Json("""{ "data": { "token": "token-fake" } }""");
             return Json(PaginaVazia);
         });
 
@@ -185,6 +186,22 @@ public class VerificacaoDeConexaoTests
 
         Assert.Equal(0, rede.Contar("/authentication/token"));        // um Offline por credencial errada não vira tentativa a cada 15 s
         Assert.Equal(3, rede.Contar("HEAD"));
+    }
+
+    [Fact]
+    public async Task VoltouMasAindaOfflineTentaDeNovoSoAlgumasVezes()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        var rede = new RedeFake { Ligada = false, AutenticacaoRecusada = true };
+        using var service = await CriarServiceAsync(fixture, rede);
+        await service.VerificarConexaoAsync();                        // caiu
+        rede.Ligada = true;                                           // volta, mas a API recusa a credencial
+
+        for (var i = 0; i < 6; i++)
+            await service.VerificarConexaoAsync();
+
+        Assert.Equal(EstadoConexao.Offline, service.Estado);
+        Assert.Equal(3, rede.Contar("/authentication/token"));        // tenta 3 vezes e para: não vira um login a cada 15 s
     }
 
     [Fact]
