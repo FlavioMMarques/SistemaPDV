@@ -636,3 +636,15 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 **Verificação:** renderizador headless, tirando o foco de verdade (foco na própria janela) e apertando F10/F2, F4 com foco num card, F10 com foco na busca — todos respondem. Teste de ViewModel não enxerga isso (o comando funciona; o que falhava era a tecla chegar nele).
 
 **Lição:** atalho global de tela não pode depender de onde está o foco; declare no XAML o que é comando, mas garanta que a tecla chega ao controle mesmo com o foco fora dele.
+
+## 74. Avisos temporários (toasts): quem avisa, quando avisa e o que NÃO pode fazer
+
+**Onde:** `ViewModels/Toast.cs`, `ToastCentral.cs`, `ShellViewModel`, `PdvViewModel.ItemLancado`, `Views/ShellView.axaml` (Fase 8, Task 68)
+
+- **Um dono só.** O Shell tem a `ToastCentral` e a tela só a exibe (um `ItemsControl` no canto, sobre tudo). Quem tem algo a avisar NÃO conhece o canto da tela: o `PdvViewModel` só expõe `ItemLancado` (um observable com o nome do produto) e o Shell traduz isso em aviso. Assim o ViewModel do PDV continua testável sem a central.
+- **Só a MUDANÇA avisa.** O ciclo de 30 s republica "offline" a cada volta; o aviso só sai na troca de estado. Abrir o app já offline avisa; abrir online não ("restaurada" seria mentira). "Online com falhas" conta como conectado (a API respondeu).
+- **"Fila vazia" precisa de recontagem própria.** Depois de reconectar, o aviso "nenhuma pendência" só é verdadeiro se a fila realmente está vazia. Esperar o próximo ciclo mexer no banco não serve: se não havia nada a enviar, nenhum ciclo mexe e o aviso nunca vinha. Por isso reconectar dispara uma recontagem imediata e um sinalizador (`avisarFilaVazia`) mantém o aviso pendente até a contagem chegar a zero; com pendências, o segundo aviso NÃO aparece (teste dedicado).
+- **Mesma família substitui, não empilha.** Quem bipa 10 produtos seguidos veria 10 avisos; o aviso do item tem `Chave = "item"` e cada novo troca o anterior (e o prazo do novo recomeça — o timer do antigo vira no-op porque ele já saiu da lista). Máximo de 4 visíveis.
+- **Não pode tampar nem roubar o mouse/foco:** `IsHitTestVisible="False"` e `Focusable="False"` — um aviso caindo em cima do botão Finalizar não pode impedir o clique.
+- **Tempo testável.** A fila aceita um `IScheduler` (nos testes um `HistoricalScheduler`, que "avança o relógio" sem esperar). Em produção os prazos correm num relógio de fundo e a retirada da lista volta à thread da interface (`RxSchedulers.MainThreadScheduler` — no ReactiveUI 23 o `RxApp` antigo não existe mais). Em testes que trocam de estado de conexão, a recontagem em segundo plano é exposta (`RecontagemAposReconexao`) para o teste aguardá-la antes de soltar o banco em memória.
+- **Visual:** a faixa colorida lateral (verde/vermelha) é um `Border` próprio dentro do card, com o card recortando os cantos (`ClipToBounds`) — uma `BorderBrush` colorida na borda toda pintava o aviso inteiro de vermelho, diferente do protótipo. O texto ficou num `Grid` com coluna `*` (num `StackPanel` horizontal o texto não quebrava e era cortado). Cor nunca é a única pista: todo aviso tem ícone e texto.

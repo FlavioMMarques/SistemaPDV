@@ -38,6 +38,16 @@ public class ShellViewModel : ViewModelBase
     private string? detalheConexao;
     private readonly Subject<Unit> dispositivoVinculado = new();
 
+    // A conexão voltou e o operador ainda não foi avisado de que a fila esvaziou (ver AvisarMudancaDeConexao).
+    private bool avisarFilaVazia;
+
+    // A recontagem disparada ao reconectar roda em segundo plano; quem precisa esperá-la (os testes, antes de soltar o banco)
+    // usa isto. Em produção ninguém aguarda.
+    public Task RecontagemAposReconexao { get; private set; } = Task.CompletedTask;
+
+    // Avisos temporários no canto da tela (conexão caiu/voltou, item lançado).
+    public ToastCentral Toasts { get; } = new();
+
     // Marcado (como o de ConfiguracoesViewModel) porque IrParaConfiguracoesCommand referencia IrParaConfiguracoesAsync, que
     // constrói o ViewModel de Configurações (Windows-only por causa do vínculo de dispositivo via DPAPI).
     [SupportedOSPlatform("windows")]
@@ -147,7 +157,16 @@ public class ShellViewModel : ViewModelBase
 
     // Recontagem barata (só as três contagens do outbox). Chamada quando o operador entra, quando uma venda é finalizada
     // e quando a sincronização em segundo plano mexeu no banco.
-    private async Task AtualizarPendentesAsync() => PendentesSync = await dashboardService.ContarPendentesAsync();
+    private async Task AtualizarPendentesAsync()
+    {
+        PendentesSync = await dashboardService.ContarPendentesAsync();
+
+        if (avisarFilaVazia && PendentesSync == 0)
+        {
+            avisarFilaVazia = false;
+            Toasts.Publicar("Nenhuma pendência na fila local. Todos os pedidos estão na nuvem!", "✅", ToastTipo.Sucesso, chave: "fila");
+        }
+    }
 
     public ViewModelBase? CurrentViewModel
     {
@@ -227,8 +246,35 @@ public class ShellViewModel : ViewModelBase
 
     public void DefinirConexao(EstadoConexao estado, string? detalhe)
     {
+        var anterior = Conexao;
         DetalheConexao = estado == EstadoConexao.Desconhecida ? null : detalhe;
         Conexao = estado;
+        AvisarMudancaDeConexao(anterior, estado);
+    }
+
+    // Só a MUDANÇA vira aviso (cada ciclo de 30 s republica o mesmo estado). Abrir o app já offline avisa; abrir online não:
+    // não há nada "restaurado" a dizer. "Online com falhas" conta como conectado (a API respondeu).
+    private void AvisarMudancaDeConexao(EstadoConexao anterior, EstadoConexao atual)
+    {
+        var estavaOffline = anterior == EstadoConexao.Offline;
+        var ficouOffline = atual == EstadoConexao.Offline;
+        if (estavaOffline == ficouOffline)
+            return;
+
+        if (ficouOffline)
+        {
+            avisarFilaVazia = false;
+            Toasts.Publicar("Internet desconectada. O PDV continua operando 100% no banco local!", "🛡️", ToastTipo.Erro, chave: "conexao");
+            return;
+        }
+
+        Toasts.Publicar("Conexão com a nuvem SoftcomShop restaurada! Sincronizando fila...", "✅", ToastTipo.Sucesso, chave: "conexao");
+
+        // Se a fila já está vazia (ou esvazia quando o ciclo terminar), o operador ganha o segundo aviso: sem isso ficaria a
+        // dúvida "será que mandou tudo?". A recontagem imediata cobre o caso de não haver nada a enviar (nenhum ciclo mexeria
+        // no banco, então nada dispararia a recontagem sozinho).
+        avisarFilaVazia = true;
+        RecontagemAposReconexao = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync);
     }
 
     public ReactiveCommand<Unit, Unit> IrParaDashboardCommand { get; }
@@ -369,6 +415,8 @@ public class ShellViewModel : ViewModelBase
         var viewModel = new PdvViewModel(vendaService, catalogoLocalService, caixaId);
         await viewModel.IniciarAsync();
         viewModel.WhenAnyValue(vm => vm.TemVendaEmAndamento).Subscribe(emAndamento => VendaEmAndamento = emAndamento);
+        // Um aviso só, sempre do último item: quem bipa vários produtos seguidos não vê uma pilha deles (chave "item").
+        viewModel.ItemLancado.Subscribe(nome => Toasts.Publicar($"\"{nome}\" adicionado ao cupom.", "🔔", chave: "item", duracao: TimeSpan.FromSeconds(2.5)));
         // Venda finalizada = mais um item esperando envio: a pílula "Sync: N pendentes" acompanha na hora.
         viewModel.FinalizarVendaCommand.Where(venda => venda is not null)
             .Subscribe(venda => _ = ExecutarComTratamentoDeErroAsync(AtualizarPendentesAsync));

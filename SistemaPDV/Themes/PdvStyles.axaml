@@ -153,4 +153,42 @@
     <Setter Property="Padding" Value="5,1" />
   </Style>
 
+
+  <!-- Aviso temporário (toast) no canto da tela. Entra esmaecendo e sobe um pouco; ao sair (classe "saindo") esmaece. Borda
+       lateral colorida por tipo — a cor nunca é a única pista: cada aviso traz ícone e texto. -->
+  <Style Selector="Border.toast">
+    <Setter Property="Background" Value="{DynamicResource BgCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="MaxWidth" Value="420" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.3" />
+      </Transitions>
+    </Setter>
+    <Style.Animations>
+      <Animation Duration="0:0:0.25" Easing="CubicEaseOut">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="TranslateTransform.Y" Value="10" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="TranslateTransform.Y" Value="0" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+  <!-- Faixa lateral colorida (sÃ³ nos avisos de sucesso/erro; o neutro fica sem faixa). -->
+  <Style Selector="Border.toastFaixa.sucesso">
+    <Setter Property="Background" Value="{DynamicResource AccentGreenBrush}" />
+  </Style>
+  <Style Selector="Border.toastFaixa.erro">
+    <Setter Property="Background" Value="{DynamicResource AccentRedBrush}" />
+  </Style>  <Style Selector="Border.toast.saindo">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+
 </Styles>
