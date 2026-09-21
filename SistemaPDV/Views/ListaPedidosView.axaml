@@ -14,6 +14,7 @@
 
   <UserControl.KeyBindings>
     <KeyBinding Gesture="F2" Command="{Binding NovaVendaCommand}" />
+    <KeyBinding Gesture="Escape" Command="{Binding FecharDetalheCommand}" />
   </UserControl.KeyBindings>
 
   <!-- A linha da tabela é a única "seleção" da tela: a selecionada ganha o fundo âmbar do tema (é nela que o descarte de uma
@@ -40,7 +41,9 @@
 
   <!-- Listagem de Pedidos no visual do protótipo: título e ações, 4 indicadores, e a tabela com busca e filtros. Conteúdo
        com largura máxima e centralizado, como as outras telas; a página rola se a janela for baixa. -->
-  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+  <Grid>
+  <!-- Com o modal de detalhes aberto a página de trás fica desabilitada (o Tab não escapa para ela). -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding !DetalheAberto}">
     <StackPanel MaxWidth="1400" Margin="24" Spacing="20">
 
       <Grid ColumnDefinitions="*,Auto">
@@ -292,5 +295,8 @@
 
     </StackPanel>
   </ScrollViewer>
+
+  <controls:DetalhePedidoPainel IsVisible="{Binding DetalheAberto}" />
+  </Grid>
 
 </UserControl>

@@ -106,6 +106,7 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 | `ErroApiExtractor` | Lê o formato de erro padrão da API (`{"errors": {...}}`) e monta uma mensagem legível — compartilhado entre `caixa` e `sales`. |
 | `VendaService` | Registrar a venda **localmente**, sem rede — gera o `Guid`, salva itens e pagamentos. |
 | `VendaSyncService` | O outbox da venda: resolve os ids externos de empresa/funcionário/cliente/produtos/formas de pagamento, monta o payload, envia, e trata sucesso/conflito/erro. Tem `SincronizarVendasPendentesAsync`, que reenvia o lote inteiro. |
+| `MontadorDeRequisicaoDeVenda` | Monta a requisição que envia uma venda (URL + corpo do POST /vendas) a partir do que está gravado, ou diz qual dependência ainda falta sincronizar. Usado pelo `VendaSyncService` (envio de verdade) E pelo modal "Detalhes do pedido" — assim o que a tela mostra não pode divergir do que a API recebe (teste compara os dois). |
 | `Dtos/VendaApiDto.cs` | O formato de request (`VendaRequestDto` + `VendaProdutoRequestDto` + `VendaPagamentoRequestDto`) e response (`VendaRespostaDto`) de `POST /api/v2/vendas`. |
 
 ---
@@ -121,6 +122,7 @@ A interface (Avalonia + ReactiveUI, MVVM). ViewModels não falam com infraestrut
 | `ShellViewModel` / `ShellView` | A casca: decide a tela (Configurações → Login → Abrir caixa/Dashboard → Venda/Pedidos/Cadastros), guarda operador logado e caixa aberto, mostra o indicador de conexão e o banner de erro. Navegação bloqueada durante venda em andamento. |
 | `Toast` / `ToastCentral` | Avisos temporários no canto inferior direito (conexão caiu/voltou, "item adicionado ao cupom"). A `ToastCentral` (do Shell) guarda a lista `Ativos` e some com cada aviso sozinho (esmaece e sai); avisos da mesma `Chave` se substituem em vez de empilhar. |
 | `CartaoIndicador` / `SeloSincronia` (controles) | Peças do visual do protótipo reutilizadas nas telas: o cartão com faixa colorida, título, valor grande e frase (Painel, Listagem de Pedidos) e o selo de estado de sincronização de uma venda (Painel, Listagem, Detalhes). |
+| `DetalhePedidoPainel` (controle) | O modal "Detalhes do pedido" da Listagem de Pedidos: cabeçalho, itens, pagamento, total líquido e a requisição à API (texto selecionável, token mascarado). Abre pelo Detalhes de uma linha (ou do painel principal) e fecha com ✕, Fechar ou Esc; a página de trás fica desabilitada enquanto ele está aberto. |
 | `AtalhosDeTela` / `ITelaComAtalhosExtras` | Comportamento anexado (`views:AtalhosDeTela.Ativos="True"`) que faz os atalhos de uma tela (KeyBindings do XAML, mais F4 do PDV) funcionarem mesmo sem foco em nenhum controle: um handler na janela, ativo só enquanto a tela está aberta. Usado no Painel e no PDV. |
 | `Tela` | Enum das telas que o Shell sabe mostrar. |
 | `Configuracoes…`, `Login…`, `AbrirCaixa…`, `Dashboard…`, `Pdv…`, `ListaPedidos…`, `Cadastros…` (`ViewModel` + `View`) | Uma dupla por tela. `AbrirCaixaViewModel` lista os 6 turnos do SoftcomShop; `ConfiguracoesViewModel.VincularCommand` devolve se vinculou (o Shell então leva ao Login). |

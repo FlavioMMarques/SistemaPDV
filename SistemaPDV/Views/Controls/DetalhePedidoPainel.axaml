@@ -1,0 +1,181 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:sales="using:SistemaPDV.Services.Sales"
+             xmlns:controls="using:SistemaPDV.Views.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="800"
+             x:Class="SistemaPDV.Views.Controls.DetalhePedidoPainel"
+             x:DataType="vm:ListaPedidosViewModel">
+
+  <!-- "Detalhes do pedido" no estilo do protótipo: cabeçalho da venda, itens, pagamento, total líquido e a REQUISIÇÃO que a
+       API recebe (a mesma que o envio monta, com o token mascarado). O fundo escurecido segura o clique; Esc e ✕ fecham.
+       Se a janela for baixa, o painel inteiro rola. -->
+  <Grid Background="{DynamicResource OverlayBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Border Background="{DynamicResource BgCardBrush}"
+              BorderBrush="{DynamicResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}"
+              MaxWidth="820" Margin="24"
+              VerticalAlignment="Center" HorizontalAlignment="Stretch">
+        <StackPanel>
+
+          <!-- Título + fechar -->
+          <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,16">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+              <TextBlock Grid.Column="0" Text="📄" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding DetalheTitulo}" FontSize="18" FontWeight="Bold"
+                         Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="fantasma" Content="✕" FontSize="16"
+                      Command="{Binding FecharDetalheCommand}"
+                      AutomationProperties.Name="Fechar os detalhes do pedido" />
+            </Grid>
+          </Border>
+
+          <StackPanel Spacing="16" Margin="24,20">
+
+            <!-- Cabeçalho da venda -->
+            <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Padding="18,14">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
+                  <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Classes="colunaTitulo" Text="DATA E HORÁRIO" />
+                    <TextBlock Text="{Binding DetalheDataHora}" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Classes="colunaTitulo" Text="CLIENTE" />
+                    <TextBlock Text="{Binding Detalhe.Resumo.ClienteNome}" FontWeight="Bold" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMainBrush}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="2">
+                    <TextBlock Classes="colunaTitulo" Text="OPERADOR DE CAIXA" />
+                    <TextBlock Text="{Binding DetalheOperador}" FontWeight="Bold" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextMainBrush}" />
+                  </StackPanel>
+                </Grid>
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="colunaTitulo" Text="STATUS DE SINCRONIA" />
+                  <StackPanel Orientation="Horizontal" Spacing="12">
+                    <controls:SeloSincronia Status="{Binding Detalhe.Resumo.SyncStatus}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding DetalheIdNaApi}" FontFamily="{DynamicResource FontMono}" FontSize="12"
+                               Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                               IsVisible="{Binding Detalhe.VendaIdExterno, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  </StackPanel>
+                  <!-- Motivo da falha ou da espera (ou do descarte): sem ele um selo vermelho seria indiagnosticável. -->
+                  <TextBlock Text="{Binding Detalhe.Resumo.UltimoErroSync}" TextWrapping="Wrap" FontSize="12"
+                             Foreground="{DynamicResource AccentRedBrush}"
+                             IsVisible="{Binding Detalhe.Resumo.UltimoErroSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <!-- Itens -->
+            <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}">
+              <StackPanel>
+                <Grid ColumnDefinitions="110,*,90,120,110" Margin="18,12">
+                  <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="CÓDIGO" />
+                  <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="ITEM / DESCRIÇÃO" />
+                  <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="QTD" />
+                  <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="VL. UNITÁRIO" />
+                  <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="TOTAL ITEM" HorizontalAlignment="Right" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Detalhe.Itens}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sales:ItemDetalhe">
+                      <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="18,10">
+                        <!-- As colunas daqui e as do cabeçalho (acima) TÊM de ser iguais: o Avalonia não compartilha ColumnDefinitions. -->
+                        <Grid ColumnDefinitions="110,*,90,120,110">
+                          <TextBlock Grid.Column="0" Text="{Binding Codigo}" FontFamily="{DynamicResource FontMono}" FontSize="12"
+                                     Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Text="{Binding Descricao}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                     Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                          <TextBlock Grid.Column="2" Text="{Binding QuantidadeTexto}" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding PrecoUnitario, StringFormat='R$ {0:F2}'}"
+                                     Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="4" Text="{Binding Total, StringFormat='R$ {0:F2}'}" FontWeight="Bold" HorizontalAlignment="Right"
+                                     Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- Pagamento e total líquido -->
+            <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                    BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Padding="18,14">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Classes="colunaTitulo" Text="FORMA DE PAGAMENTO" />
+                  <ItemsControl ItemsSource="{Binding Detalhe.Pagamentos}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="sales:PagamentoDetalhe">
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2">
+                          <Border Classes="chip"><TextBlock Text="{Binding Forma}" FontSize="12" Foreground="{DynamicResource TextMainBrush}" /></Border>
+                          <TextBlock Text="{Binding Bandeira}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                                     IsVisible="{Binding Bandeira, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          <TextBlock Text="{Binding Valor, StringFormat='R$ {0:F2}'}" FontFamily="{DynamicResource FontMono}"
+                                     Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="2">
+                  <TextBlock Text="{Binding Detalhe.Desconto, StringFormat='Desconto: R$ {0:F2}'}" FontSize="12" HorizontalAlignment="Right"
+                             Foreground="{DynamicResource AccentGreenBrush}" IsVisible="{Binding DetalheTemDesconto}" />
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Total Líquido:" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Detalhe.Resumo.Total, StringFormat='R$ {0:F2}'}" FontFamily="{DynamicResource FontMono}"
+                               FontSize="26" FontWeight="Bold" Foreground="{DynamicResource BrandYellowBrush}" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- A requisição. Selecionável (SelectableTextBlock) para copiar e colar num chamado de suporte. -->
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="☁ REQUISIÇÃO À API V2 (POST /VENDAS)" FontSize="12" FontWeight="Bold"
+                           Foreground="{DynamicResource AccentBlueBrush}" />
+                <TextBlock Grid.Column="1" Text="Mesmo formato que a fila Outbox envia (token oculto)" FontSize="11"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+              </Grid>
+              <TextBlock Text="{Binding DetalheNotaRequisicao}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+              <Border Background="{DynamicResource BgMainBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                      BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Padding="14,10"
+                      IsVisible="{Binding Detalhe.Requisicao, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <ScrollViewer MaxHeight="280" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                  <SelectableTextBlock Text="{Binding Detalhe.Requisicao}" FontFamily="{DynamicResource FontMono}" FontSize="12"
+                                       Foreground="{DynamicResource AccentBlueBrush}"
+                                       AutomationProperties.Name="Requisição enviada à API, em JSON" />
+                </ScrollViewer>
+              </Border>
+              <!-- Ainda não dá para montar (falta sincronizar algo) ou a venda foi descartada: o motivo no lugar do JSON. -->
+              <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                      BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Padding="14,12"
+                      IsVisible="{Binding Detalhe.MotivoSemRequisicao, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="{Binding Detalhe.MotivoSemRequisicao}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+              </Border>
+            </StackPanel>
+
+          </StackPanel>
+
+          <!-- Rodapé -->
+          <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,14">
+            <Button Name="FecharButton" Classes="secundario" Content="Fechar" HorizontalAlignment="Right" Padding="22,9"
+                    Command="{Binding FecharDetalheCommand}" AutomationProperties.Name="Fechar os detalhes do pedido" />
+          </Border>
+
+        </StackPanel>
+      </Border>
+    </ScrollViewer>
+  </Grid>
+
+</UserControl>

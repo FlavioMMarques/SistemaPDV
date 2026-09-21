@@ -185,6 +185,9 @@ public class ShellBarraTopoTests
             await context.SaveChangesAsync();
         }
         var shell = await CriarShellLogadoAsync(fixture);
+        // O login recontou a fila em segundo plano: espera esse ponto de partida (o caixa aberto, ainda sem subir, é 1 pendente) antes
+        // de lê-lo — lido cedo demais, valia 0 e o teste dependia de quem chegava primeiro (falhava de vez em quando na suíte cheia).
+        await shell.WhenAnyValue(s => s.PendentesSync).Where(n => n == 1).FirstAsync().Timeout(TimeSpan.FromSeconds(5)).ToTask();
         var antes = shell.PendentesSync;
         await shell.IrParaPdvCommand.Execute();
         var pdv = (PdvViewModel)shell.CurrentViewModel!;

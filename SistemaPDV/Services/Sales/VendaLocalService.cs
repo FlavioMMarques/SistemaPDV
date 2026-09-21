@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -164,11 +166,6 @@ public class VendaLocalService
     {
         await using var context = contextFactory();
 
-        var caixa = await context.Caixas.FindAsync(new object[] { caixaId }, ct);
-        var operadorNome = caixa is not null
-            ? (await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct))?.Nome ?? "—"
-            : "—";
-
         // limite: só as N mais recentes (o painel principal mostra as últimas vendas); null = todas (a listagem de pedidos).
         var consulta = context.Vendas
             .Include(v => v.Itens)
@@ -178,7 +175,95 @@ public class VendaLocalService
             .AsQueryable();
         if (limite is { } quantas)
             consulta = consulta.Take(quantas);
-        var vendas = await consulta.ToListAsync(ct);
+
+        return await ResumirAsync(context, caixaId, await consulta.ToListAsync(ct), ct);
+    }
+
+    // Tudo o que o modal "Detalhes do pedido" mostra de UMA venda: cabeçalho, itens, pagamentos e a requisição que a API
+    // recebe (ou receberia) — montada pelo MESMO código que faz o envio (MontadorDeRequisicaoDeVenda), com o token mascarado.
+    // Null se a venda não existe mais.
+    public async Task<DetalheVenda?> ObterDetalheAsync(Guid vendaId, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var venda = await context.Vendas
+            .Include(v => v.Itens)
+            .Include(v => v.Pagamentos)
+            .FirstOrDefaultAsync(v => v.Id == vendaId, ct);
+        if (venda is null)
+            return null;
+
+        var resumo = (await ResumirAsync(context, venda.CaixaId, new List<Venda> { venda }, ct)).Single();
+
+        var produtoIds = venda.Itens.Select(i => i.ProdutoId).Distinct().ToList();
+        var produtos = await context.Produtos.Where(p => produtoIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var formaIds = venda.Pagamentos.Select(p => p.FormaPagamentoId).Distinct().ToList();
+        var formas = await context.FormasPagamento.Where(f => formaIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Nome, ct);
+
+        var itens = venda.Itens.Select(i =>
+        {
+            produtos.TryGetValue(i.ProdutoId, out var produto);
+            return new ItemDetalhe(
+                produto?.CodigoParaExibicao ?? "—",
+                produto?.Nome ?? "?",
+                i.Quantidade,
+                produto?.UnidadeMedida,
+                i.PrecoUnitario,
+                i.Quantidade * i.PrecoUnitario - i.DescontoItem + i.AcrescimoItem);
+        }).ToList();
+
+        var pagamentos = venda.Pagamentos
+            .Select(p => new PagamentoDetalhe(formas.GetValueOrDefault(p.FormaPagamentoId, "?"), p.Valor, p.Bandeira))
+            .ToList();
+
+        var (requisicao, motivo) = await MontarRequisicaoParaExibirAsync(context, venda, ct);
+        return new DetalheVenda(resumo, itens, pagamentos, venda.Desconto, venda.VendaIdExterno, requisicao, motivo);
+    }
+
+    private static readonly JsonSerializerOptions OpcoesDeExibicao = new()
+    {
+        WriteIndented = true,
+        // Só para LER na tela: acento como acento ("ESPÉCIE"), não "É". O envio real usa o serializador padrão; o
+        // conteúdo é o mesmo, só a grafia dos caracteres não-ASCII muda.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    // A requisição como texto (método + URL, cabeçalhos com o token MASCARADO, corpo em JSON) ou, se ainda não dá para
+    // montá-la, o motivo. O token de verdade nunca passa por aqui: quem lê a tela (ou tira um print para suporte) não o vê.
+    private static async Task<(string? Requisicao, string? Motivo)> MontarRequisicaoParaExibirAsync(AppDbContext context, Venda venda, CancellationToken ct)
+    {
+        if (venda.SyncStatus == SyncStatus.Descartada)
+            return (null, "Venda descartada: esta requisição não é enviada à API.");
+
+        try
+        {
+            var montagem = await MontadorDeRequisicaoDeVenda.MontarAsync(context, venda, ct);
+            if (montagem.Requisicao is not { } requisicao)
+                return (null, $"Ainda não dá para montar a requisição: {montagem.Espera}");
+
+            var texto = string.Join(Environment.NewLine,
+                $"POST {requisicao.Url}",
+                "Api-Version: v2",
+                "Authorization: Bearer ••••••••",
+                "Content-Type: application/json",
+                string.Empty,
+                JsonSerializer.Serialize(requisicao.Corpo, OpcoesDeExibicao));
+            return (texto, null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (null, $"Não foi possível montar a requisição: {ex.Message}");
+        }
+    }
+
+    // O resumo de uma ou mais vendas do MESMO caixa: resolve operador, autorizadores de descarte, clientes, formas de
+    // pagamento e nomes de produtos em lotes (sem N+1).
+    private static async Task<IReadOnlyList<VendaResumo>> ResumirAsync(AppDbContext context, int caixaId, List<Venda> vendas, CancellationToken ct)
+    {
+        var caixa = await context.Caixas.FindAsync(new object[] { caixaId }, ct);
+        var operadorNome = caixa is not null
+            ? (await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct))?.Nome ?? "—"
+            : "—";
 
         // Trilha de auditoria: a venda descartada continua na lista, dizendo quem autorizou e por quê.
         var autorizadoresIds = vendas.Where(v => v.DescartadaPorId.HasValue).Select(v => v.DescartadaPorId!.Value).Distinct().ToList();

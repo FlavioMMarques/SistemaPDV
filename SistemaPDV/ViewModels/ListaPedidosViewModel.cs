@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using ReactiveUI;
 using SistemaPDV.Models;
@@ -48,6 +49,7 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private OpcaoStatus statusSelecionado = OpcoesStatus[0];
     private string formaSelecionada = TodasAsFormas;
     private IReadOnlyList<string> opcoesForma = new[] { TodasAsFormas };
+    private DetalheVenda? detalhe;
 
     // operadorId = quem PEDE o descarte (o operador logado); quem AUTORIZA é o supervisor, pela chave.
     public ListaPedidosViewModel(VendaLocalService vendaLocalService, int caixaId, int? operadorId = null)
@@ -63,9 +65,12 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         NovaVendaCommand = ReactiveCommand.Create(() => Unit.Default);
         SincronizarAgoraCommand = ReactiveCommand.Create(() => Unit.Default);
 
-        // Detalhes: por enquanto seleciona a linha (é onde mora o descarte de uma venda em falha); o modal com os itens e a
-        // requisição chega na Task 71.
-        DetalhesCommand = ReactiveCommand.Create<VendaResumo>(venda => VendaSelecionada = venda);
+        // Detalhes: abre o modal com os itens, os pagamentos e a requisição (e seleciona a linha, que é onde mora o descarte
+        // de uma venda em falha). Fechar só fica disponível com o modal aberto — assim o Esc não faz nada com ele fechado.
+        DetalhesCommand = ReactiveCommand.CreateFromTask<VendaResumo>(AbrirDetalheAsync);
+        FecharDetalheCommand = ReactiveCommand.Create(
+            () => { Detalhe = null; },
+            this.WhenAnyValue(vm => vm.Detalhe).Select(detalhe => detalhe is not null));
         LimparFiltrosCommand = ReactiveCommand.Create(LimparFiltros);
 
         // Descartar: precisa de uma venda EM FALHA selecionada, do motivo e — só se a política do app exige
@@ -190,6 +195,55 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<Unit, Unit> NovaVendaCommand { get; }
     public ReactiveCommand<Unit, Unit> SincronizarAgoraCommand { get; }
     public ReactiveCommand<VendaResumo, Unit> DetalhesCommand { get; }
+
+    // ---- modal "Detalhes do pedido" ----
+
+    public DetalheVenda? Detalhe
+    {
+        get => detalhe;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref detalhe, value);
+            this.RaisePropertyChanged(nameof(DetalheAberto));
+            this.RaisePropertyChanged(nameof(DetalheTitulo));
+            this.RaisePropertyChanged(nameof(DetalheDataHora));
+            this.RaisePropertyChanged(nameof(DetalheTemDesconto));
+            this.RaisePropertyChanged(nameof(DetalheOperador));
+            this.RaisePropertyChanged(nameof(DetalheIdNaApi));
+            this.RaisePropertyChanged(nameof(DetalheNotaRequisicao));
+        }
+    }
+
+    public bool DetalheAberto => Detalhe is not null;
+
+    public string DetalheTitulo => Detalhe?.Resumo.Numero is { } numero ? $"Detalhes do Pedido #{numero}" : "Detalhes do Pedido";
+
+    public bool DetalheTemDesconto => Detalhe?.Desconto > 0;
+
+    public string DetalheDataHora => Detalhe is { } d ? $"{d.Resumo.DataHora:dd/MM/yyyy} às {d.Resumo.DataHora:HH:mm:ss}" : string.Empty;
+
+    public string DetalheOperador => Detalhe is { } d ? $"{d.Resumo.OperadorNome} ({RotuloCaixa})" : string.Empty;
+
+    public string DetalheIdNaApi => Detalhe?.VendaIdExterno is { } id ? $"Id na API: {id}" : string.Empty;
+
+    // Diz em que pé a requisição mostrada está: aceita, recusada ou ainda por enviar (ela é reconstruída da venda gravada).
+    // Sem requisição para mostrar (falta sincronizar algo, ou foi descartada) não há o que comentar: o motivo já ocupa o lugar.
+    public string DetalheNotaRequisicao => Detalhe?.Requisicao is null ? string.Empty : Detalhe.Resumo.SyncStatus switch
+    {
+        SyncStatus.Sincronizado => "Enviada e aceita pela API. Reconstruída a partir da venda gravada.",
+        SyncStatus.FalhaSync => "A API recusou esta requisição — veja o motivo acima.",
+        SyncStatus.PendenteSync => "Ainda não enviada: sai no próximo ciclo de sincronização.",
+        _ => string.Empty,
+    };
+
+    public ReactiveCommand<Unit, Unit> FecharDetalheCommand { get; }
+
+    // Público para o Shell abrir o modal direto quando o operador chega aqui pelo "Detalhes" do painel principal.
+    public async Task AbrirDetalheAsync(VendaResumo venda)
+    {
+        VendaSelecionada = venda;
+        Detalhe = await vendaLocalService.ObterDetalheAsync(venda.Id);
+    }
     public ReactiveCommand<Unit, Unit> LimparFiltrosCommand { get; }
 
     public string? MensagemReenvio
@@ -321,5 +375,9 @@ public class ListaPedidosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         // A forma escolhida pode ter sumido da lista (a venda que a tinha foi descartada, por exemplo): volta a "Todas".
         if (formaSelecionada != TodasAsFormas && !OpcoesForma.Contains(formaSelecionada))
             FormaSelecionada = TodasAsFormas;
+
+        // Modal aberto durante um ciclo de sincronização: o selo e a requisição acompanham (a venda pode ter acabado de subir).
+        if (Detalhe is { } aberto)
+            Detalhe = await vendaLocalService.ObterDetalheAsync(aberto.Resumo.Id);
     }
 }
