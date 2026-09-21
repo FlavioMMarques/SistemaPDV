@@ -1427,7 +1427,7 @@ O usuário viu "Chave inválida"; investigar levou a descobrir que a sincroniza�
 
 - ✅ **Ids do produto:** o item da venda 333 no SoftcomShop tem o código **77** (= `produto_id`) — o mapeamento `produto_id` = `Produto.ProdutoIdApi` está certo. (`produto_empresa_grade_id` = `Produto.IdExterno` segue sem contestação: a API aceitou.)
 - ⚠️ **`numero_documento` é ÚNICO POR EMPRESA** (não por dispositivo). Hoje `Venda.NumeroPedido` é sequencial **por dispositivo**: dois PDVs na mesma empresa gerariam números repetidos e a segunda venda seria recusada (ou pior, aceita duplicada). **Decidir:** faixa/prefixo por dispositivo, número vindo do servidor, ou reservar um bloco. Não corrigido — só vira problema com mais de um PDV na mesma empresa. Ver "Observações" abaixo.
-- ✅ **Quantidade fracionada existe** (venda por peso). O corpo já envia `quantidade` como decimal (`1.0`, `0.5`), mas o Swagger diz `integer($int32)`: **✅ PROVADO (2026-09-20, usuário): venda fracionada aceita pela API real** (Swagger está desatualizado). A tela de venda aceita fração (até 3 casas, `0,5`) e há teste. Pendente só conferir no SoftcomShop se o estoque baixa fracionado.
+- ✅ **Quantidade fracionada existe** (venda por peso). O corpo já envia `quantidade` como decimal (`1.0`, `0.5`), mas o Swagger diz `integer($int32)`: **✅ PROVADO (2026-09-20, usuário): venda fracionada aceita pela API real** (Swagger está desatualizado). A tela de venda aceita fração (até 3 casas, `0,5`) e há teste. ✅ Conferido pelo usuário (2026-09-21): o estoque baixa fracionado no SoftcomShop.
 
 ### Observações da revisão pré-push (2026-09-20) — para rever mais à frente (NADA mudou por causa delas)
 
