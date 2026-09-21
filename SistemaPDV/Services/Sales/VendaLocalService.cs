@@ -105,6 +105,28 @@ public class VendaLocalService
             .ToList();
     }
 
+    // Quanto as vendas deste caixa somam em cada bandeira de cartão (os pagamentos que têm bandeira gravada) — o
+    // "esperado" da apuração por bandeira. Pagamentos sem bandeira (não é cartão, ou não havia cartões sincronizados)
+    // ficam de fora. Vendas descartadas não entram (tratadas como canceladas). Soma em memória (SQLite/decimal).
+    public async Task<IReadOnlyList<TotalBandeira>> TotaisPorBandeiraAsync(int caixaId, CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+
+        var pagamentos = await context.Vendas
+            .Where(v => v.CaixaId == caixaId)
+            .Where(VendaFiltros.Valida)
+            .SelectMany(v => v.Pagamentos)
+            .Where(p => p.Bandeira != null)
+            .Select(p => new { p.Bandeira, p.Valor })
+            .ToListAsync(ct);
+
+        return pagamentos
+            .GroupBy(p => p.Bandeira!)
+            .Select(g => new TotalBandeira(g.Key, g.Sum(p => p.Valor)))
+            .OrderBy(t => t.Bandeira, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     // "Reenviar falhas": devolve à fila as vendas do caixa que falharam ou desistiram e o
     // próprio caixa, se o envio dele falhou (zera a espera crescente e o contador — ver
     // PoliticaRetentativa). O próximo ciclo de sincronização as envia. Devolve quantos itens voltaram.

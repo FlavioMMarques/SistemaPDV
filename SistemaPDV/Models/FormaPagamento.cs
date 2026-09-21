@@ -17,4 +17,8 @@ public class FormaPagamento : ISincronizavel<int>
     public bool PreVenda { get; set; }
     public string? AtalhoNumero { get; set; }
     public bool PermissaoSupervisor { get; set; }
+
+    // Forma que exige escolher a bandeira (crédito e débito chegam da API com Tipo = "CARTAO"; PIX, dinheiro etc. não).
+    // Só leitura: o EF não mapeia.
+    public bool EhCartao => string.Equals(Tipo, "CARTAO", System.StringComparison.OrdinalIgnoreCase);
 }

@@ -40,4 +40,14 @@ public class CatalogoLocalService
         await using var context = contextFactory();
         return await context.FormasPagamento.Where(f => f.IdExterno != null).ToListAsync(ct);
     }
+
+    // As bandeiras que o operador pode escolher no pagamento em cartão: os nomes DISTINTOS dos cartões sincronizados
+    // (uma bandeira pode aparecer em vários cartões — crédito/débito, credenciadoras). Lista vazia = ainda não há cartões
+    // sincronizados; a venda segue sem bandeira em vez de travar (ver PdvViewModel.AdicionarPagamento).
+    public async Task<IReadOnlyList<string>> ListarBandeirasAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        var nomes = await context.Cartoes.Select(c => c.BandeiraNome).Distinct().ToListAsync(ct);
+        return nomes.Where(n => !string.IsNullOrWhiteSpace(n)).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+    }
 }

@@ -12,10 +12,13 @@ PDV (ponto de venda) offline-first em C#/.NET 8 + Avalonia + MVVM, com SQLite lo
 
 **Ordem de build:** `data-layer` → `catalog-sync` → `caixa` → `sales` → `pdv-ui`
 
+## Reativado depois de adiado
+
+- **Apuração por bandeira de cartão no fechamento de caixa** — adiada em 2026-09-20 ("só o valor total") e **reativada no mesmo dia** pelo usuário depois que a rota de cartões do SoftcomShop foi achada (`GET softauth/api/financeiros/cartoes/page/N`, sem `v2`): sincroniza os cartões, o operador escolhe a bandeira no pagamento em cartão e o fechamento apura por bandeira. Ver `tasks/todo.md` (Fase 6) e APRENDIZADOS #71.
+
 ## Fora de escopo (adiado)
 
 - **Sangria / Suprimento** (`POST /api/v2/financeiro/sangria` e `/suprimento`) — endpoints já documentados no contrato da API, mas o fluxo de UI/domínio fica para depois do protótipo inicial.
-- **Apuração por bandeira de cartão no fechamento de caixa** — **decisão do usuário (2026-09-20): por enquanto só o valor total por forma de pagamento**, sem tela por bandeira, sem obrigatoriedade e sem seção condicional. O back-end já suporta (`DigitacaoBandeiraCaixa`, `CaixaService.FecharCaixaLocalAsync`, `digitacao_bandeiras` no envio, hoje sempre vazia); a venda também não registra a bandeira (`PagamentoVenda` só tem a forma). Para retomar: definir a lista de bandeiras (fixa, livre ou a do SoftcomShop) e se o pagamento em cartão da venda passa a guardar a bandeira.
 - **Emissão de NFC-e** — os campos fiscais da empresa (`empresa_certificado`, config de NFC-e) são sincronizados por completude, mas a emissão em si não faz parte do escopo do protótipo. **Decisão do usuário (2026-09-20): o app não vai focar em emissão de NFC-e por enquanto** — só sincroniza os dados fiscais; nada da emissão entra no backlog até o usuário reabrir o assunto.
 
 ## Contrato externo (referência)

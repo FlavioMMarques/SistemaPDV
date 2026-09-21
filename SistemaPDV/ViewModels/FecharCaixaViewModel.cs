@@ -11,23 +11,21 @@ using SistemaPDV.Services.Sales;
 
 namespace SistemaPDV.ViewModels;
 
-// Uma linha da conferência: quanto as vendas somaram na forma de pagamento (Esperado) e quanto o operador contou
-// (Contado, texto porque o TextBox liga em string — validado só na hora de fechar).
-public class LinhaApuracao : ReactiveObject
+// Uma linha da conferência: quanto as vendas somaram (Esperado) e quanto o operador contou (Contado, texto porque o
+// TextBox liga em string — validado só na hora de fechar). Base comum das linhas por forma de pagamento e por bandeira.
+public abstract class LinhaContagem : ReactiveObject
 {
     private string contado;
     private readonly Action aoMudar;
 
-    public LinhaApuracao(int formaPagamentoId, string nome, decimal esperado, Action aoMudar)
+    protected LinhaContagem(string nome, decimal esperado, Action aoMudar)
     {
-        FormaPagamentoId = formaPagamentoId;
         Nome = nome;
         Esperado = esperado;
         contado = ValorMonetario.Formatar(esperado);   // pré-preenchido: o operador só ajusta o que divergiu
         this.aoMudar = aoMudar;
     }
 
-    public int FormaPagamentoId { get; }
     public string Nome { get; }
     public decimal Esperado { get; }
 
@@ -42,12 +40,30 @@ public class LinhaApuracao : ReactiveObject
     }
 }
 
+// Apuração por forma de pagamento.
+public class LinhaApuracao : LinhaContagem
+{
+    public LinhaApuracao(int formaPagamentoId, string nome, decimal esperado, Action aoMudar) : base(nome, esperado, aoMudar) =>
+        FormaPagamentoId = formaPagamentoId;
+
+    public int FormaPagamentoId { get; }
+}
+
+// Apuração por bandeira de cartão (o Nome é o da bandeira, ex: "MASTERCARD").
+public class LinhaBandeira : LinhaContagem
+{
+    public LinhaBandeira(string bandeira, decimal esperado, Action aoMudar) : base(bandeira, esperado, aoMudar)
+    {
+    }
+}
+
 // Fechar caixa (Task 51): o operador confere quanto apurou por forma de pagamento e informa o troco final.
 // Só grava LOCAL (CaixaService.FecharCaixaLocalAsync) — o envio à API é do serviço de sincronização, então
 // fechar funciona offline. Mesmo padrão de AbrirCaixaViewModel: ConfirmarCommand devolve o Caixa fechado (ou null)
 // como resultado observável, e CancelarCommand só emite; quem navega é o Shell.
 //
-// A apuração de bandeiras de cartão (digitacao_bandeiras) fica de fora do v1: vai vazia.
+// Também apura por BANDEIRA de cartão (digitacao_bandeiras): uma linha para cada bandeira que aparece nos pagamentos das
+// vendas deste caixa (a bandeira é escolhida no pagamento; o "esperado" vem da soma por bandeira).
 public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     private readonly CaixaService caixaService;
@@ -55,6 +71,7 @@ public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private readonly int caixaId;
 
     private IReadOnlyList<LinhaApuracao> formas = Array.Empty<LinhaApuracao>();
+    private IReadOnlyList<LinhaBandeira> bandeiras = Array.Empty<LinhaBandeira>();
     private string trocoFinal = ValorMonetario.Formatar(0m);
     private decimal totalVendido;
     private bool apuracaoValida = true;
@@ -84,6 +101,20 @@ public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             this.RaisePropertyChanged(nameof(SemVendas));
         }
     }
+
+    // Uma linha por bandeira de cartão que aparece nas vendas deste caixa. Vazia = nenhuma venda em cartão com bandeira
+    // (a seção some da tela).
+    public IReadOnlyList<LinhaBandeira> Bandeiras
+    {
+        get => bandeiras;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref bandeiras, value);
+            this.RaisePropertyChanged(nameof(TemBandeiras));
+        }
+    }
+
+    public bool TemBandeiras => Bandeiras.Count > 0;
 
     // Estado vazio: caixa sem nenhuma venda (a tela avisa em vez de mostrar uma lista em branco).
     public bool SemVendas => Formas.Count == 0;
@@ -137,6 +168,9 @@ public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         var totais = await vendaLocalService.TotaisPorFormaPagamentoAsync(caixaId);
 
         Formas = totais.Select(t => new LinhaApuracao(t.FormaPagamentoId, t.Nome, t.Total, Revalidar)).ToList();
+        Bandeiras = (await vendaLocalService.TotaisPorBandeiraAsync(caixaId))
+            .Select(t => new LinhaBandeira(t.Bandeira, t.Total, Revalidar))
+            .ToList();
         TotalVendido = totais.Sum(t => t.Total);
         VendasPendentes = await vendaLocalService.ContarNaoEnviadasAsync(caixaId);
         Revalidar();
@@ -148,8 +182,10 @@ public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private async Task RecontarVendasPendentesAsync() =>
         VendasPendentes = await vendaLocalService.ContarNaoEnviadasAsync(caixaId);
 
+    // Formas E bandeiras: um valor inválido em qualquer linha trava o botão.
     private void Revalidar() =>
-        ApuracaoValida = Formas.All(f => ValorMonetario.TentarLer(f.Contado, out var valor) && valor >= 0);
+        ApuracaoValida = Formas.Cast<LinhaContagem>().Concat(Bandeiras)
+            .All(l => ValorMonetario.TentarLer(l.Contado, out var valor) && valor >= 0);
 
     private async Task<Models.Caixa?> ConfirmarAsync()
     {
@@ -164,7 +200,15 @@ public class FecharCaixaViewModel : ViewModelBase, IAtualizavelPorSincronizacao
             })
             .ToList();
 
-        var resultado = await caixaService.FecharCaixaLocalAsync(caixaId, troco, digitacoes, Array.Empty<(string, decimal)>());
+        var digitacoesBandeiras = Bandeiras
+            .Select(b =>
+            {
+                ValorMonetario.TentarLer(b.Contado, out var valor);
+                return (b.Nome, valor);
+            })
+            .ToList();
+
+        var resultado = await caixaService.FecharCaixaLocalAsync(caixaId, troco, digitacoes, digitacoesBandeiras);
         if (!resultado.Sucesso)
         {
             Mensagem = resultado.Mensagem;
