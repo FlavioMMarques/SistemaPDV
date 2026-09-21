@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:m="using:SistemaPDV.Models"
+             mc:Ignorable="d" d:DesignWidth="170" d:DesignHeight="26"
+             x:Class="SistemaPDV.Views.Controls.SeloSincronia"
+             x:Name="Root">
+
+  <!--
+    Selo do estado de sincronização de uma venda ("✓ Nuvem SoftcomShop", "⏳ Pendente de envio"…) no visual do protótipo.
+    Sempre ícone + texto (nunca só cor). Reaproveitado no Painel, na Listagem de Pedidos e no modal de Detalhes — o
+    SyncStatusIndicator continua sendo a versão em texto simples, sem fundo.
+  -->
+  <Border Classes="selo"
+          Classes.ok="{Binding #Root.Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:SyncStatus.Sincronizado}}"
+          Classes.pendente="{Binding #Root.Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:SyncStatus.PendenteSync}}"
+          Classes.falha="{Binding #Root.Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:SyncStatus.FalhaSync}}"
+          Classes.descartada="{Binding #Root.Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:SyncStatus.Descartada}}">
+    <TextBlock Text="{Binding #Root.Status, Converter={StaticResource SyncStatusParaSeloConverter}}"
+               FontSize="12" FontWeight="SemiBold" />
+  </Border>
+
+</UserControl>

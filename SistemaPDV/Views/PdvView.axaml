@@ -3,11 +3,13 @@
              xmlns:vm="using:SistemaPDV.ViewModels"
              xmlns:models="using:SistemaPDV.Models"
              xmlns:controls="using:SistemaPDV.Views.Controls"
+             xmlns:views="using:SistemaPDV.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1860" d:DesignHeight="820"
              x:Class="SistemaPDV.Views.PdvView"
              x:DataType="vm:PdvViewModel"
+             views:AtalhosDeTela.Ativos="True"
              Background="{StaticResource BgMainBrush}"
              Focusable="True">
 

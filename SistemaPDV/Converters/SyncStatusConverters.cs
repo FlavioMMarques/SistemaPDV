@@ -47,6 +47,24 @@ public class SyncStatusParaCorConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+// Texto do selo colorido de sincronização (SeloSincronia): o do protótipo, com ícone — cor nunca é a única pista.
+public class SyncStatusParaSeloConverter : IValueConverter
+{
+    public static readonly SyncStatusParaSeloConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        SyncStatus.Sincronizado => "✓ Nuvem SoftcomShop",
+        SyncStatus.PendenteSync => "⏳ Pendente de envio",
+        SyncStatus.FalhaSync => "✕ Falha no envio",
+        SyncStatus.Descartada => "⚫ Descartada",
+        _ => string.Empty,
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 // Indicador de conexão do header (Task 50) — como nos converters de SyncStatus, nunca só
 // cor: cada estado combina ícone + texto.
 public class EstadoConexaoParaTextoConverter : IValueConverter

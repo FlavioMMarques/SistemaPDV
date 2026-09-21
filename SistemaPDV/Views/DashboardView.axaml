@@ -1,64 +1,154 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:sales="using:SistemaPDV.Services.Sales"
+             xmlns:controls="using:SistemaPDV.Views.Controls"
+             xmlns:views="using:SistemaPDV.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+             mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="760"
              x:Class="SistemaPDV.Views.DashboardView"
              x:DataType="vm:DashboardViewModel"
+             views:AtalhosDeTela.Ativos="True"
              Background="{StaticResource BgMainBrush}">
 
   <UserControl.KeyBindings>
     <KeyBinding Gesture="F2" Command="{Binding NovaVendaCommand}" />
   </UserControl.KeyBindings>
 
-  <Grid RowDefinitions="Auto,*" Margin="24">
+  <!-- Painel de Controle no visual do protótipo: título e ações, 4 indicadores, últimas vendas e o aviso do modo offline-first.
+       Conteúdo com largura máxima e centralizado, como as outras telas; rola se a janela for baixa. -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel MaxWidth="1400" Margin="24" Spacing="24">
 
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
-      <TextBlock Grid.Column="0" Text="📊 Painel Principal" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" VerticalAlignment="Center" />
-      <Button Grid.Column="1"
-              Content="🛒 Nova Venda (F2)"
-              Command="{Binding NovaVendaCommand}"
-              Background="{StaticResource BrandYellowBrush}"
-              Foreground="{StaticResource TextDarkBrush}"
-              FontWeight="Bold"
-              CornerRadius="{StaticResource RadiusMedium}"
-              Padding="20,10"
-              AutomationProperties.Name="Nova venda" />
-    </Grid>
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="📊 Painel de Controle • SoftcomPDV" FontSize="26" FontWeight="Bold"
+                     Foreground="{DynamicResource TextMainBrush}" />
+          <TextBlock Text="Visão geral de vendas locais, status da sincronização com a nuvem SoftcomShop e saúde do terminal."
+                     FontSize="13" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Button Classes="secundario" Content="📋 Ver Todos os Pedidos"
+                  Command="{Binding VerPedidosCommand}" FontWeight="SemiBold" Padding="18,12"
+                  AutomationProperties.Name="Ver todos os pedidos" />
+          <Button Classes="primario" Content="🛒 Abrir Caixa PDV (F2)"
+                  Command="{Binding NovaVendaCommand}" HorizontalAlignment="Right" Padding="20,12"
+                  AutomationProperties.Name="Abrir caixa PDV, atalho F2" />
+        </StackPanel>
+      </Grid>
 
-    <UniformGrid Grid.Row="1" Columns="4" Rows="1" Margin="0,0,0,0">
+      <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="16">
+        <controls:CartaoIndicador Grid.Column="0"
+                                  Titulo="FATURAMENTO TOTAL HOJE"
+                                  Valor="{Binding FaturamentoHoje, StringFormat='R$ {0:F2}'}"
+                                  Detalhe="{Binding TextoVendasEmitidas}"
+                                  CorFaixa="{DynamicResource BrandYellowBrush}"
+                                  CorValor="{DynamicResource TextMainBrush}" />
+        <controls:CartaoIndicador Grid.Column="1"
+                                  Titulo="ESTOQUE LOCAL DE PRODUTOS"
+                                  Valor="{Binding TextoProdutosCadastrados}"
+                                  Detalhe="{Binding DetalheEstoque}"
+                                  CorFaixa="{DynamicResource BrandYellowBrush}"
+                                  CorValor="{DynamicResource TextMainBrush}" />
+        <controls:CartaoIndicador Grid.Column="2"
+                                  Titulo="FILA OUTBOX LOCAL"
+                                  Valor="{Binding PendentesOutbox}"
+                                  Detalhe="Itens pendentes para envio à nuvem"
+                                  CorFaixa="{DynamicResource AccentBlueBrush}"
+                                  CorValor="{DynamicResource BrandYellowBrush}" />
+        <controls:CartaoIndicador Grid.Column="3"
+                                  Titulo="CONEXÃO SOFTCOMSHOP"
+                                  Valor="{Binding TextoConexao}"
+                                  Detalhe="{Binding TextoUltimaSincronizacao}"
+                                  CorFaixa="{Binding Conexao, Converter={StaticResource EstadoConexaoParaCorConverter}}"
+                                  CorValor="{Binding Conexao, Converter={StaticResource EstadoConexaoParaCorConverter}}" />
+      </Grid>
 
-      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20" Margin="0,0,12,0">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Faturamento hoje" Foreground="{StaticResource TextMutedBrush}" />
-          <TextBlock Text="{Binding FaturamentoHoje, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentGreenBrush}" />
+      <!-- Últimas vendas do caixa (as 5 mais recentes); o histórico completo é a Listagem de Pedidos. -->
+      <Border Background="{DynamicResource BgCardBrush}"
+              BorderBrush="{DynamicResource BorderColorBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}">
+        <StackPanel>
+
+          <Grid ColumnDefinitions="*,Auto" Margin="20,16">
+            <TextBlock Grid.Column="0" Text="🕘 Últimas Vendas Realizadas" FontSize="16" FontWeight="Bold"
+                       Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="secundario" Content="Ver Histórico Completo de Pedidos →"
+                    Command="{Binding VerPedidosCommand}" FontSize="12" FontWeight="SemiBold" Padding="12,6"
+                    AutomationProperties.Name="Ver histórico completo de pedidos" />
+          </Grid>
+
+          <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+            <Grid ColumnDefinitions="90,130,*,200,140,200,110">
+              <TextBlock Grid.Column="0" Classes="colunaTitulo" Text="# PEDIDO" />
+              <TextBlock Grid.Column="1" Classes="colunaTitulo" Text="DATA/HORA" />
+              <TextBlock Grid.Column="2" Classes="colunaTitulo" Text="CLIENTE" />
+              <TextBlock Grid.Column="3" Classes="colunaTitulo" Text="PAGAMENTO" />
+              <TextBlock Grid.Column="4" Classes="colunaTitulo" Text="VALOR TOTAL" />
+              <TextBlock Grid.Column="5" Classes="colunaTitulo" Text="STATUS DE SINCRONIA" />
+              <TextBlock Grid.Column="6" Classes="colunaTitulo" Text="AÇÕES" />
+            </Grid>
+          </Border>
+
+          <!-- Sem vendas: mensagem no lugar da tabela vazia (a tabela em branco parece tela quebrada). -->
+          <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,28"
+                  IsVisible="{Binding SemVendas}">
+            <TextBlock Text="{Binding TextoSemVendas}" HorizontalAlignment="Center"
+                       Foreground="{DynamicResource TextMutedBrush}" />
+          </Border>
+
+          <ItemsControl ItemsSource="{Binding UltimasVendas}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="sales:VendaResumo">
+                <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+                  <Grid ColumnDefinitions="90,130,*,200,140,200,110">
+                    <TextBlock Grid.Column="0" Text="{Binding Numero, StringFormat='#{0}', TargetNullValue='—'}"
+                               FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding DataHora, StringFormat='{}{0:HH:mm:ss}'}"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding ClienteNome}" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <Border Grid.Column="3" Classes="chip" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding FormasPagamento}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                 Foreground="{DynamicResource TextMutedBrush}" />
+                    </Border>
+                    <TextBlock Grid.Column="4" Text="{Binding Total, StringFormat='R$ {0:F2}'}"
+                               FontFamily="{DynamicResource FontMono}" FontWeight="Bold"
+                               Foreground="{DynamicResource BrandYellowBrush}" VerticalAlignment="Center" />
+                    <controls:SeloSincronia Grid.Column="5" Status="{Binding SyncStatus}" VerticalAlignment="Center" />
+                    <Button Grid.Column="6" Classes="secundario" Content="👁 Detalhes" FontSize="12" Padding="10,5"
+                            Command="{Binding $parent[ItemsControl].((vm:DashboardViewModel)DataContext).DetalhesCommand}"
+                            CommandParameter="{Binding}" HorizontalAlignment="Left" VerticalAlignment="Center"
+                            AutomationProperties.Name="Ver detalhes do pedido" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
         </StackPanel>
       </Border>
 
-      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20" Margin="0,0,12,0">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Estoque local" Foreground="{StaticResource TextMutedBrush}" />
-          <TextBlock Text="{Binding EstoqueTotal}" FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
-        </StackPanel>
+      <!-- Como o app se comporta sem internet (o botão "Testar queda" do protótipo não existe aqui: o app detecta a conexão de verdade). -->
+      <Border Background="{DynamicResource BrandYellowDimBrush}"
+              BorderBrush="{DynamicResource BrandYellowBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusCard}"
+              Padding="20,16">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+          <TextBlock Grid.Column="0" Text="🛡️" FontSize="30" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Spacing="4">
+            <TextBlock Text="Arquitetura Offline-First &amp; Fila Outbox" FontSize="15" FontWeight="Bold"
+                       Foreground="{DynamicResource BrandYellowBrush}" />
+            <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextMainBrush}"
+                       Text="Faça vendas no PDV: elas são salvas no banco local e entram na fila Outbox, mesmo sem internet. Quando a conexão voltar, são enviadas automaticamente ao SoftcomShop." />
+          </StackPanel>
+        </Grid>
       </Border>
 
-      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20" Margin="0,0,12,0">
-        <StackPanel Spacing="8">
-          <TextBlock Text="☁️ Fila outbox" Foreground="{StaticResource TextMutedBrush}" />
-          <TextBlock Text="{Binding PendentesOutbox, StringFormat='{}{0} pendentes'}" FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
-        </StackPanel>
-      </Border>
-
-      <Border Background="{StaticResource BgCardBrush}" BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}" Padding="20">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Última sincronização" Foreground="{StaticResource TextMutedBrush}" />
-          <TextBlock Text="{Binding UltimaSincronizacao, StringFormat='{}{0:dd/MM HH:mm}', TargetNullValue='Nunca'}" FontFamily="{StaticResource FontMono}" FontSize="18" Foreground="{StaticResource TextMainBrush}" />
-        </StackPanel>
-      </Border>
-
-    </UniformGrid>
-
-  </Grid>
+    </StackPanel>
+  </ScrollViewer>
 
 </UserControl>

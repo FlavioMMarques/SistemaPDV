@@ -6,4 +6,6 @@ public record ResumoDashboard(
     decimal FaturamentoHoje,
     int EstoqueTotal,
     int PendentesOutbox,
-    DateTimeOffset? UltimaSincronizacao);
+    DateTimeOffset? UltimaSincronizacao,
+    int VendasEmitidas = 0,
+    int ProdutosCadastrados = 0);

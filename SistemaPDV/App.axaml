@@ -21,6 +21,7 @@
                  (Pdv, Cadastros, ListaPedidos) — cada uma usaria os mesmos dois. -->
             <conv:SyncStatusParaTextoConverter x:Key="SyncStatusParaTextoConverter" />
             <conv:SyncStatusParaCorConverter x:Key="SyncStatusParaCorConverter" />
+            <conv:SyncStatusParaSeloConverter x:Key="SyncStatusParaSeloConverter" />
             <conv:EstadoConexaoParaTextoConverter x:Key="EstadoConexaoParaTextoConverter" />
             <conv:EstadoConexaoParaCorConverter x:Key="EstadoConexaoParaCorConverter" />
             <conv:EstadoConexaoParaRotuloConverter x:Key="EstadoConexaoParaRotuloConverter" />

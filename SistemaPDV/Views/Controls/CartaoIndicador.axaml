@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="330" d:DesignHeight="115"
+             x:Class="SistemaPDV.Views.Controls.CartaoIndicador"
+             x:Name="Root">
+
+  <!--
+    Cartão de indicador do protótipo (Painel Principal e Listagem de Pedidos): faixa colorida à esquerda, título em
+    maiúsculas, valor grande em fonte monoespaçada e uma frase de apoio. A cor da faixa e a do valor vêm de fora — o
+    significado (verde = ok, vermelho = offline) é do dono da tela, e o texto sempre diz o mesmo que a cor.
+  -->
+  <Border Background="{DynamicResource BgCardBrush}"
+          BorderBrush="{DynamicResource BorderColorBrush}"
+          BorderThickness="1"
+          CornerRadius="{DynamicResource RadiusCard}"
+          ClipToBounds="True">
+    <Grid ColumnDefinitions="4,*">
+      <Border Grid.Column="0" Background="{Binding #Root.CorFaixa}" />
+      <StackPanel Grid.Column="1" Margin="20,16" Spacing="6">
+        <TextBlock Text="{Binding #Root.Titulo}" FontSize="12" FontWeight="SemiBold" LetterSpacing="0.6"
+                   Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding #Root.Valor}" FontFamily="{DynamicResource FontMono}" FontSize="28" FontWeight="Bold"
+                   Foreground="{Binding #Root.CorValor}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding #Root.Detalhe}" FontSize="12"
+                   Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Grid>
+  </Border>
+
+</UserControl>

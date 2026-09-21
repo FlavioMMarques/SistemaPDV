@@ -154,6 +154,58 @@
   </Style>
 
 
+  <!-- Selo de sincronização (SeloSincronia): pílula com fundo suave na cor do estado -->
+  <Style Selector="Border.selo">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusPill}" />
+    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Border.selo TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="Border.selo.ok">
+    <Setter Property="Background" Value="{DynamicResource AccentGreenDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentGreenBrush}" />
+  </Style>
+  <Style Selector="Border.selo.ok TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource AccentGreenBrush}" />
+  </Style>
+  <Style Selector="Border.selo.pendente">
+    <Setter Property="Background" Value="{DynamicResource BrandYellowDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Border.selo.pendente TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Border.selo.falha">
+    <Setter Property="Background" Value="{DynamicResource AccentRedDimBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentRedBrush}" />
+  </Style>
+  <Style Selector="Border.selo.falha TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource AccentRedBrush}" />
+  </Style>
+
+  <!-- Chip discreto (forma de pagamento na tabela) -->
+  <Style Selector="Border.chip">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+    <Setter Property="Padding" Value="8,3" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+
+  <!-- Cabeçalho de coluna de tabela (maiúsculas, pequeno, apagado) -->
+  <Style Selector="TextBlock.colunaTitulo">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="LetterSpacing" Value="0.6" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+
   <!-- Aviso temporário (toast) no canto da tela. Entra esmaecendo e sobe um pouco; ao sair (classe "saindo") esmaece. Borda
        lateral colorida por tipo — a cor nunca é a única pista: cada aviso traz ícone e texto. -->
   <Style Selector="Border.toast">
@@ -181,7 +233,7 @@
       </Animation>
     </Style.Animations>
   </Style>
-  <!-- Faixa lateral colorida (sÃ³ nos avisos de sucesso/erro; o neutro fica sem faixa). -->
+  <!-- Faixa lateral colorida (só nos avisos de sucesso/erro; o neutro fica sem faixa). -->
   <Style Selector="Border.toastFaixa.sucesso">
     <Setter Property="Background" Value="{DynamicResource AccentGreenBrush}" />
   </Style>
