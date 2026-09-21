@@ -105,7 +105,7 @@
         <!-- Operador + caixa, conexão e sincronização -->
         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
 
-          <Border Classes="pill" Padding="8,5,16,5"
+          <Border Classes="pill" Padding="8,5,6,5"
                   IsVisible="{Binding OperadorLogado, Converter={x:Static ObjectConverters.IsNotNull}}"
                   AutomationProperties.Name="Operador e caixa">
             <StackPanel Orientation="Horizontal" Spacing="10">
@@ -117,6 +117,16 @@
                 <TextBlock Text="{Binding RotuloOperadorCaixa}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextMainBrush}" />
                 <TextBlock Text="{Binding SituacaoCaixa, StringFormat='● {0}'}" FontSize="10" Foreground="{StaticResource AccentGreenBrush}" />
               </StackPanel>
+
+              <!-- Sair: volta ao login para trocar de operador (o caixa continua aberto). Fica no chip do operador — é onde se
+                   espera achar — e só como ícone: a barra já está calculada rente à largura (ver ShellView.axaml.cs), um botão
+                   com rótulo faria a pílula do sistema sumir em telas de 1920 px. Bloqueado com venda em andamento. -->
+              <Button Classes="fantasma" Command="{Binding SairCommand}"
+                      Padding="8,6" VerticalAlignment="Center"
+                      ToolTip.Tip="Sair e voltar ao login para trocar de operador — o caixa continua aberto (bloqueado com venda em andamento)"
+                      AutomationProperties.Name="Sair, voltar para o login">
+                <TextBlock Text="🚪" FontSize="14" />
+              </Button>
             </StackPanel>
           </Border>
 
