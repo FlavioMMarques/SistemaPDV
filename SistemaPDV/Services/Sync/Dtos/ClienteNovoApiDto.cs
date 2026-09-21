@@ -45,6 +45,23 @@ public class ClienteNovoRequestDto
     [JsonPropertyName("contato")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ClienteNovoContatoDto? Contato { get; set; }
+
+    // Só vai quando há algum dado de endereço. "c_cidade" é o código IBGE da cidade (o Swagger o chama só de "código da cidade";
+    // a listagem de clientes o devolve como "codigo_cidade", ex: 3106200 = Belo Horizonte — e NÃO como "cidade_id", que é um
+    // número interno da API, ex: 2308).
+    [JsonPropertyName("endereco")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ClienteNovoEnderecoDto? Endereco { get; set; }
+}
+
+public class ClienteNovoEnderecoDto
+{
+    [JsonPropertyName("cep")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Cep { get; set; }
+    [JsonPropertyName("endereco")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Logradouro { get; set; }
+    [JsonPropertyName("numero")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Numero { get; set; }
+    [JsonPropertyName("bairro")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Bairro { get; set; }
+    [JsonPropertyName("complemento")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Complemento { get; set; }
+    [JsonPropertyName("c_cidade")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? CodigoCidade { get; set; }
 }
 
 public class ClienteNovoContatoDto

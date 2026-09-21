@@ -31,6 +31,11 @@ public class ClienteApiDto
     [JsonPropertyName("ponto_referencia")] public string? PontoReferencia { get; set; }
     [JsonPropertyName("cidade")] public string? Cidade { get; set; }
     [JsonPropertyName("cidade_id")] public string? CidadeId { get; set; }
+
+    // Código IBGE da cidade (o "c_cidade" do cadastro). Texto ou número na API.
+    [JsonPropertyName("codigo_cidade")]
+    [JsonConverter(typeof(TextoFlexivelConverter))]
+    public string? CodigoCidade { get; set; }
     [JsonPropertyName("uf")] public string? Uf { get; set; }
 
     [JsonPropertyName("tipo_cliente_id")] public string? TipoClienteId { get; set; }

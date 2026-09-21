@@ -36,7 +36,6 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private string novoCpfCnpj = string.Empty;
     private string novoTelefone = string.Empty;
     private string novoEmail = string.Empty;
-    private string novaCidadeUf = string.Empty;
     private string? mensagemForm;
     private bool mensagemFormEhErro;
     private string? mensagemReenvio;
@@ -48,9 +47,11 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     private readonly ObservableAsPropertyHelper<bool> modalAberto;
     private readonly Subject<Unit> cadastroCriado = new();
 
-    public CadastrosViewModel(CadastroLocalService cadastroLocalService)
+    // cepService: consulta de CEP do modal de cliente; opcional (sem ele o botão Buscar fica desabilitado e o endereço é digitado à mão).
+    public CadastrosViewModel(CadastroLocalService cadastroLocalService, CepService? cepService = null)
     {
         this.cadastroLocalService = cadastroLocalService;
+        NovoEndereco = new EnderecoFormViewModel(cepService);
 
         BuscarCommand = ReactiveCommand.CreateFromTask(BuscarAsync);
         ReenviarFalhasCommand = ReactiveCommand.CreateFromTask(ReenviarFalhasAsync);
@@ -203,12 +204,9 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         set => this.RaiseAndSetIfChanged(ref novoEmail, value);
     }
 
-    // Já abre preenchida com a cidade da empresa (ver AbrirFormularioAsync); o operador troca se o cliente for de outra.
-    public string NovaCidadeUf
-    {
-        get => novaCidadeUf;
-        set => this.RaiseAndSetIfChanged(ref novaCidadeUf, value);
-    }
+    // CEP, endereço, número, complemento, bairro e cidade/UF (com o código IBGE da cidade): o bloco de endereço do modal. A cidade já
+    // abre preenchida com a da empresa (ver AbrirFormularioAsync); o operador troca se o cliente for de outra.
+    public EnderecoFormViewModel NovoEndereco { get; }
 
     public string? MensagemForm
     {
@@ -311,8 +309,8 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         AbaAtual = AbaCadastros.Clientes;
         MensagemForm = null;
 
-        if (string.IsNullOrWhiteSpace(NovaCidadeUf))
-            NovaCidadeUf = await cadastroLocalService.ObterCidadeUfPadraoAsync();
+        if (string.IsNullOrWhiteSpace(NovoEndereco.CidadeUf))
+            NovoEndereco.CidadeUf = await cadastroLocalService.ObterCidadeUfPadraoAsync();
 
         FormularioClienteAberto = true;
     }
@@ -330,13 +328,16 @@ public class CadastrosViewModel : ViewModelBase, IAtualizavelPorSincronizacao
         NovoCpfCnpj = string.Empty;
         NovoTelefone = string.Empty;
         NovoEmail = string.Empty;
-        NovaCidadeUf = string.Empty;   // a próxima abertura traz de novo a cidade da empresa
+        NovoEndereco.Limpar();   // inclusive a cidade: a próxima abertura traz de novo a da empresa
     }
 
     private async Task CriarClienteAsync()
     {
         var resultado = await cadastroLocalService.CriarClienteAsync(
-            new NovoClienteDados(NovoNome, NovoCpfCnpj, NovoTelefone, NovoEmail, NovaCidadeUf));
+            new NovoClienteDados(
+                NovoNome, NovoCpfCnpj, NovoTelefone, NovoEmail, NovoEndereco.CidadeUf,
+                NovoEndereco.Cep, NovoEndereco.Logradouro, NovoEndereco.Numero, NovoEndereco.Complemento, NovoEndereco.Bairro,
+                NovoEndereco.CodigoCidadeParaSalvar));
 
         if (!resultado.Sucesso)
         {

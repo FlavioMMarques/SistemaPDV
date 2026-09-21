@@ -157,6 +157,7 @@ public partial class CatalogSyncService
             entidade.PontoReferencia = dto.PontoReferencia;
             entidade.Cidade = dto.Cidade;
             entidade.CidadeId = dto.CidadeId;
+            entidade.CodigoCidade = dto.CodigoCidade;
             entidade.Uf = dto.Uf;
             entidade.TipoClienteId = dto.TipoClienteId;
             entidade.TipoClienteNome = dto.TipoClienteNome;
@@ -384,6 +385,22 @@ public partial class CatalogSyncService
             };
         }
 
+        // Endereço do modal de cadastro (CEP, logradouro, número, bairro, complemento) + o código IBGE da cidade quando a consulta de
+        // CEP o trouxe. Só vai se houver algum dado; o que estiver vazio não sai no corpo.
+        var codigoCidade = DocumentoValidator.SoDigitos(cliente.CodigoCidade);
+        var endereco = new ClienteNovoEnderecoDto
+        {
+            Cep = ValorOuNulo(cliente.Cep),
+            Logradouro = ValorOuNulo(cliente.Endereco),
+            Numero = ValorOuNulo(cliente.Numero),
+            Bairro = ValorOuNulo(cliente.Bairro),
+            Complemento = ValorOuNulo(cliente.Complemento),
+            CodigoCidade = codigoCidade.Length == 7 ? codigoCidade : null,   // um código que não tem 7 dígitos a API rejeitaria
+        };
+        if (endereco.Cep is not null || endereco.Logradouro is not null || endereco.Numero is not null
+            || endereco.Bairro is not null || endereco.Complemento is not null || endereco.CodigoCidade is not null)
+            corpo.Endereco = endereco;
+
         var resultado = await apiClient.EnviarAsync(
             HttpMethod.Post, SoftcomRotas.ClientesCriar(dominio), corpo, accessToken, ct);
 
@@ -441,6 +458,8 @@ public partial class CatalogSyncService
 
         return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizados);
     }
+
+    private static string? ValorOuNulo(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     private Task<ResultadoSincronizacaoRecurso> MarcarFalhaClienteAsync(
         AppDbContext context, Cliente cliente, string mensagem, CancellationToken ct)

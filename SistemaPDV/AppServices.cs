@@ -31,6 +31,7 @@ public class AppServices
     public VendaLocalService VendaLocalService { get; }
     public CadastroLocalService CadastroLocalService { get; }
     public CaixasApiService CaixasApiService { get; }
+    public CepService CepService { get; }
     public SincronizacaoBackgroundService SincronizacaoBackgroundService { get; }
 
     [SupportedOSPlatform("windows")]
@@ -67,6 +68,8 @@ public class AppServices
         VendaLocalService = new VendaLocalService(contextFactory, PoliticaSupervisor.ExigirChave);
         CadastroLocalService = new CadastroLocalService(contextFactory);
         CaixasApiService = new CaixasApiService(contextFactory, apiClient, authService);
+        // Cliente HTTP à parte, com prazo curto: a consulta de CEP é conveniência e nunca deve travar o cadastro.
+        CepService = new CepService(new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
         SincronizacaoBackgroundService = new SincronizacaoBackgroundService(
             contextFactory, authService, CatalogSyncService, CaixaSyncService, VendaSyncService,
             verificador: new VerificadorDeConexao(httpClient));
