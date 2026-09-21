@@ -68,3 +68,7 @@ public class ResultadoCriacaoCliente
     public static ResultadoCriacaoCliente ComSucesso(int clienteId) => new() { Sucesso = true, ClienteId = clienteId };
     public static ResultadoCriacaoCliente ComFalha(string mensagem) => new() { Sucesso = false, Mensagem = mensagem };
 }
+
+// O que o modal "Cadastrar Cliente" preenche. Só Nome e CPF/CNPJ são obrigatórios; o resto é opcional.
+// Telefone: "(83) 99999-8888" (DDD + número); CidadeUf: "João Pessoa - PB".
+public record NovoClienteDados(string? Nome, string? CpfCnpj, string? Telefone = null, string? Email = null, string? CidadeUf = null);

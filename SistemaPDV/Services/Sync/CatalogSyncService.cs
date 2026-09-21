@@ -372,6 +372,18 @@ public partial class CatalogSyncService
             RazaoSocial = string.IsNullOrWhiteSpace(cliente.RazaoSocial) ? nome : cliente.RazaoSocial.Trim(),
         };
 
+        // Telefone (e e-mail) do modal de cadastro: a API só aceita o "contato" completo (nome + DDD + telefone).
+        if (!string.IsNullOrWhiteSpace(cliente.ContatoDdd) && !string.IsNullOrWhiteSpace(cliente.ContatoTelefone))
+        {
+            corpo.Contato = new ClienteNovoContatoDto
+            {
+                Nome = string.IsNullOrWhiteSpace(cliente.ContatoNome) ? nome : cliente.ContatoNome.Trim(),
+                Ddd = cliente.ContatoDdd.Trim(),
+                Telefone = cliente.ContatoTelefone.Trim(),
+                Email = string.IsNullOrWhiteSpace(cliente.ContatoEmail) ? null : cliente.ContatoEmail.Trim(),
+            };
+        }
+
         var resultado = await apiClient.EnviarAsync(
             HttpMethod.Post, SoftcomRotas.ClientesCriar(dominio), corpo, accessToken, ct);
 

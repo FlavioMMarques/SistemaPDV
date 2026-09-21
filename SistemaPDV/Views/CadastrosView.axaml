@@ -11,9 +11,10 @@
              Background="{StaticResource BgMainBrush}">
 
   <!-- Módulo de Cadastros no visual do protótipo: título e ações, três abas (Produtos, Clientes, Operadores de Caixa) e a tabela
-       da aba escolhida. Além do protótipo: uma busca única para as abas (Enter ou 🔍) e o formulário de novo cliente, que fica
-       recolhido até pedirem. Conteúdo com largura máxima e centralizado, como as outras telas; a página rola se a janela for baixa. -->
-  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+       da aba escolhida. Além do protótipo: uma busca única para as abas (Enter ou 🔍) e o modal de cadastro de cliente (Nome, CPF/CNPJ,
+       telefone, e-mail, cidade), aberto por "Novo Cliente". Conteúdo com largura máxima e centralizado, como as outras telas; a página rola se a janela for baixa. -->
+  <Grid>
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding !FormularioClienteAberto}">
     <StackPanel MaxWidth="1400" Margin="24" Spacing="20">
 
       <Grid ColumnDefinitions="*,Auto">
@@ -144,37 +145,10 @@
             </StackPanel>
           </Grid>
 
-          <!-- Formulário de novo cliente: só grava local (PendenteSync); o envio à API é do serviço de sincronização. -->
-          <Border Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
-                  BorderThickness="0,1,0,1" Padding="20,16" IsVisible="{Binding FormularioClienteAberto}">
-            <StackPanel Spacing="10">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Novo cliente" FontWeight="SemiBold" Foreground="{DynamicResource TextMainBrush}" VerticalAlignment="Center" />
-                <Button Grid.Column="1" Classes="fantasma" Content="✕" Command="{Binding FecharFormularioClienteCommand}"
-                        AutomationProperties.Name="Fechar o formulário de novo cliente" />
-              </Grid>
-              <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="8">
-                <TextBox Grid.Column="0" Text="{Binding NovoNome, Mode=TwoWay}" PlaceholderText="Nome" MaxLength="150"
-                         Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
-                         Foreground="{DynamicResource TextMainBrush}" CornerRadius="{DynamicResource RadiusSmall}"
-                         AutomationProperties.Name="Nome do novo cliente" TabIndex="1" />
-                <TextBox Grid.Column="1" Text="{Binding NovoCpfCnpj, Mode=TwoWay}" PlaceholderText="CPF/CNPJ (opcional)" MaxLength="18"
-                         Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
-                         Foreground="{DynamicResource TextMainBrush}" FontFamily="{DynamicResource FontMono}"
-                         CornerRadius="{DynamicResource RadiusSmall}" AutomationProperties.Name="CPF ou CNPJ do novo cliente" TabIndex="2">
-                  <TextBox.KeyBindings>
-                    <KeyBinding Gesture="Enter" Command="{Binding CriarClienteCommand}" />
-                  </TextBox.KeyBindings>
-                </TextBox>
-                <Button Grid.Column="2" Classes="primario" Content="Salvar" Command="{Binding CriarClienteCommand}"
-                        Padding="22,8" TabIndex="3" AutomationProperties.Name="Salvar cliente" />
-              </Grid>
-              <TextBlock Text="{Binding MensagemFormErro}" Foreground="{DynamicResource AccentRedBrush}" TextWrapping="Wrap"
-                         IsVisible="{Binding MensagemFormErro, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              <TextBlock Text="{Binding MensagemFormSucesso}" Foreground="{DynamicResource AccentGreenBrush}" TextWrapping="Wrap"
-                         IsVisible="{Binding MensagemFormSucesso, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-          </Border>
+          <!-- Aviso de "cliente salvo" (o modal de cadastro fecha ao salvar; o erro aparece dentro do modal). -->
+          <TextBlock Text="{Binding MensagemFormSucesso}" Foreground="{DynamicResource AccentGreenBrush}" TextWrapping="Wrap"
+                     Margin="20,10,20,0"
+                     IsVisible="{Binding MensagemFormSucesso, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
           <TextBlock Text="{Binding AvisoLimite}" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="20,10,20,0"
                      IsVisible="{Binding ClientesCortados}" />
@@ -282,5 +256,9 @@
 
     </StackPanel>
   </ScrollViewer>
+
+  <!-- Modal de cadastro de cliente: a tela de trás fica desabilitada enquanto ele está aberto. -->
+  <controls:ClienteFormPainel IsVisible="{Binding FormularioClienteAberto}" />
+  </Grid>
 
 </UserControl>
