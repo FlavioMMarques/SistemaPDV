@@ -399,8 +399,8 @@ public class PdvViewModel : ViewModelBase, IAtualizavelPorSincronizacao
     public ReactiveCommand<Unit, Unit> ConfirmarPrecoCommand { get; }
     public ReactiveCommand<Unit, Unit> CancelarPrecoCommand { get; }
 
-    // Teto de sanidade: acima disso quase certamente é erro de digitação (1250 no lugar de 12,50 é mais provável que 1.250 reais
-    // num item de PDV, mas esse a tela não tem como saber — o cupom mostra o total e o operador confere).
+    // Teto de sanidade: acima disso quase certamente é erro de digitação e o painel recusa. Erros menores, como "1250" no lugar
+    // de "12,50", a tela não tem como perceber — o total do cupom fica à vista para o operador conferir.
     public const decimal PrecoMaximoInformado = 1_000_000m;
 
     private void PedirPreco(Produto produto)
