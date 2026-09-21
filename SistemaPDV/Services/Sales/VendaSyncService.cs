@@ -100,25 +100,34 @@ public class VendaSyncService
     // CatalogSyncService: não é tudo-ou-nada.
     public async Task<ResultadoSincronizacaoRecurso> SincronizarVendasPendentesAsync(string accessToken, CancellationToken ct = default)
     {
-        List<Guid> vendaIds;
+        List<(Guid Id, int Numero)> vendas;
         await using (var context = contextFactory())
         {
             // Elegivel: em espera crescente (ou já desistiu) fica de fora — ver PoliticaRetentativa.
-            vendaIds = await context.Vendas
+            var pendentes = await context.Vendas
                 .Where(v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync)
                 .Where(PoliticaRetentativa.Elegivel<Venda>(AgoraUtc))
-                .Select(v => v.Id)
+                .Select(v => new { v.Id, v.NumeroPedido })
                 .ToListAsync(ct);
+            vendas = pendentes.Select(v => (v.Id, v.NumeroPedido)).ToList();
         }
 
         var totalSincronizadas = 0;
-        foreach (var vendaId in vendaIds)
+        var detalhes = new List<DetalheDeSincronizacao>();   // uma linha por venda, para o log da fila outbox
+        foreach (var (vendaId, numero) in vendas)
         {
             try
             {
                 var resultado = await SincronizarVendaAsync(vendaId, accessToken, ct);
                 if (resultado.Sucesso)
+                {
                     totalSincronizadas++;
+                    detalhes.Add(new DetalheDeSincronizacao(NivelAtividade.Sucesso, $"POST /vendas: Pedido #{numero} sincronizado com sucesso!"));
+                }
+                else
+                {
+                    detalhes.Add(new DetalheDeSincronizacao(NivelAtividade.Aviso, $"Pedido #{numero} não foi enviado: {resultado.Mensagem}"));
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -132,10 +141,12 @@ public class VendaSyncService
                 // simplesmente permanece PendenteSync/FalhaSync (o estado que já tinha)
                 // e será tentada de novo na próxima sincronização.
                 Registro.Erro("Envio", $"Exceção ao enviar a venda {vendaId}", ex);
+                // Na tela só o aviso genérico: a mensagem da exceção é técnica (e vai inteira para o arquivo de log).
+                detalhes.Add(new DetalheDeSincronizacao(NivelAtividade.Erro, $"Pedido #{numero}: erro inesperado ao enviar (detalhes no log do aplicativo)."));
             }
         }
 
-        return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizadas);
+        return ResultadoSincronizacaoRecurso.ComSucesso(totalSincronizadas, detalhes);
     }
 
     // Espera por uma dependência (funcionário, empresa, cliente, produto…): NÃO é falha da venda — continua

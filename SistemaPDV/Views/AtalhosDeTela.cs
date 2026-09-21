@@ -104,7 +104,9 @@ public sealed class AtalhosDeTela : AvaloniaObject
 
     private static void AoApertarTecla(Control tela, KeyEventArgs e)
     {
-        if (e.Handled || !tela.IsEffectivelyVisible)
+        // Tela desabilitada (um painel modal aberto por cima, como a fila outbox) não responde a atalho: sem isso o Esc daria
+        // cancelamento de venda POR BAIXO do painel.
+        if (e.Handled || !tela.IsEffectivelyVisible || !tela.IsEffectivelyEnabled)
             return;
 
         foreach (var atalho in tela.KeyBindings)

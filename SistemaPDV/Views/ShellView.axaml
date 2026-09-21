@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:controls="using:SistemaPDV.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1860" d:DesignHeight="650"
@@ -140,14 +141,16 @@
             </StackPanel>
           </Border>
 
-          <Border Classes="pill" ToolTip.Tip="Itens que ainda não chegaram à API (caixas, vendas e clientes novos)"
-                  AutomationProperties.Name="Sincronização">
+          <!-- A pílula de sincronização é um BOTÃO: abre o painel lateral da fila outbox. -->
+          <Button Classes="pillBotao" Command="{Binding AbrirPainelOutboxCommand}"
+                  ToolTip.Tip="Itens que ainda não chegaram à API (caixas, vendas e clientes novos) — clique para ver a fila"
+                  AutomationProperties.Name="Sincronização: abrir a fila outbox">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <TextBlock Text="☁" FontSize="12" Foreground="{StaticResource AccentBlueBrush}" VerticalAlignment="Center" />
               <TextBlock Text="Sync:" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBlueBrush}" />
               <TextBlock Text="{Binding TextoSync}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrandYellowBrush}" />
             </StackPanel>
-          </Border>
+          </Button>
         </StackPanel>
       </Grid>
     </Border>
@@ -164,9 +167,13 @@
       <TextBlock Text="{Binding Mensagem}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap" />
     </Border>
 
-    <ContentControl Content="{Binding CurrentViewModel}" />
+    <!-- Com o painel da fila outbox aberto a tela de trás fica desabilitada (o Tab não escapa, e os atalhos dela dormem). -->
+    <ContentControl Content="{Binding CurrentViewModel}" IsEnabled="{Binding !PainelOutboxAberto}" />
 
   </DockPanel>
+
+    <!-- Painel lateral da fila outbox: por cima de tudo, menos dos avisos (que nunca capturam o mouse). -->
+    <controls:PainelFilaOutbox IsVisible="{Binding PainelOutboxAberto}" />
 
     <!-- Avisos temporários (ToastCentral): canto inferior direito, por cima de tudo e SEM capturar o mouse — um aviso nunca
          pode tampar o botão Finalizar. Cada um some sozinho (ver Border.toast em Themes/PdvStyles.axaml). -->
