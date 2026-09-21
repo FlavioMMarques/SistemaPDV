@@ -75,6 +75,9 @@ public class SincronizacaoBackgroundService : IDisposable
     private readonly object travaEstadoRegistrado = new();
     private EstadoConexao? ultimoEstadoRegistrado;   // só pro log: ver RegistrarMudancaDeEstado
     private readonly Subject<Unit> dadosAlterados = new();
+    private readonly BehaviorSubject<AndamentoDoEnvio> andamento = new(AndamentoDoEnvio.Ocioso);
+    private int enviadosNoCiclo;   // contadores do ciclo em curso, para o resumo do fim (o ciclo é serializado pelo semáforo)
+    private int falhasNoCiclo;
 
     private bool catalogoSincronizado;
     private CancellationTokenSource? cancelamento;
@@ -118,6 +121,10 @@ public class SincronizacaoBackgroundService : IDisposable
     public string? MensagemUltimoCiclo { get; private set; }
 
     public IObservable<EstadoConexao> EstadoConexaoAlterada => estado.DistinctUntilChanged();
+
+    // O que o envio da fila está fazendo agora (ver AndamentoDoEnvio). Quem assina recebe o valor atual na hora; emite de qualquer thread.
+    public AndamentoDoEnvio Andamento => andamento.Value;
+    public IObservable<AndamentoDoEnvio> AndamentoAlterado => andamento;
 
     // Emite quando um ciclo mexeu no banco local (item enviado, falha registrada, dado novo
     // do catálogo) — as telas que listam esses dados se recarregam sozinhas. Ciclo que não
@@ -179,6 +186,7 @@ public class SincronizacaoBackgroundService : IDisposable
         Parar();
         estado.Dispose();
         dadosAlterados.Dispose();
+        andamento.Dispose();
         cicloEmAndamento.Dispose();
     }
 
@@ -332,26 +340,41 @@ public class SincronizacaoBackgroundService : IDisposable
             }
 
             Publicar(EstadoConexao.Online, null);
-            Log.Registrar(NivelAtividade.Info, $"Disparando sincronização de {pendencias} item(ns) pendente(s)...");
 
-            await ExecutarEtapaAsync("Clientes novos",
-                quantidade => $"POST /clientes: {quantidade} cliente(s) novo(s) enviado(s) com sucesso!",
-                () => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
-            // Produto novo antes das vendas: a venda que o contém precisa dos ids que a API devolve no cadastro.
-            await ExecutarEtapaAsync("Produtos novos",
-                quantidade => $"POST /produtos: {quantidade} produto(s) novo(s) enviado(s) com sucesso!",
-                () => catalogSyncService.SincronizarProdutosNovosPendentesAsync(accessToken, ct));
-            // Ordem: abrir caixa -> vendas -> fechar caixa. A venda referencia o caixa aberto, e o FECHAMENTO resume
-            // o caixa: se chegasse à API antes das vendas, ela fecharia um caixa "sem vendas".
-            await ExecutarEtapaAsync("Abertura de caixa",
-                _ => "Abertura de caixa enviada ao SoftcomShop.",
-                () => RepetirAsync(() => caixaSyncService.SincronizarAberturaAsync(accessToken, ct)));
-            await ExecutarEtapaAsync("Vendas",
-                _ => null,   // as vendas contam uma linha por pedido (Detalhes), não um total
-                () => vendaSyncService.SincronizarVendasPendentesAsync(accessToken, ct));
-            await ExecutarEtapaAsync("Fechamento de caixa",
-                _ => "Fechamento de caixa enviado ao SoftcomShop.",
-                () => RepetirAsync(() => caixaSyncService.SincronizarFechamentoAsync(accessToken, ct)));
+            // O ciclo vira um BLOCO no log: cabeçalho, uma linha por item e um resumo no fim ("Ciclo concluído em 1,2 s: 3 enviados").
+            // O resumo e o fim do "sincronizando" ficam num finally: mesmo que algo escape, o painel não fica preso em "Sincronizando…".
+            var inicio = timeProvider.GetTimestamp();
+            enviadosNoCiclo = 0;
+            falhasNoCiclo = 0;
+            andamento.OnNext(new AndamentoDoEnvio(true, null));
+            Log.Registrar(NivelAtividade.Info, $"Disparando sincronização de {pendencias} item(ns) pendente(s)...", MarcaDeLog.InicioDeCiclo);
+
+            try
+            {
+                await ExecutarEtapaAsync("Clientes novos",
+                    quantidade => $"POST /clientes: {quantidade} cliente(s) novo(s) enviado(s) com sucesso!",
+                    () => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
+                // Produto novo antes das vendas: a venda que o contém precisa dos ids que a API devolve no cadastro.
+                await ExecutarEtapaAsync("Produtos novos",
+                    quantidade => $"POST /produtos: {quantidade} produto(s) novo(s) enviado(s) com sucesso!",
+                    () => catalogSyncService.SincronizarProdutosNovosPendentesAsync(accessToken, ct));
+                // Ordem: abrir caixa -> vendas -> fechar caixa. A venda referencia o caixa aberto, e o FECHAMENTO resume
+                // o caixa: se chegasse à API antes das vendas, ela fecharia um caixa "sem vendas".
+                await ExecutarEtapaAsync("Abertura de caixa",
+                    _ => "Abertura de caixa enviada ao SoftcomShop.",
+                    () => RepetirAsync(() => caixaSyncService.SincronizarAberturaAsync(accessToken, ct)));
+                await ExecutarEtapaAsync("Vendas",
+                    _ => null,   // as vendas contam uma linha por pedido (Detalhes), não um total
+                    () => vendaSyncService.SincronizarVendasPendentesAsync(accessToken, ct));
+                await ExecutarEtapaAsync("Fechamento de caixa",
+                    _ => "Fechamento de caixa enviado ao SoftcomShop.",
+                    () => RepetirAsync(() => caixaSyncService.SincronizarFechamentoAsync(accessToken, ct)));
+            }
+            finally
+            {
+                RegistrarFimDoCiclo(timeProvider.GetElapsedTime(inicio));
+                andamento.OnNext(AndamentoDoEnvio.Ocioso);
+            }
 
             // Chegou até aqui = havia pendência e tentou enviar: o que mudou (🟡 -> 🟢 ou 🔴)
             // precisa aparecer nas listas.
@@ -377,23 +400,62 @@ public class SincronizacaoBackgroundService : IDisposable
     // para o arquivo de log, nunca para a tela).
     private async Task ExecutarEtapaAsync(string rotulo, Func<int, string?> textoSucesso, Func<Task<ResultadoSincronizacaoRecurso>> etapa)
     {
+        andamento.OnNext(new AndamentoDoEnvio(true, rotulo));   // o painel mostra "Sincronizando… (Vendas)"
+
         try
         {
             var resultado = await etapa();
 
             foreach (var detalhe in resultado.Detalhes)
+            {
                 Log.Registrar(detalhe.Nivel, detalhe.Texto);
+                if (detalhe.Nivel == NivelAtividade.Sucesso)
+                    enviadosNoCiclo++;
+                else if (detalhe.Nivel is NivelAtividade.Aviso or NivelAtividade.Erro)
+                    falhasNoCiclo++;
+            }
 
             if (!resultado.Sucesso)
+            {
                 Log.Registrar(NivelAtividade.Aviso, $"{rotulo}: {resultado.Mensagem}");
+                falhasNoCiclo++;
+            }
             else if (resultado.Quantidade > 0 && textoSucesso(resultado.Quantidade) is { } texto)
+            {
                 Log.Registrar(NivelAtividade.Sucesso, texto);
+                enviadosNoCiclo += resultado.Quantidade;   // as vendas (sem texto de total) já foram contadas uma a uma nos detalhes
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Registro.Erro("Sincronização", "Exceção numa etapa do envio (as outras etapas seguem)", ex);
             Log.Registrar(NivelAtividade.Erro, $"{rotulo}: erro inesperado (detalhes no log do aplicativo).");
+            falhasNoCiclo++;
         }
+    }
+
+    // A última linha do bloco: quanto demorou e o que aconteceu. Aviso se algo falhou, sucesso se tudo o que saiu foi aceito, e uma
+    // linha neutra quando nada saiu (itens esperando uma dependência ou em espera crescente) — para o operador não achar que travou.
+    private void RegistrarFimDoCiclo(TimeSpan duracao)
+    {
+        var tempo = FormatarDuracao(duracao);
+
+        if (falhasNoCiclo > 0)
+            Log.Registrar(NivelAtividade.Aviso, $"Ciclo concluído em {tempo}: {enviadosNoCiclo} enviado(s), {falhasNoCiclo} com falha.", MarcaDeLog.FimDeCiclo);
+        else if (enviadosNoCiclo > 0)
+            Log.Registrar(NivelAtividade.Sucesso, $"Ciclo concluído em {tempo}: {enviadosNoCiclo} item(ns) enviado(s).", MarcaDeLog.FimDeCiclo);
+        else
+            Log.Registrar(NivelAtividade.Info, $"Ciclo concluído em {tempo}: nada foi enviado ainda (itens aguardando ou em espera).", MarcaDeLog.FimDeCiclo);
+    }
+
+    // "820 ms", "1,2 s", "1 min 05 s": como uma pessoa lê (nada de "00:00:01.2400000").
+    public static string FormatarDuracao(TimeSpan duracao)
+    {
+        if (duracao.TotalSeconds < 1)
+            return $"{(int)duracao.TotalMilliseconds} ms";
+        if (duracao.TotalSeconds < 60)
+            return $"{duracao.TotalSeconds.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))} s";
+        return $"{(int)duracao.TotalMinutes} min {duracao.Seconds:00} s";
     }
 
     // null = todos os recursos sincronizaram. Senão, "Funcionários: <motivo>; Produtos: <motivo>" —

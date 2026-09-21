@@ -23,6 +23,8 @@
             <conv:SyncStatusParaCorConverter x:Key="SyncStatusParaCorConverter" />
             <conv:SyncStatusParaSeloConverter x:Key="SyncStatusParaSeloConverter" />
             <conv:NivelAtividadeParaCorConverter x:Key="NivelAtividadeParaCorConverter" />
+            <conv:NivelAtividadeParaIconeConverter x:Key="NivelAtividadeParaIconeConverter" />
+            <conv:NivelAtividadeParaFundoConverter x:Key="NivelAtividadeParaFundoConverter" />
             <conv:EstadoConexaoParaTextoConverter x:Key="EstadoConexaoParaTextoConverter" />
             <conv:EstadoConexaoParaCorConverter x:Key="EstadoConexaoParaCorConverter" />
             <conv:EstadoConexaoParaRotuloConverter x:Key="EstadoConexaoParaRotuloConverter" />

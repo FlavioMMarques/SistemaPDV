@@ -22,19 +22,23 @@ public class DashboardService
 
     // Quantos itens ainda não chegaram à API (caixas, vendas, clientes e produtos novos) — o "Sync: N pendentes" da barra do topo.
     // Só as contagens da fila: não calcula faturamento nem estoque como o resumo do painel.
-    public async Task<int> ContarPendentesAsync(CancellationToken ct = default)
+    public async Task<int> ContarPendentesAsync(CancellationToken ct = default) =>
+        (await ContarPendenciasPorTipoAsync(ct)).Total;
+
+    // A mesma contagem, separada por tipo — o painel da fila mostra O QUE está esperando ("2 vendas, 1 cliente"), não só o total.
+    public async Task<PendenciasPorTipo> ContarPendenciasPorTipoAsync(CancellationToken ct = default)
     {
         await using var context = contextFactory();
         return await ContarPendentesAsync(context, ct);
     }
 
-    private static async Task<int> ContarPendentesAsync(AppDbContext context, CancellationToken ct)
+    private static async Task<PendenciasPorTipo> ContarPendentesAsync(AppDbContext context, CancellationToken ct)
     {
         var caixasPendentes = await context.Caixas.CountAsync(c => c.SyncStatus != SyncStatus.Sincronizado, ct);
         var vendasPendentes = await context.Vendas.Where(VendaFiltros.NaoEnviada).CountAsync(ct);
         var clientesPendentes = await context.Clientes.CountAsync(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado, ct);
         var produtosPendentes = await context.Produtos.CountAsync(p => p.IdExterno == null && p.SyncStatus != SyncStatus.Sincronizado, ct);
-        return caixasPendentes + vendasPendentes + clientesPendentes + produtosPendentes;
+        return new PendenciasPorTipo(caixasPendentes, vendasPendentes, clientesPendentes, produtosPendentes);
     }
 
     // caixaId nullable: com ExigirAberturaCaixa=false, o Shell pode chegar aqui sem
@@ -61,7 +65,7 @@ public class DashboardService
         var estoqueTotal = await context.Produtos.SumAsync(p => p.EstoqueAtual, ct);
         var produtosCadastrados = await context.Produtos.CountAsync(ct);
 
-        var pendentesOutbox = await ContarPendentesAsync(context, ct);
+        var pendentesOutbox = (await ContarPendentesAsync(context, ct)).Total;
 
         var configuracao = await context.ConfiguracoesSincronizacao.FirstOrDefaultAsync(ct);
         var candidatosUltimaSincronizacao = new[]
