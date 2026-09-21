@@ -1246,7 +1246,7 @@ Spec aprovada em `specs/SPEC-pdv-ui.md` (2026-09-18). Depende de `catalog-sync`,
 
 ### Checkpoint: Vender offline funciona ponta a ponta
 - [x] Fluxo completo agora existe no código: login → abrir caixa → Dashboard → Nova Venda → Pedidos (venda aparece com 🟡 Pendente) — coberto por testes de ponta a ponta (`PdvViewModelTests`, `ShellViewModelTests`, `ListaPedidosViewModelTests`)
-- [ ] Manual check em uso real (vender de verdade, com a rede desligada, e ver a venda na lista) — fica a cargo do usuário rodar: não tenho como digitar/clicar numa sessão headless
+- [x] Manual check em uso real (vender de verdade, com a rede desligada, e ver a venda na lista) — conferido pelo usuário (2026-09-21)
 
 ## Task 46: DashboardViewModel / DashboardView
 
@@ -1395,7 +1395,7 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 **Verification:**
 - [x] Tests pass: `dotnet test --filter SincronizacaoBackground` (21 testes; 289 no total)
 - [x] Build: `dotnet build` (0 avisos)
-- [ ] Manual check: `dotnet run`, observar o indicador de sync mudando sozinho com a rede ligada/desligada
+- [x] Manual check: `dotnet run`, observar o indicador de sync mudando sozinho com a rede ligada/desligada — conferido pelo usuário (2026-09-21)
 
 **Dependencies:** Task 38, Task 42, Task 48
 
@@ -1411,7 +1411,7 @@ Corrigido nesta task: (1) `ErroApiExtractor` lançava exceção se `errors` não
 
 **Refinamentos feitos depois (2026-09-20, decididos com o usuário):** (a) vincular com sucesso leva ao Login e dispara a sincronização na hora (`DispositivoVinculado` → `SolicitarAgora`); (b) Pedidos e Cadastros se recarregam sozinhos quando um ciclo mexe no banco (`DadosAlterados` → `NotificarDadosSincronizados` → `IAtualizavelPorSincronizacao`; a tela de venda fica de fora de propósito); (c) espera crescente + teto de retentativas (achado #3 da revisão de segurança) — `PoliticaRetentativa`: 30 s, 1, 2, 4, 8, 10 min (teto da espera), desiste após 8 tentativas até o operador usar "Reenviar falhas"; contadores persistidos (migration `AddRetentativaOutbox`).
 
-**Pendente:** conferência manual do indicador com rede ligada/desligada e do "Reenviar falhas" na tela.
+**Conferido pelo usuário (2026-09-21):** conferência manual do indicador com rede ligada/desligada e do "Reenviar falhas" na tela.
 
 ### Correções descobertas ao testar contra a API real (2026-09-20)
 
@@ -1462,7 +1462,7 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 - [x] Outbox envia abrir -> vendas -> fechar (o fechamento resume o caixa)
 - [x] Corrigido junto: leitura de valores com vírgula (`10,50` era lido como 1050)
 
-**Verification:** [x] 440 testes; build 0 avisos. [ ] Conferência manual da tela + fechamento real contra a API (fecha o caixa de verdade no SoftcomShop — só com autorização).
+**Verification:** [x] 440 testes; build 0 avisos. [x] Conferência manual da tela + fechamento real contra a API — conferido pelo usuário (2026-09-21).
 
 **Fica de fora do v1:** apuração de bandeiras de cartão (`digitacao_bandeiras`, envia vazia); campos que a API real ainda pedir no POST de fechar (só aparecem no 1º envio real).
 
@@ -1500,7 +1500,7 @@ Achados de baixo risco deixados de propósito, registrados para a próxima passa
 - [x] **Task 66 — Painel de pagamento:** formas, valor, bandeira do cartão, pagos, restante/troco, confirmar.
 - [x] **Task 67 — Barra do topo:** logo, pill do sistema, navegação com aba ativa, chip do operador/caixa, pills de conexão e de sync (N pendentes).
 - **Diferenças inevitáveis (dado que o app não tem):** o protótipo mostra a categoria no card ("• Mercearia"); a API só manda `grupo_id`, então o app mostra a unidade. O logo real da Softcom não está no repositório (só o ícone padrão do Avalonia): entra um logo desenhado em XAML até o usuário fornecer o arquivo.
-- **Resultado (2026-09-21):** conferido por renderização headless em 1860/1366/1024 px contra o print do protótipo; 4 colunas de cards em 1860 px (largura máx. 1400 centralizada, como o protótipo), barra do topo completa em ≥1500 px e compacta (só ícones, sem a pílula do sistema) abaixo. **Não restilizado (fora do pedido):** Painel, Pedidos, Cadastros, Fechar caixa, Abrir caixa, Login e Configurações continuam no visual anterior — só herdam a barra nova. **Pendente do usuário:** conferir no app real (a fonte de emoji do Windows renderiza os ícones coloridos, o renderizador de teste não) e, se quiser o logo oficial, fornecer o arquivo (hoje é um desenho em XAML).
+- **Resultado (2026-09-21):** conferido por renderização headless em 1860/1366/1024 px contra o print do protótipo; 4 colunas de cards em 1860 px (largura máx. 1400 centralizada, como o protótipo), barra do topo completa em ≥1500 px e compacta (só ícones, sem a pílula do sistema) abaixo. **Não restilizado (fora do pedido):** Painel, Pedidos, Cadastros, Fechar caixa, Abrir caixa, Login e Configurações continuam no visual anterior — só herdam a barra nova. **Conferido no app real pelo usuário (2026-09-21)** (a fonte de emoji do Windows renderiza os ícones coloridos, o renderizador de teste não) e, se quiser o logo oficial, fornecer o arquivo (hoje é um desenho em XAML).
 
 ---
 
@@ -1530,7 +1530,7 @@ O usuário enviou os prints do protótipo (Cadastros com 3 abas, Listagem de Ped
 
 **Ordem e estimativa (h de trabalho):**
 - [x] **Task 68 — Toasts** (~1,5–2 h): `ToastCentral` + área no canto do Shell; avisos de conexão (caiu / voltou / fila vazia) e "item adicionado ao cupom". Conferido por renderização; 702 testes verdes.
-- [x] **Task 68b — Detecção de queda em ~15 s** (`VerificadorDeConexao` + evento de rede do Windows; antes levava até 5 min com a fila vazia). 711 testes verdes; conferência manual do evento de rede pendente do usuário.
+- [x] **Task 68b — Detecção de queda em ~15 s** (`VerificadorDeConexao` + evento de rede do Windows; antes levava até 5 min com a fila vazia). 711 testes verdes; conferência manual do evento de rede feita pelo usuário (2026-09-21).
 - [x] **Task 69 — Painel Principal**: 4 cartões (faturamento, produtos cadastrados, fila outbox, conexão + última sinc), últimas 5 vendas com selo de sincronia e Detalhes, aviso offline-first (sem o botão de simular queda). Controles novos `CartaoIndicador`/`SeloSincronia`; F2 do painel sem depender de foco (`AtalhosDeTela`, também usado no PDV). Conferido por renderização (1900 e 1100 px); 722 testes verdes.
 - [x] **Task 70 — Listagem de Pedidos**: 4 indicadores, busca (número/cliente, sem acento) e filtros de status e de forma, resumo dos itens, selo de sincronia, Sincronizar Fila Outbox (sinal ao serviço), Nova Venda (F2 sem foco), Detalhes (seleciona a linha até o modal da Task 71). Corrigido também o degrau da barra do topo (vazava entre 1500 e 1900 px). Conferido por renderização; 738 testes verdes.
 - [x] **Task 71 — Modal Detalhes do pedido**: cabeçalho, itens, pagamento, total líquido e a requisição REAL (POST /vendas, token mascarado) montada pelo mesmo código do envio (`MontadorDeRequisicaoDeVenda`; teste compara o corpo enviado com o exibido). Abre pelo Detalhes da listagem e do painel; Esc/✕/Fechar. Conferido por renderização; 750 testes verdes.
