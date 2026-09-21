@@ -33,19 +33,9 @@
             Padding="16,10">
       <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
 
-        <!-- Logo: pasta amarela + "softcom" (desenhado aqui; o arquivo oficial do logo não está no repositório) -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                    AutomationProperties.Name="Softcom">
-          <Viewbox Width="36" Height="30">
-            <Canvas Width="36" Height="30">
-              <Path Fill="{StaticResource BrandYellowBrush}"
-                    Data="M0,5 Q0,0 5,0 L13,0 L17,5 L31,5 Q36,5 36,10 L36,25 Q36,30 31,30 L5,30 Q0,30 0,25 Z" />
-              <Path Fill="{StaticResource BgCardBrush}" Opacity="0.28" Data="M3,12 L33,12 L33,13.5 L3,13.5 Z" />
-            </Canvas>
-          </Viewbox>
-          <TextBlock Text="softcom" FontSize="30" FontWeight="ExtraBold" Foreground="{StaticResource TextMainBrush}"
-                     VerticalAlignment="Center" LetterSpacing="-0.5" />
-        </StackPanel>
+        <!-- Logo oficial (Assets/logo-softcom.png, 1418x204: pasta amarela + "softcom" em branco, feito para fundo escuro) -->
+        <Image Grid.Column="0" Source="/Assets/logo-softcom.png" Height="28" VerticalAlignment="Center"
+               RenderOptions.BitmapInterpolationMode="HighQuality" AutomationProperties.Name="Softcom" />
 
         <Border Grid.Column="1" Classes="pill somenteAmplo"
                 Background="{StaticResource BrandYellowDimBrush}"
