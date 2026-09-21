@@ -217,7 +217,9 @@ public class VendaLocalService
             .ToList();
 
         var (requisicao, motivo) = await MontarRequisicaoParaExibirAsync(context, venda, ct);
-        return new DetalheVenda(resumo, itens, pagamentos, venda.Desconto, venda.VendaIdExterno, requisicao, motivo);
+        // O desconto da venda vai nos itens (a API só o aceita por item); o do cabeçalho (legado) soma junto.
+        var desconto = venda.Desconto + venda.Itens.Sum(i => i.DescontoItem);
+        return new DetalheVenda(resumo, itens, pagamentos, desconto, venda.VendaIdExterno, requisicao, motivo);
     }
 
     private static readonly JsonSerializerOptions OpcoesDeExibicao = new()

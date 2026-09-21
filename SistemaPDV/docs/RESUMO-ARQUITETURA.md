@@ -108,6 +108,7 @@ Cada módulo depende só do(s) anterior(es), nunca do posterior — `data-layer`
 |---|---|
 | `ErroApiExtractor` | Lê o formato de erro padrão da API (`{"errors": {...}}`) e monta uma mensagem legível — compartilhado entre `caixa` e `sales`. |
 | `VendaService` | Registrar a venda **localmente**, sem rede — gera o `Guid`, salva itens e pagamentos. |
+| `RateioDeDesconto` | Reparte o desconto da venda toda entre os itens, proporcional ao valor de cada um, em centavos (a soma das partes é exata). Necessário porque a API só aceita desconto **por item** (`desconto_valor_item`); o `PdvViewModel` guarda o que o operador pediu (R$ ou %) e reaplica o rateio quando o cupom muda. |
 | `VendaSyncService` | O outbox da venda: resolve os ids externos de empresa/funcionário/cliente/produtos/formas de pagamento, monta o payload, envia, e trata sucesso/conflito/erro. Tem `SincronizarVendasPendentesAsync`, que reenvia o lote inteiro. |
 | `MontadorDeRequisicaoDeVenda` | Monta a requisição que envia uma venda (URL + corpo do POST /vendas) a partir do que está gravado, ou diz qual dependência ainda falta sincronizar. Usado pelo `VendaSyncService` (envio de verdade) E pelo modal "Detalhes do pedido" — assim o que a tela mostra não pode divergir do que a API recebe (teste compara os dois). |
 | `Dtos/VendaApiDto.cs` | O formato de request (`VendaRequestDto` + `VendaProdutoRequestDto` + `VendaPagamentoRequestDto`) e response (`VendaRespostaDto`) de `POST /api/v2/vendas`. |

@@ -183,6 +183,8 @@
                               </TextBlock.Text>
                             </TextBlock>
                             <TextBlock Text="{Binding Descricao}" FontFamily="{StaticResource FontMono}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding DescontoItem, StringFormat='desconto − R$ {0:F2}'}" IsVisible="{Binding TemDesconto}"
+                                       FontFamily="{StaticResource FontMono}" FontSize="11" Foreground="{StaticResource AccentGreenBrush}" />
                           </StackPanel>
                           <TextBlock Grid.Column="1" Text="{Binding Total, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}"
                                      FontWeight="Bold" FontSize="15" Foreground="{StaticResource BrandYellowBrush}" VerticalAlignment="Center" />
@@ -231,13 +233,38 @@
                 </ComboBox>
               </StackPanel>
 
-              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Subtotal dos Itens:" Foreground="{StaticResource TextMutedBrush}" />
                 <TextBlock Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding Subtotal, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}"
                            FontWeight="SemiBold" Foreground="{StaticResource TextMainBrush}" />
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Desconto:" Foreground="{StaticResource TextMutedBrush}" />
-                <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding TotalDescontos, StringFormat='R$ {0:F2}'}" FontFamily="{StaticResource FontMono}"
-                           FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding RotuloDesconto}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                  <TextBlock Text="{Binding TextoDesconto}" FontFamily="{StaticResource FontMono}"
+                             FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" VerticalAlignment="Center" />
+                  <Button Classes="fantasma" Content="✕" Padding="6,2" FontSize="12" IsVisible="{Binding TemDesconto}"
+                          Command="{Binding RemoverDescontoCommand}"
+                          ToolTip.Tip="Remover o desconto da venda"
+                          AutomationProperties.Name="Remover o desconto da venda" />
+                </StackPanel>
+
+                <!-- Desconto na venda toda: valor em R$ ou %, Enter ou Aplicar. A API só aceita desconto por item, então o app reparte
+                     o valor entre os itens (o cupom mostra o desconto de cada um). Um desconto novo substitui o anterior. -->
+                <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6"
+                      IsVisible="{Binding TemItens}">
+                  <Button Grid.Column="0" Classes="secundario" Content="{Binding TextoTipoDesconto}" Command="{Binding AlternarTipoDescontoCommand}"
+                          MinWidth="44" Padding="10,6" FontFamily="{StaticResource FontMono}" FontWeight="Bold"
+                          ToolTip.Tip="Trocar entre desconto em reais (R$) e em percentual (%)"
+                          AutomationProperties.Name="Tipo do desconto: reais ou percentual" />
+                  <TextBox Grid.Column="1" Name="DescontoTextBox" Text="{Binding DescontoDigitado, Mode=TwoWay}" PlaceholderText="Desconto na venda"
+                           FontFamily="{StaticResource FontMono}" HorizontalAlignment="Stretch"
+                           AutomationProperties.Name="Valor do desconto na venda">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter" Command="{Binding AplicarDescontoCommand}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                  <Button Grid.Column="2" Classes="secundario" Content="Aplicar" Command="{Binding AplicarDescontoCommand}" Padding="12,6"
+                          AutomationProperties.Name="Aplicar o desconto na venda" />
+                </Grid>
               </Grid>
 
               <Border BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
