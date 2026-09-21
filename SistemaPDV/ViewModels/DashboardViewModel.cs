@@ -14,7 +14,7 @@ namespace SistemaPDV.ViewModels;
 // sincronização sozinho — isso é papel exclusivo do SincronizacaoBackgroundService
 // (Task 50). Os comandos de navegação (NovaVenda, VerPedidos, Detalhes) não navegam sozinhos: só
 // emitem, o ShellViewModel escuta e decide trocar de tela (mesmo padrão de LoginViewModel/EntrarCommand).
-public class DashboardViewModel : ViewModelBase
+public class DashboardViewModel : ViewModelBase, IAtualizavelPorSincronizacao
 {
     // Quantas vendas a tabela "Últimas vendas realizadas" mostra (o histórico completo é a Listagem de Pedidos).
     public const int QuantidadeUltimasVendas = 5;
@@ -176,6 +176,10 @@ public class DashboardViewModel : ViewModelBase
 
     // O Shell é quem sabe o estado da conexão (vem do serviço de sincronização) e o repassa aqui: ao abrir o painel e a cada mudança.
     public void DefinirConexao(EstadoConexao estado) => Conexao = estado;
+
+    // O painel agora mostra o estado de sincronização das vendas e a fila outbox: quando um ciclo mexe no banco, recarrega
+    // (só leituras — nada que atrapalhe o operador, como no caso da listagem de pedidos).
+    public Task AtualizarAposSincronizacaoAsync() => IniciarAsync();
 
     public async Task IniciarAsync()
     {

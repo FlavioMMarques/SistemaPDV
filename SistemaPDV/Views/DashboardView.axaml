@@ -16,7 +16,7 @@
     <KeyBinding Gesture="F2" Command="{Binding NovaVendaCommand}" />
   </UserControl.KeyBindings>
 
-  <!-- Painel de Controle no visual do protótipo: título e ações, 4 indicadores, últimas vendas e o aviso do modo offline-first.
+  <!-- Painel de Controle no visual do protótipo: título e ações, 4 indicadores, últimas vendas e o histórico resumido.
        Conteúdo com largura máxima e centralizado, como as outras telas; rola se a janela for baixa. -->
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
     <StackPanel MaxWidth="1400" Margin="24" Spacing="24">
@@ -130,24 +130,6 @@
 
         </StackPanel>
       </Border>
-
-      <!-- Como o app se comporta sem internet (o botão "Testar queda" do protótipo não existe aqui: o app detecta a conexão de verdade). -->
-      <Border Background="{DynamicResource BrandYellowDimBrush}"
-              BorderBrush="{DynamicResource BrandYellowBrush}"
-              BorderThickness="1"
-              CornerRadius="{DynamicResource RadiusCard}"
-              Padding="20,16">
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-          <TextBlock Grid.Column="0" Text="🛡️" FontSize="30" VerticalAlignment="Center" />
-          <StackPanel Grid.Column="1" Spacing="4">
-            <TextBlock Text="Arquitetura Offline-First &amp; Fila Outbox" FontSize="15" FontWeight="Bold"
-                       Foreground="{DynamicResource BrandYellowBrush}" />
-            <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextMainBrush}"
-                       Text="Faça vendas no PDV: elas são salvas no banco local e entram na fila Outbox, mesmo sem internet. Quando a conexão voltar, são enviadas automaticamente ao SoftcomShop." />
-          </StackPanel>
-        </Grid>
-      </Border>
-
     </StackPanel>
   </ScrollViewer>
 
