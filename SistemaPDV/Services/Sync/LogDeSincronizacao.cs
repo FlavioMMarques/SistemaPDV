@@ -1,0 +1,68 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reactive.Subjects;
+
+namespace SistemaPDV.Services.Sync;
+
+public enum NivelAtividade
+{
+    Info,
+    Sucesso,
+    Aviso,
+    Erro,
+}
+
+// Uma linha do "log de execução" da fila outbox, escrita para o OPERADOR ler ("Pedido #1003 sincronizado com sucesso!"). Não é o
+// log técnico (esse é o arquivo do Registro, com exceção e detalhe): aqui só entra o que faz sentido mostrar na tela, e nunca
+// token, senha ou dado pessoal.
+public sealed record EntradaDeLog(DateTime Quando, NivelAtividade Nivel, string Texto);
+
+// O que uma etapa do envio conta sobre cada item que tratou (uma linha por venda enviada ou recusada, por exemplo).
+public sealed record DetalheDeSincronizacao(NivelAtividade Nivel, string Texto);
+
+// As últimas atividades da sincronização em segundo plano, na memória (some ao fechar o app — para o histórico existe o arquivo
+// de log). Quem sincroniza chama Registrar de qualquer thread; a tela recebe pelo Novas e se atualiza na própria thread.
+public sealed class LogDeSincronizacao
+{
+    // Mais que isso é ruído: a tela mostra as mais recentes e o arquivo de log guarda o resto.
+    public const int Capacidade = 100;
+
+    private readonly TimeProvider relogio;
+    private readonly object trava = new();
+    private readonly LinkedList<EntradaDeLog> entradas = new();   // a mais recente primeiro
+    private readonly Subject<EntradaDeLog> novas = new();
+
+    public LogDeSincronizacao(TimeProvider? relogio = null)
+    {
+        this.relogio = relogio ?? TimeProvider.System;
+    }
+
+    // Da mais recente para a mais antiga.
+    public IReadOnlyList<EntradaDeLog> Recentes
+    {
+        get
+        {
+            lock (trava)
+                return entradas.ToList();
+        }
+    }
+
+    public IObservable<EntradaDeLog> Novas => novas;
+
+    public void Registrar(NivelAtividade nivel, string texto)
+    {
+        var entrada = new EntradaDeLog(relogio.GetLocalNow().DateTime, nivel, texto);
+
+        lock (trava)
+        {
+            entradas.AddFirst(entrada);
+            while (entradas.Count > Capacidade)
+                entradas.RemoveLast();
+
+            // Dentro da trava: dois Registrar simultâneos (ciclo + verificação de conexão) não podem chamar OnNext ao mesmo
+            // tempo (um Subject do Rx não aceita) nem entregar fora de ordem.
+            novas.OnNext(entrada);
+        }
+    }
+}

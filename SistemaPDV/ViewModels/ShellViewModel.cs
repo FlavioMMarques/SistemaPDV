@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -42,6 +43,7 @@ public class ShellViewModel : ViewModelBase
 
     // A conexão voltou e o operador ainda não foi avisado de que a fila esvaziou (ver AvisarMudancaDeConexao).
     private bool avisarFilaVazia;
+    private bool painelOutboxAberto;
 
     // A recontagem disparada ao reconectar roda em segundo plano; quem precisa esperá-la (os testes, antes de soltar o banco)
     // usa isto. Em produção ninguém aguarda.
@@ -102,6 +104,14 @@ public class ShellViewModel : ViewModelBase
         var podeAbrirConfiguracoes = this.WhenAnyValue(vm => vm.OperadorLogado).Select(operador => operador is not null)
             .CombineLatest(semVendaEmAndamento, (logado, semVenda) => logado && semVenda);
         IrParaConfiguracoesCommand = ReactiveCommand.CreateFromTask(() => IrParaConfiguracoesAsync(exigirSupervisor: true), podeAbrirConfiguracoes);
+
+        // Painel lateral da fila outbox (abre pela pílula "Sync: N pendentes" da barra do topo). Disponível em qualquer tela
+        // depois do login — inclusive sem caixa aberto (a fila pode ter clientes novos) — e fecha com Esc.
+        AbrirPainelOutboxCommand = ReactiveCommand.Create(() => { PainelOutboxAberto = true; });
+        FecharPainelOutboxCommand = ReactiveCommand.Create(
+            () => { PainelOutboxAberto = false; },
+            this.WhenAnyValue(vm => vm.PainelOutboxAberto));
+        SincronizarAgoraCommand = ReactiveCommand.Create(SolicitarSincronizacao);
     }
 
     public Tela TelaAtual
@@ -147,7 +157,44 @@ public class ShellViewModel : ViewModelBase
         {
             this.RaiseAndSetIfChanged(ref pendentesSync, value);
             this.RaisePropertyChanged(nameof(TextoSync));
+            this.RaisePropertyChanged(nameof(TextoFilaLocal));
         }
+    }
+
+    // ---- painel lateral da fila outbox ----
+
+    public bool PainelOutboxAberto
+    {
+        get => painelOutboxAberto;
+        private set => this.RaiseAndSetIfChanged(ref painelOutboxAberto, value);
+    }
+
+    public ReactiveCommand<Unit, Unit> AbrirPainelOutboxCommand { get; }
+    public ReactiveCommand<Unit, Unit> FecharPainelOutboxCommand { get; }
+    public ReactiveCommand<Unit, Unit> SincronizarAgoraCommand { get; }
+
+    // "Pendências na fila local: 3 itens" — o mesmo número da pílula da barra do topo, por extenso.
+    public string TextoFilaLocal => PendentesSync switch
+    {
+        0 => "0 itens",
+        1 => "1 item",
+        var n => $"{n} itens",
+    };
+
+    // O que a sincronização fez, da mais recente para a mais antiga (o App leva as linhas do serviço de fundo para a thread de
+    // interface, ver AdicionarAtividade). Fica só na memória: ao reabrir o app o painel começa vazio (o histórico é o arquivo de log).
+    public ObservableCollection<EntradaDeLog> Atividades { get; } = new();
+
+    public bool SemAtividades => Atividades.Count == 0;
+
+    // Chamar na thread de UI (o App faz o Post).
+    public void AdicionarAtividade(EntradaDeLog entrada)
+    {
+        Atividades.Insert(0, entrada);
+        while (Atividades.Count > LogDeSincronizacao.Capacidade)
+            Atividades.RemoveAt(Atividades.Count - 1);
+
+        this.RaisePropertyChanged(nameof(SemAtividades));
     }
 
     public string TextoSync => PendentesSync switch
@@ -245,6 +292,7 @@ public class ShellViewModel : ViewModelBase
                 ? ("Nenhuma pendência na fila local.", "✅")
                 : ("Sincronizando a fila outbox...", "🔄");
         Toasts.Publicar(texto, icone, chave: "sincronizacao", duracao: TimeSpan.FromSeconds(2.5));
+        AdicionarAtividade(new EntradaDeLog(DateTime.Now, NivelAtividade.Info, "Sincronização solicitada pelo operador."));
         sincronizacaoSolicitada.OnNext(Unit.Default);   // pedir mesmo assim: o serviço confere a rede e a fila por conta própria
     }
 

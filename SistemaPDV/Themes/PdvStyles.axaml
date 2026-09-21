@@ -144,6 +144,24 @@
     <Setter Property="Padding" Value="12,5" />
   </Style>
 
+  <!-- Pílula que é BOTÃO (a "Sync: N pendentes" da barra do topo, que abre o painel da fila outbox): mesma cara de Border.pill,
+       mais o realce do mouse e o foco visível de teclado. -->
+  <Style Selector="Button.pillBotao">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusPill}" />
+    <Setter Property="Padding" Value="12,5" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.pillBotao:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+  <Style Selector="Button.pillBotao:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource BrandYellowBrush}" />
+  </Style>
+
   <!-- Chip de tecla de atalho ("F10") -->
   <Style Selector="Border.tecla">
     <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />

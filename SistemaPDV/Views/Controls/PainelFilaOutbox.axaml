@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SistemaPDV.ViewModels"
+             xmlns:sync="using:SistemaPDV.Services.Sync"
+             xmlns:views="using:SistemaPDV.Views"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="800"
+             x:Class="SistemaPDV.Views.Controls.PainelFilaOutbox"
+             x:DataType="vm:ShellViewModel"
+             views:AtalhosDeTela.Ativos="True">
+
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Escape" Command="{Binding FecharPainelOutboxCommand}" />
+  </UserControl.KeyBindings>
+
+  <!-- Painel lateral da fila outbox (abre na pílula "Sync: N pendentes" da barra do topo), no estilo do protótipo: quantas
+       pendências há, o botão de sincronizar agora e o log do que a sincronização fez. O fundo escurecido fecha ao clicar;
+       Esc e ✕ também. O log é para o OPERADOR ler: nunca traz token, senha ou detalhe técnico de exceção. -->
+  <Grid>
+    <!-- Fundo: um botão transparente que cobre tudo e fecha o painel (é botão, e não só um clique no fundo, para o teclado e
+         o leitor de tela também o alcançarem). Fora da ordem do Tab, pois o ✕ e o Esc já fecham. -->
+    <Button Background="{DynamicResource OverlayBrush}" Command="{Binding FecharPainelOutboxCommand}"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+            Focusable="False" IsTabStop="False" Cursor="Arrow"
+            AutomationProperties.Name="Fechar o painel da fila outbox" />
+
+    <Border Background="{DynamicResource BgCardBrush}"
+            BorderBrush="{DynamicResource BorderColorBrush}"
+            BorderThickness="1,0,0,0"
+            Width="420" HorizontalAlignment="Right">
+      <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- Título + fechar -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="24,18">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="2">
+              <TextBlock Text="Fila Outbox SoftcomShop" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextMainBrush}" />
+              <TextBlock Text="Sincronização em background via API v2" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="fantasma" Content="✕" FontSize="16" VerticalAlignment="Top"
+                    Command="{Binding FecharPainelOutboxCommand}"
+                    AutomationProperties.Name="Fechar o painel da fila outbox" />
+          </Grid>
+        </Border>
+
+        <!-- Pendências + sincronizar agora -->
+        <StackPanel Grid.Row="1" Spacing="14" Margin="24,20">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="Pendências na fila local:" FontWeight="SemiBold" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMainBrush}" />
+            <TextBlock Grid.Column="1" Text="{Binding TextoFilaLocal}" FontFamily="{DynamicResource FontMono}" FontSize="22" FontWeight="Bold"
+                       Foreground="{DynamicResource BrandYellowBrush}" />
+          </Grid>
+          <Button Name="SincronizarButton" Classes="primario" Content="🔄 Disparar Sincronização Agora"
+                  Command="{Binding SincronizarAgoraCommand}" FontSize="15"
+                  ToolTip.Tip="Envia agora o que está pendente, sem esperar o próximo ciclo automático"
+                  AutomationProperties.Name="Disparar a sincronização agora" />
+          <TextBlock Text="LOGS DE EXECUÇÃO DA API:" Classes="colunaTitulo" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <!-- Log: da atividade mais recente para a mais antiga -->
+        <Border Grid.Row="2" Background="{DynamicResource BgMainBrush}" BorderBrush="{DynamicResource BorderColorBrush}"
+                BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Margin="24,0,24,24">
+          <Grid>
+            <TextBlock Text="Nenhuma atividade de sincronização nesta sessão ainda." TextWrapping="Wrap" Margin="16"
+                       Foreground="{DynamicResource TextMutedBrush}" FontSize="12"
+                       IsVisible="{Binding SemAtividades}" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          AutomationProperties.Name="Log de execução da sincronização">
+              <ItemsControl ItemsSource="{Binding Atividades}" Margin="14,12">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="sync:EntradaDeLog">
+                    <SelectableTextBlock FontFamily="{DynamicResource FontMono}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
+                                         Foreground="{Binding Nivel, Converter={StaticResource NivelAtividadeParaCorConverter}}">
+                      <Run Text="[" /><Run Text="{Binding Quando, StringFormat='{}{0:HH:mm:ss}'}" /><Run Text="] " /><Run Text="{Binding Texto}" />
+                    </SelectableTextBlock>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Grid>
+        </Border>
+
+      </Grid>
+    </Border>
+  </Grid>
+
+</UserControl>

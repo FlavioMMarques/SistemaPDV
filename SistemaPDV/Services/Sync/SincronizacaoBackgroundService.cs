@@ -93,9 +93,11 @@ public class SincronizacaoBackgroundService : IDisposable
         CaixaSyncService caixaSyncService,
         VendaSyncService vendaSyncService,
         TimeProvider? timeProvider = null,
-        VerificadorDeConexao? verificador = null)
+        VerificadorDeConexao? verificador = null,
+        LogDeSincronizacao? log = null)
     {
         this.verificador = verificador;
+        Log = log ?? new LogDeSincronizacao(timeProvider);
         this.contextFactory = contextFactory;
         this.authService = authService;
         this.catalogSyncService = catalogSyncService;
@@ -105,6 +107,10 @@ public class SincronizacaoBackgroundService : IDisposable
     }
 
     public EstadoConexao Estado => estado.Value;
+
+    // O que a fila outbox fez, em linguagem de operador (a tela "Fila Outbox" mostra): conexão que caiu ou voltou, o que foi
+    // enviado e o que foi recusado. O detalhe técnico (exceções) continua no arquivo de log, via Registro.
+    public LogDeSincronizacao Log { get; }
 
     // Por que o último ciclo ficou Offline (ex: "A URL da API não usa HTTPS...") — a tela
     // mostra como dica no indicador, senão um problema de configuração pareceria só "sem
@@ -260,6 +266,7 @@ public class SincronizacaoBackgroundService : IDisposable
                 Publicar(
                     falhas is null ? EstadoConexao.Online : EstadoConexao.OnlineComFalhas,
                     falhas ?? DescreverTrazido(resultado));
+                RegistrarCatalogoNoLog(resultado, falhas);
                 if (TrouxeAlgo(resultado))
                     dadosAlterados.OnNext(Unit.Default);
             }
@@ -279,6 +286,26 @@ public class SincronizacaoBackgroundService : IDisposable
         }
     }
 
+    private string? ultimaFalhaDoCatalogoNoLog;
+
+    // O catálogo roda a cada 5 min e quase sempre não traz nada: só vira linha do log quando trouxe algo, ou quando uma falha
+    // NOVA aparece (a mesma falha se repetindo a cada ciclo não enche a tela de avisos iguais).
+    private void RegistrarCatalogoNoLog(ResultadoSincronizacaoCompleta resultado, string? falhas)
+    {
+        if (falhas is not null)
+        {
+            if (falhas != ultimaFalhaDoCatalogoNoLog)
+                Log.Registrar(NivelAtividade.Aviso, $"Catálogo atualizado com falhas: {falhas}");
+
+            ultimaFalhaDoCatalogoNoLog = falhas;
+            return;
+        }
+
+        ultimaFalhaDoCatalogoNoLog = null;
+        if (TrouxeAlgo(resultado))
+            Log.Registrar(NivelAtividade.Info, DescreverTrazido(resultado));
+    }
+
     // Tick de 30 s (parte do outbox): só fala com a rede se há algo a enviar — sem
     // pendência nem token é pedido (uma requisição a cada 30 s sem motivo). Ordem:
     // clientes antes de vendas (a venda de um cliente novo só sai depois que ele tem id).
@@ -290,7 +317,11 @@ public class SincronizacaoBackgroundService : IDisposable
         try
         {
             var configuracao = await LerConfiguracaoCompletaAsync(ct);
-            if (configuracao is null || !await TemPendenciasAsync(ct))
+            if (configuracao is null)
+                return;
+
+            var pendencias = await ContarPendenciasAsync(ct);
+            if (pendencias == 0)
                 return;
 
             var (autenticado, mensagem, accessToken) = await authService.ObterTokenAsync(configuracao, ct);
@@ -301,13 +332,22 @@ public class SincronizacaoBackgroundService : IDisposable
             }
 
             Publicar(EstadoConexao.Online, null);
+            Log.Registrar(NivelAtividade.Info, $"Disparando sincronização de {pendencias} item(ns) pendente(s)...");
 
-            await ExecutarEtapaAsync(() => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
+            await ExecutarEtapaAsync("Clientes novos",
+                quantidade => $"POST /clientes: {quantidade} cliente(s) novo(s) enviado(s) com sucesso!",
+                () => catalogSyncService.SincronizarClientesNovosPendentesAsync(accessToken, ct));
             // Ordem: abrir caixa -> vendas -> fechar caixa. A venda referencia o caixa aberto, e o FECHAMENTO resume
             // o caixa: se chegasse à API antes das vendas, ela fecharia um caixa "sem vendas".
-            await ExecutarEtapaAsync(() => RepetirAsync(() => caixaSyncService.SincronizarAberturaAsync(accessToken, ct)));
-            await ExecutarEtapaAsync(() => vendaSyncService.SincronizarVendasPendentesAsync(accessToken, ct));
-            await ExecutarEtapaAsync(() => RepetirAsync(() => caixaSyncService.SincronizarFechamentoAsync(accessToken, ct)));
+            await ExecutarEtapaAsync("Abertura de caixa",
+                _ => "Abertura de caixa enviada ao SoftcomShop.",
+                () => RepetirAsync(() => caixaSyncService.SincronizarAberturaAsync(accessToken, ct)));
+            await ExecutarEtapaAsync("Vendas",
+                _ => null,   // as vendas contam uma linha por pedido (Detalhes), não um total
+                () => vendaSyncService.SincronizarVendasPendentesAsync(accessToken, ct));
+            await ExecutarEtapaAsync("Fechamento de caixa",
+                _ => "Fechamento de caixa enviado ao SoftcomShop.",
+                () => RepetirAsync(() => caixaSyncService.SincronizarFechamentoAsync(accessToken, ct)));
 
             // Chegou até aqui = havia pendência e tentou enviar: o que mudou (🟡 -> 🟢 ou 🔴)
             // precisa aparecer nas listas.
@@ -327,15 +367,28 @@ public class SincronizacaoBackgroundService : IDisposable
     // Uma etapa que falha (mesmo lançando) não impede as seguintes: um cliente rejeitado
     // não pode travar o caixa que o operador está esperando confirmar. A entidade
     // simplesmente continua pendente/falha e é tentada de novo no próximo ciclo. A exceção vai pro log (Registro).
-    private static async Task ExecutarEtapaAsync(Func<Task> etapa)
+    //
+    // Cada etapa também conta o que fez no log da fila outbox: uma linha por item (Detalhes, as vendas) ou uma de total
+    // (textoSucesso; null = não diz nada). Falha da etapa vira aviso; exceção vira linha genérica (o detalhe técnico vai só
+    // para o arquivo de log, nunca para a tela).
+    private async Task ExecutarEtapaAsync(string rotulo, Func<int, string?> textoSucesso, Func<Task<ResultadoSincronizacaoRecurso>> etapa)
     {
         try
         {
-            await etapa();
+            var resultado = await etapa();
+
+            foreach (var detalhe in resultado.Detalhes)
+                Log.Registrar(detalhe.Nivel, detalhe.Texto);
+
+            if (!resultado.Sucesso)
+                Log.Registrar(NivelAtividade.Aviso, $"{rotulo}: {resultado.Mensagem}");
+            else if (resultado.Quantidade > 0 && textoSucesso(resultado.Quantidade) is { } texto)
+                Log.Registrar(NivelAtividade.Sucesso, texto);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Registro.Erro("Sincronização", "Exceção numa etapa do envio (as outras etapas seguem)", ex);
+            Log.Registrar(NivelAtividade.Erro, $"{rotulo}: erro inesperado (detalhes no log do aplicativo).");
         }
     }
 
@@ -374,38 +427,48 @@ public class SincronizacaoBackgroundService : IDisposable
 
     // SincronizarAberturaAsync/SincronizarFechamentoAsync tratam UM caixa por chamada: repete até não haver mais
     // nenhum (ou falhar), com teto pra não girar sem fim se algo estiver errado.
-    private static async Task RepetirAsync(Func<Task<ResultadoSincronizacaoRecurso>> etapa)
+    // Devolve o total tratado; se uma chamada falha, devolve ESSA falha (o que veio antes já foi enviado e não se perde).
+    private static async Task<ResultadoSincronizacaoRecurso> RepetirAsync(Func<Task<ResultadoSincronizacaoRecurso>> etapa)
     {
+        var total = 0;
         for (var i = 0; i < MaximoCaixasPorCiclo; i++)
         {
             var resultado = await etapa();
-            if (!resultado.Sucesso || resultado.Quantidade == 0)
-                return;
+            if (!resultado.Sucesso)
+                return resultado;
+            if (resultado.Quantidade == 0)
+                break;
+
+            total += resultado.Quantidade;
         }
+
+        return ResultadoSincronizacaoRecurso.ComSucesso(total);
     }
 
     // Mesmas condições de elegibilidade que os próprios serviços usam (abertura ainda não
     // confirmada, fechamento não confirmado, venda pendente/falha, cliente criado
     // localmente sem id) — checar aqui evita autenticar à toa.
-    private async Task<bool> TemPendenciasAsync(CancellationToken ct)
+    private async Task<int> ContarPendenciasAsync(CancellationToken ct)
     {
         await using var context = contextFactory();
         var agora = timeProvider.GetUtcNow().UtcDateTime;
 
         // Só conta o que a política de retentativa deixa enviar agora: item em espera crescente
-        // ou que já desistiu não justifica autenticar a cada 30 s.
-        return await context.Caixas
-                   .Where(c => !c.AberturaSincronizada || (c.Status == StatusCaixa.Fechado && c.SyncStatus != SyncStatus.Sincronizado))
-                   .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(agora))
-                   .AnyAsync(ct)
-               || await context.Vendas
-                   .Where(v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync)
-                   .Where(PoliticaRetentativa.Elegivel<Venda>(agora))
-                   .AnyAsync(ct)
-               || await context.Clientes
-                   .Where(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado)
-                   .Where(PoliticaRetentativa.Elegivel<Cliente>(agora))
-                   .AnyAsync(ct);
+        // ou que já desistiu não justifica autenticar a cada 30 s (e não entra no "N item(ns)" do log).
+        var caixas = await context.Caixas
+            .Where(c => !c.AberturaSincronizada || (c.Status == StatusCaixa.Fechado && c.SyncStatus != SyncStatus.Sincronizado))
+            .Where(PoliticaRetentativa.Elegivel<Models.Caixa>(agora))
+            .CountAsync(ct);
+        var vendas = await context.Vendas
+            .Where(v => v.SyncStatus == SyncStatus.PendenteSync || v.SyncStatus == SyncStatus.FalhaSync)
+            .Where(PoliticaRetentativa.Elegivel<Venda>(agora))
+            .CountAsync(ct);
+        var clientes = await context.Clientes
+            .Where(c => c.IdExterno == null && c.SyncStatus != SyncStatus.Sincronizado)
+            .Where(PoliticaRetentativa.Elegivel<Cliente>(agora))
+            .CountAsync(ct);
+
+        return caixas + vendas + clientes;
     }
 
     // null = dispositivo ainda não vinculado: todos os ciclos ficam pausados.
@@ -453,6 +516,13 @@ public class SincronizacaoBackgroundService : IDisposable
             Registro.Aviso("Sincronização", texto);
         else
             Registro.Info("Sincronização", texto);
+
+        // A mesma história, em linguagem de operador, para a tela da fila outbox. Ficar online de partida não é notícia;
+        // OnlineComFalhas continua "conectado" (a API respondeu — o que falhou vai nas linhas do catálogo).
+        if (novoEstado == EstadoConexao.Offline)
+            Log.Registrar(NivelAtividade.Aviso, "Conexão perdida. Modo contingência ativado: as vendas irão para a Outbox.");
+        else if (anterior == EstadoConexao.Offline)
+            Log.Registrar(NivelAtividade.Info, "Conexão restabelecida. Iniciando o worker assíncrono...");
     }
 
     // Fora da thread de UI (ver comentário da classe) e sem deixar nada escapar: um

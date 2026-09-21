@@ -65,6 +65,24 @@ public class SyncStatusParaSeloConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+// Cor da linha do log da fila outbox (NivelAtividade). O texto da linha já diz o que aconteceu — a cor só ajuda a varrer.
+// Mesmos valores do tema (Themes/PdvTheme.axaml): um IValueConverter não alcança o ResourceDictionary com confiança.
+public class NivelAtividadeParaCorConverter : IValueConverter
+{
+    public static readonly NivelAtividadeParaCorConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        NivelAtividade.Sucesso => new SolidColorBrush(Color.Parse("#10B981")),
+        NivelAtividade.Aviso => new SolidColorBrush(Color.Parse("#F59E0B")),
+        NivelAtividade.Erro => new SolidColorBrush(Color.Parse("#F43F5E")),
+        _ => new SolidColorBrush(Color.Parse("#38BDF8")),
+    };
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 // Indicador de conexão do header (Task 50) — como nos converters de SyncStatus, nunca só
 // cor: cada estado combina ícone + texto.
 public class EstadoConexaoParaTextoConverter : IValueConverter

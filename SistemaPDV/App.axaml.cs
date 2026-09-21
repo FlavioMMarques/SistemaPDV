@@ -1,5 +1,6 @@
 ﻿using System.Runtime.Versioning;
 using System;
+using System.Linq;
 using System.IO;
 using System.Threading.Tasks;
 using System.Reactive.Linq;
@@ -73,6 +74,11 @@ public partial class App : Application
             shellViewModel.DispositivoVinculado.Subscribe(_ => sincronizacao.SolicitarAgora());
             // "Sincronizar agora" da listagem de pedidos: roda o ciclo já, sem esperar os 30 s (o serviço serializa os ciclos).
             shellViewModel.SincronizacaoSolicitada.Subscribe(_ => sincronizacao.SolicitarAgora());
+            // O painel da fila outbox mostra o que a sincronização fez: as linhas vêm do serviço de fundo e voltam à thread de UI.
+            foreach (var atividade in sincronizacao.Log.Recentes.Reverse())
+                shellViewModel.AdicionarAtividade(atividade);
+            sincronizacao.Log.Novas.Subscribe(atividade =>
+                Dispatcher.UIThread.Post(() => shellViewModel.AdicionarAtividade(atividade)));
             sincronizacao.Iniciar();
             desktop.Exit += (_, _) =>
             {
