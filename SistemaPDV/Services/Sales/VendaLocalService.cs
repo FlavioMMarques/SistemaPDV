@@ -159,7 +159,7 @@ public class VendaLocalService
         return $"Descartada por {autorizadores.GetValueOrDefault(porId, "?")}: {venda.MotivoDescarte}";
     }
 
-    public async Task<IReadOnlyList<VendaResumo>> ListarVendasDoCaixaAsync(int caixaId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<VendaResumo>> ListarVendasDoCaixaAsync(int caixaId, int? limite = null, CancellationToken ct = default)
     {
         await using var context = contextFactory();
 
@@ -168,12 +168,16 @@ public class VendaLocalService
             ? (await context.Funcionarios.FindAsync(new object[] { caixa.FuncionarioId }, ct))?.Nome ?? "—"
             : "—";
 
-        var vendas = await context.Vendas
+        // limite: só as N mais recentes (o painel principal mostra as últimas vendas); null = todas (a listagem de pedidos).
+        var consulta = context.Vendas
             .Include(v => v.Itens)
             .Include(v => v.Pagamentos)
             .Where(v => v.CaixaId == caixaId)
             .OrderByDescending(v => v.DataHora)
-            .ToListAsync(ct);
+            .AsQueryable();
+        if (limite is { } quantas)
+            consulta = consulta.Take(quantas);
+        var vendas = await consulta.ToListAsync(ct);
 
         // Trilha de auditoria: a venda descartada continua na lista, dizendo quem autorizou e por quê.
         var autorizadoresIds = vendas.Where(v => v.DescartadaPorId.HasValue).Select(v => v.DescartadaPorId!.Value).Distinct().ToList();

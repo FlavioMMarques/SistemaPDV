@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -249,6 +250,7 @@ public class ShellViewModel : ViewModelBase
         var anterior = Conexao;
         DetalheConexao = estado == EstadoConexao.Desconhecida ? null : detalhe;
         Conexao = estado;
+        (CurrentViewModel as DashboardViewModel)?.DefinirConexao(estado);
         AvisarMudancaDeConexao(anterior, estado);
     }
 
@@ -399,12 +401,16 @@ public class ShellViewModel : ViewModelBase
     // sozinha é pior pro operador, e o carregamento em paralelo mexia no banco ao mesmo tempo que a ação seguinte.
     private async Task IrParaDashboardAsync()
     {
-        var viewModel = new DashboardViewModel(dashboardService, CaixaAberto?.Id);
+        var viewModel = new DashboardViewModel(dashboardService, vendaLocalService, CaixaAberto?.Id);
+        viewModel.DefinirConexao(Conexao);
         await viewModel.IniciarAsync();
 
         // Nova Venda não navega sozinho — só emite (fica desabilitado sem caixa
         // aberto, ver DashboardViewModel), o Shell decide o que fazer com isso.
         viewModel.NovaVendaCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(() => IrParaPdvAsync(CaixaAberto!.Id)));
+        viewModel.VerPedidosCommand.Subscribe(evento => _ = ExecutarComTratamentoDeErroAsync(() => IrParaListaPedidosAsync(CaixaAberto!.Id)));
+        // "Detalhes" de uma venda da tabela: leva à listagem com ela já selecionada (é onde o detalhe e o descarte moram).
+        viewModel.DetalhesCommand.Subscribe(venda => _ = ExecutarComTratamentoDeErroAsync(() => IrParaListaPedidosAsync(CaixaAberto!.Id, venda.Id)));
 
         CurrentViewModel = viewModel;
         TelaAtual = Tela.Dashboard;
@@ -424,10 +430,12 @@ public class ShellViewModel : ViewModelBase
         TelaAtual = Tela.Pdv;
     }
 
-    private async Task IrParaListaPedidosAsync(int caixaId)
+    private async Task IrParaListaPedidosAsync(int caixaId, Guid? vendaParaSelecionar = null)
     {
         var viewModel = new ListaPedidosViewModel(vendaLocalService, caixaId, OperadorLogado?.Id);
         await viewModel.IniciarAsync();
+        if (vendaParaSelecionar is { } vendaId)
+            viewModel.VendaSelecionada = viewModel.Vendas.FirstOrDefault(v => v.Id == vendaId);
         CurrentViewModel = viewModel;
         TelaAtual = Tela.ListaPedidos;
     }

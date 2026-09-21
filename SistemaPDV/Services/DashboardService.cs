@@ -44,6 +44,7 @@ public class DashboardService
         await using var context = contextFactory();
 
         var faturamentoHoje = 0m;
+        var vendasEmitidas = 0;
         if (caixaId is { } id)
         {
             var vendasDoCaixa = await context.Vendas
@@ -51,11 +52,13 @@ public class DashboardService
                 .Where(v => v.CaixaId == id)
                 .Where(VendaFiltros.Valida)   // a descartada é tratada como cancelada
                 .ToListAsync(ct);
+            vendasEmitidas = vendasDoCaixa.Count;
             faturamentoHoje = vendasDoCaixa.Sum(v =>
                 v.Itens.Sum(i => i.Quantidade * i.PrecoUnitario - i.DescontoItem + i.AcrescimoItem) - v.Desconto);
         }
 
         var estoqueTotal = await context.Produtos.SumAsync(p => p.EstoqueAtual, ct);
+        var produtosCadastrados = await context.Produtos.CountAsync(ct);
 
         var pendentesOutbox = await ContarPendentesAsync(context, ct);
 
@@ -70,6 +73,6 @@ public class DashboardService
         }.Where(d => d.HasValue).Select(d => d!.Value).ToList();
         var ultimaSincronizacao = candidatosUltimaSincronizacao.Count > 0 ? candidatosUltimaSincronizacao.Max() : (DateTimeOffset?)null;
 
-        return new ResumoDashboard(faturamentoHoje, estoqueTotal, pendentesOutbox, ultimaSincronizacao);
+        return new ResumoDashboard(faturamentoHoje, estoqueTotal, pendentesOutbox, ultimaSincronizacao, vendasEmitidas, produtosCadastrados);
     }
 }

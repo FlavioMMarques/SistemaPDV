@@ -2,6 +2,7 @@ using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using SistemaPDV.Models;
 using SistemaPDV.Services;
+using SistemaPDV.Services.Sales;
 using SistemaPDV.ViewModels;
 
 namespace SistemaPDV.Tests;
@@ -33,7 +34,7 @@ public class DashboardViewModelTests
     {
         using var fixture = new SqliteInMemoryFixture();
         var caixaId = await SemearCaixaAsync(fixture);
-        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), caixaId);
+        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), new VendaLocalService(fixture.CriarContexto), caixaId);
 
         await viewModel.IniciarAsync();
 
@@ -46,7 +47,7 @@ public class DashboardViewModelTests
     {
         using var fixture = new SqliteInMemoryFixture();
         var caixaId = await SemearCaixaAsync(fixture);
-        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), caixaId);
+        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), new VendaLocalService(fixture.CriarContexto), caixaId);
 
         await viewModel.IniciarAsync();
 
@@ -60,7 +61,7 @@ public class DashboardViewModelTests
     public async Task SemCaixaAbertoNovaVendaFicaDesabilitadaEFaturamentoZero()
     {
         using var fixture = new SqliteInMemoryFixture();
-        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), caixaId: null);
+        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), new VendaLocalService(fixture.CriarContexto), caixaId: null);
 
         var podeExecutar = false;
         viewModel.NovaVendaCommand.CanExecute.Subscribe(v => podeExecutar = v);
@@ -75,7 +76,7 @@ public class DashboardViewModelTests
     {
         using var fixture = new SqliteInMemoryFixture();
         var caixaId = await SemearCaixaAsync(fixture);
-        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), caixaId);
+        var viewModel = new DashboardViewModel(new DashboardService(fixture.CriarContexto), new VendaLocalService(fixture.CriarContexto), caixaId);
 
         // Assinar antes de disparar e esperar a emissão de verdade (FirstAsync) em
         // vez de um bool setado via Subscribe — um bool checado logo após o await
