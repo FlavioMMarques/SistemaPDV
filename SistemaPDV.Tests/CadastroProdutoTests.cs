@@ -5,8 +5,8 @@ using SistemaPDV.ViewModels;
 
 namespace SistemaPDV.Tests;
 
-// Cadastro de produto pelo modal (nome, código, categoria, preço, estoque): criação local + o modal. O envio à API está em
-// CatalogSyncServiceProdutoNovoTests.
+// Cadastro de produto pelo modal (nome, código, categoria, preço, custo): criação local + o modal. Sem estoque — a API não
+// grava estoque no cadastro. O envio à API está em CatalogSyncServiceProdutoNovoTests.
 public class CadastroProdutoTests
 {
     private static async Task<int> SemearGrupoAsync(SqliteInMemoryFixture fixture, string nome = "Mercearia", int idExterno = 7)
@@ -17,8 +17,8 @@ public class CadastroProdutoTests
         return idExterno;
     }
 
-    private static NovoProdutoDados Dados(int? grupo = 7, string? nome = "Café Torrado 500g", string? codigo = "7890001", string? preco = "12,50", string? estoque = "50", string? custo = null) =>
-        new(nome, codigo, grupo, preco, estoque, custo);
+    private static NovoProdutoDados Dados(int? grupo = 7, string? nome = "Café Torrado 500g", string? codigo = "7890001", string? preco = "12,50", string? custo = null) =>
+        new(nome, codigo, grupo, preco, custo);
 
     // ---- o serviço ----
 
@@ -38,7 +38,7 @@ public class CadastroProdutoTests
         Assert.Equal("Café Torrado 500g", produto.Nome);
         Assert.Equal(7, produto.GrupoId);
         Assert.Equal(12.50m, produto.PrecoVenda);
-        Assert.Equal(50, produto.EstoqueAtual);
+        Assert.Equal(0, produto.EstoqueAtual);      // sem campo de estoque no cadastro: a API não grava estoque aqui
         Assert.Equal(SyncStatus.PendenteSync, produto.SyncStatus);
         Assert.Null(produto.IdExterno);
         Assert.Null(produto.ProdutoIdApi);
@@ -164,43 +164,6 @@ public class CadastroProdutoTests
 
         Assert.False(resultado.Sucesso);
         Assert.Contains("preço", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
-        using var leitura = fixture.CriarContexto();
-        Assert.Empty(leitura.Produtos);
-    }
-
-    [Theory]
-    [InlineData("", 0)]
-    [InlineData("  ", 0)]
-    [InlineData("0", 0)]
-    [InlineData("120", 120)]
-    public async Task EstoqueInicialEhOpcionalEInteiro(string digitado, int esperado)
-    {
-        using var fixture = new SqliteInMemoryFixture();
-        await SemearGrupoAsync(fixture);
-        var service = new CadastroLocalService(fixture.CriarContexto);
-
-        var resultado = await service.CriarProdutoAsync(Dados(estoque: digitado));
-
-        Assert.True(resultado.Sucesso, resultado.Mensagem);
-        using var leitura = fixture.CriarContexto();
-        Assert.Equal(esperado, leitura.Produtos.Single().EstoqueAtual);
-    }
-
-    [Theory]
-    [InlineData("-1")]
-    [InlineData("1,5")]
-    [InlineData("abc")]
-    [InlineData("1000000")]
-    public async Task EstoqueInvalidoNaoGravaNada(string digitado)
-    {
-        using var fixture = new SqliteInMemoryFixture();
-        await SemearGrupoAsync(fixture);
-        var service = new CadastroLocalService(fixture.CriarContexto);
-
-        var resultado = await service.CriarProdutoAsync(Dados(estoque: digitado));
-
-        Assert.False(resultado.Sucesso);
-        Assert.Contains("Estoque", resultado.Mensagem);
         using var leitura = fixture.CriarContexto();
         Assert.Empty(leitura.Produtos);
     }
@@ -449,7 +412,6 @@ public class CadastroProdutoTests
         form.Codigo = "7890001";
         form.CategoriaSelecionada = form.Categorias[0];
         form.Preco = "12,50";
-        form.Estoque = "50";
 
         await form.SalvarCommand.Execute();
 

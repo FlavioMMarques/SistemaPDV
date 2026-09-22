@@ -846,3 +846,13 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 **Swagger do `PUT /api/v2/produtos/produtos/{produtoId}` (recebido, ainda não implementado):** o corpo tem `preco_compra`, `preco_venda` e `margem_lucro` no nível do **produto**; o objeto `produto_empresa` aceita só `status_fiscal` e `codigo_imendes`. Ou seja, o PUT atualiza o preço do produto-base, não o registro da empresa — só um teste real diz se isso resolve o "preço 0 na empresa". Se o teste do POST com custo ainda chegar com preço 0, o próximo passo é um PUT com o `ProdutoIdApi` devolvido pelo POST (e um teste de um produto de verdade antes de ligar no outbox). Estoque fica de fora, por decisão do usuário.
 
 **Testes:** 1092 verdes (custo no serviço, no formulário e no corpo do POST, com e sem custo).
+
+## 94. Removido o campo "Estoque Inicial" do cadastro de produto
+
+**Por quê:** o campo nunca saiu do aparelho (#86) — a API não recebe estoque no `POST /produtos/produtos`. Testamos os dois jeitos de alimentar estoque por empresa que a especificação completa da API traz (`POST /movimentacao`, `POST /balanco`, ambos com `produto_empresa_grade_id`) e confirmamos que só alimentam **estoque**, não preço — e o usuário decidiu que não quer alimentar estoque no cadastro (pedido explícito: "não quero alimentar o estoque ao cadastrar"). Um campo que nunca chega à nuvem só confundia o operador, então saiu do modal.
+
+**O que mudou:** `ProdutoFormViewModel` perdeu `Estoque`; `NovoProdutoDados` perdeu o parâmetro; `CadastroLocalService.CriarProdutoAsync` não lê nem valida estoque (produto novo sempre nasce com `EstoqueAtual = 0`, e a sincronização do catálogo traz o valor real do SoftcomShop). O modal ficou com Nome, SKU/Código, Categoria, Preço e Preço de Custo.
+
+**Ainda em aberto (preço zerado na empresa):** a especificação completa não trouxe um endpoint que grave `preco_venda` no `produto_empresa_grade` — só `movimentacao`/`balanco`, que são de estoque. Segue em stand-by; falta achar (ou perguntar à Softcom) o endpoint certo.
+
+**Testes:** 1084 verdes (8 a menos que antes — eram só do campo de estoque).

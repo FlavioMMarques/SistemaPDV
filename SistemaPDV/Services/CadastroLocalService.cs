@@ -252,7 +252,6 @@ public class CadastroLocalService
     }
 
     private const int TamanhoMaximoReferencia = 20;   // limite da API (referencia)
-    private const int EstoqueMaximo = 999_999;
 
     // Cria o produto SÓ no banco local (PendenteSync, sem IdExterno) — quem envia é o outbox
     // (CatalogSyncService.SincronizarProdutoNovoAsync). Valida antes de gravar o que a API recusaria de qualquer jeito:
@@ -286,12 +285,6 @@ public class CadastroLocalService
                 return ResultadoCriacaoProduto.ComFalha("O preço de custo passa do limite de R$ 1.000.000,00.");
             precoCusto = custo;
         }
-
-        var estoque = 0;
-        if (!string.IsNullOrWhiteSpace(dados.Estoque)
-            && !(int.TryParse(dados.Estoque.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out estoque)
-                 && estoque <= EstoqueMaximo))
-            return ResultadoCriacaoProduto.ComFalha("Estoque inicial inválido — use um número inteiro, sem vírgula (ex: 50).");
 
         var codigo = dados.Codigo?.Trim();
         string? codigoBarras = null, referencia = null;
@@ -329,7 +322,6 @@ public class CadastroLocalService
             GrupoId = grupoId,
             PrecoVenda = preco,
             PrecoCompra = precoCusto,
-            EstoqueAtual = estoque,
             SyncStatus = SyncStatus.PendenteSync,
         };
         context.Produtos.Add(produto);
