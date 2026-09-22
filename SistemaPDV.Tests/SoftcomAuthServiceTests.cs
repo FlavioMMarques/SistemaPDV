@@ -154,6 +154,78 @@ public class SoftcomAuthServiceTests
     }
 
     [Fact]
+    public async Task ObterClienteSecretTentaDeNovoAposFalhaDeRedeTransitoriaEDevolveSucesso()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            if (chamadas <= 2)
+                throw new HttpRequestException("Conexão recusada (simulada)");
+            return RespostaJson(HttpStatusCode.OK, """{ "data": { "client_secret": "abc123" } }""");
+        });
+        var service = new SoftcomAuthService(httpClient, new SegredoProtector());
+
+        var (sucesso, _, clienteSecret) = await service.ObterClienteSecretAsync(
+            "https://exemplo.softcomshop.com.br/registrar?client_id=1", "PDV-01");
+
+        Assert.True(sucesso);
+        Assert.Equal("abc123", clienteSecret);
+        Assert.Equal(3, chamadas);
+    }
+
+    [Fact]
+    public async Task ObterTokenTentaDeNovoAposFalhaDeRedeTransitoriaEDevolveSucesso()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            if (chamadas == 1)
+                throw new HttpRequestException("Conexão recusada (simulada)");
+            return RespostaJson(HttpStatusCode.OK, """{ "data": { "token": "meu-access-token" } }""");
+        });
+        var service = new SoftcomAuthService(httpClient, new SegredoProtector());
+        var configuracao = new ConfiguracaoSincronizacao
+        {
+            UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1",
+            ApiClienteId = "1",
+            ApiClienteSecretProtegido = "secret-de-teste",
+        };
+
+        var (sucesso, _, token) = await service.ObterTokenAsync(configuracao);
+
+        Assert.True(sucesso);
+        Assert.Equal("meu-access-token", token);
+        Assert.Equal(2, chamadas);
+    }
+
+    [Fact]
+    public async Task ObterTokenEsgotaTentativasEDevolveFalhaEmVezDeLancar()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            throw new HttpRequestException("Conexão recusada (simulada, sempre)");
+        });
+        var service = new SoftcomAuthService(httpClient, new SegredoProtector());
+        var configuracao = new ConfiguracaoSincronizacao
+        {
+            UrlApi = "https://exemplo.softcomshop.com.br/registrar?client_id=1",
+            ApiClienteId = "1",
+            ApiClienteSecretProtegido = "secret-de-teste",
+        };
+
+        var (sucesso, mensagem, token) = await service.ObterTokenAsync(configuracao);
+
+        Assert.False(sucesso);
+        Assert.Null(token);
+        Assert.Contains("Falha ao obter token", mensagem);
+        Assert.Equal(4, chamadas); // 1 tentativa original + 3 retries
+    }
+
+    [Fact]
     public void ExtrairDominioPegaSoOEsquemaEHost()
     {
         var dominio = SoftcomAuthService.ExtrairDominio("https://exemplo.softcomshop.com.br/registrar?client_id=1&empresa_cnpj=123");

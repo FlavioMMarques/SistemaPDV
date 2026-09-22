@@ -24,6 +24,15 @@ public class SoftcomApiClient
         this.httpClient = httpClient;
     }
 
+    // Monta uma requisição NOVA a cada tentativa (um HttpRequestMessage já enviado não
+    // pode ser reenviado) e a envia sob o RetryHttpTransitorio.
+    private Task<HttpResponseMessage> EnviarComRetryAsync(Func<HttpRequestMessage> montarRequisicao, CancellationToken ct) =>
+        RetryHttpTransitorio.Politica.ExecuteAsync(cancelToken =>
+        {
+            using var requisicao = montarRequisicao();
+            return httpClient.SendAsync(requisicao, cancelToken);
+        }, ct);
+
     // dominio: a parte {scheme}://{host}[:porta] da UrlApi configurada — não é fixo,
     // muda por dispositivo/cliente (ver ExtrairDominio no projeto de referência).
     public async Task<ResultadoBusca<T>> BuscarTudoAsync<T>(
@@ -35,6 +44,7 @@ public class SoftcomApiClient
 
         var itens = new List<T>();
         long? dateSync = null;
+        var ultimoTotal = 0;
         string? url = MontarUrlInicial(dominio, caminho, ultimaSincronizacao);
         var urlsVisitadas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -51,11 +61,13 @@ public class SoftcomApiClient
             if (!UrlPertenceAoDominio(url, dominio))
                 return ResultadoBusca<T>.ComFalha($"A API retornou uma página fora do domínio esperado: {url}");
 
-            using var requisicao = new HttpRequestMessage(HttpMethod.Get, url);
-            requisicao.Headers.Add("Api-Version", "v2");
-            requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-            using var resposta = await httpClient.SendAsync(requisicao, ct);
+            using var resposta = await EnviarComRetryAsync(() =>
+            {
+                var requisicao = new HttpRequestMessage(HttpMethod.Get, url);
+                requisicao.Headers.Add("Api-Version", "v2");
+                requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                return requisicao;
+            }, ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
 
             if (!resposta.IsSuccessStatusCode)
@@ -76,7 +88,24 @@ public class SoftcomApiClient
 
             itens.AddRange(pagina.Data);
             dateSync = pagina.DateSync ?? dateSync;
-            url = pagina.NextPageUrl;
+            ultimoTotal = pagina.Total;
+            // O next_page_url que a API devolve não carrega o per_page da chamada original —
+            // sem isso, a próxima página usa o per_page PADRÃO do servidor (visto: 500), que
+            // pode fazer o total inteiro caber numa página só e a página seguinte (que a gente
+            // pediu) voltar vazia como se a paginação tivesse acabado. #produtos-422.
+            url = pagina.NextPageUrl is { } proximaUrl ? GarantirPerPage(proximaUrl) : null;
+        }
+
+        // A API devolveu next_page_url nulo (parou de paginar) mas o total declarado na
+        // última página diz que deveria ter vindo mais — sem essa checagem, um catálogo
+        // incompleto era aceito em silêncio (só descobrível contando registro por registro
+        // no banco depois, como em #65). Duplicata entre páginas (documentada em
+        // api-real.md, tratada via Distinct no upsert) só pode fazer itens.Count subir, nunca
+        // descer — então "menor que o total" nunca dá falso positivo por causa de duplicata.
+        if (itens.Count < ultimoTotal)
+        {
+            return ResultadoBusca<T>.ComFalha(
+                $"A API parou de paginar {caminho} antes do fim: vieram {itens.Count} de {ultimoTotal} itens declarados (next_page_url ficou nulo cedo demais).");
         }
 
         return ResultadoBusca<T>.ComSucesso(itens, dateSync);
@@ -97,11 +126,13 @@ public class SoftcomApiClient
 
         for (var lidas = 0; lidas < MaximoPaginasPorBusca; lidas++)
         {
-            using var requisicao = new HttpRequestMessage(HttpMethod.Get, $"{dominio}/{caminhoBase}/{pagina}");
-            requisicao.Headers.Add("Api-Version", "v2");
-            requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-            using var resposta = await httpClient.SendAsync(requisicao, ct);
+            using var resposta = await EnviarComRetryAsync(() =>
+            {
+                var requisicao = new HttpRequestMessage(HttpMethod.Get, $"{dominio}/{caminhoBase}/{pagina}");
+                requisicao.Headers.Add("Api-Version", "v2");
+                requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                return requisicao;
+            }, ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
 
             if (!resposta.IsSuccessStatusCode)
@@ -163,13 +194,15 @@ public class SoftcomApiClient
 
         try
         {
-            using var requisicao = new HttpRequestMessage(metodo, url);
-            requisicao.Headers.Add("Api-Version", "v2");
-            requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            if (corpo is not null)
-                requisicao.Content = JsonContent.Create(corpo);
-
-            using var resposta = await httpClient.SendAsync(requisicao, ct);
+            using var resposta = await EnviarComRetryAsync(() =>
+            {
+                var requisicao = new HttpRequestMessage(metodo, url);
+                requisicao.Headers.Add("Api-Version", "v2");
+                requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                if (corpo is not null)
+                    requisicao.Content = JsonContent.Create(corpo);
+                return requisicao;
+            }, ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
 
             var tipo = resposta.StatusCode switch
@@ -216,6 +249,14 @@ public class SoftcomApiClient
 
         return url;
     }
+
+    // O next_page_url da API não inclui per_page (ver #produtos-422) — reforça aqui pra
+    // não depender do padrão do servidor. Se por algum motivo já vier com per_page (ex:
+    // um dia a API for corrigida), não mexe.
+    private static string GarantirPerPage(string url) =>
+        url.Contains("per_page=", StringComparison.OrdinalIgnoreCase)
+            ? url
+            : url + (url.Contains('?') ? '&' : '?') + "per_page=200";
 
     private static bool UrlPertenceAoDominio(string url, string dominio) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) &&

@@ -862,3 +862,47 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 Depois do PUT (#93) e de movimentação/balanço (#94), testamos `POST softauth/api/produtos/importacao/produto` (rota v1, sem "/v2/", com um bloco `produto_grade[].preco_venda` que parecia existir pra isso — implementado, testado pelo usuário com produto real em 2026-09-22). **Não funcionou.** Revertido (o cadastro voltou a usar o `POST v2/produtos/produtos` em lote, sem preço na empresa) — sem saber ainda se o problema foi a rota, o campo, ou o formato do corpo; a resposta real também nunca chegou a ser vista.
 
 **Continua em stand-by**, sem retomar até o usuário trazer o endpoint certo (ou um print da tela de preço/estoque por empresa no SoftcomShop) ou pedir pra investigar de novo.
+
+## 96. Polly nas chamadas HTTP (SoftcomApiClient + SoftcomAuthService): retry curto de rede, não substitui a `PoliticaRetentativa`
+
+**O que mudou:** toda chamada HTTP à API SoftcomShop agora passa por uma `AsyncRetryPolicy` do Polly (pacote `Polly` 8.5.0, política extraída em `RetryHttpTransitorio` — compartilhada, mesmo raciocínio de `PdvKeyHasher`: duas cópias da mesma política podiam divergir em silêncio) antes de chegar no envio de fato: 3 tentativas extras com espera curta (200ms/400ms/800ms), só para `HttpRequestException`/`TaskCanceledException` — ou seja, falha de rede (timeout, DNS, conexão recusada), nunca status HTTP. Cobre as três chamadas do `SoftcomApiClient` (`BuscarTudoAsync`, `BuscarPaginasAsync`, `EnviarAsync` — catálogo e outbox) **e** as duas do `SoftcomAuthService` (`ObterClienteSecretAsync`, `ObterTokenAsync` — a troca de token que roda antes de cada ciclo). Um `HttpRequestMessage` já enviado não pode ser reenviado, então o helper do `SoftcomApiClient` recebe uma `Func<HttpRequestMessage>` e monta uma requisição nova a cada tentativa; `SoftcomAuthService` usa `GetAsync`/`PostAsync`, que já montam a requisição por baixo a cada chamada, sem esse cuidado extra.
+
+**Por que essas duas classes e não as outras:** o projeto tem só 4 lugares que seguram um `HttpClient` (`SoftcomApiClient`, `SoftcomAuthService`, `CepService`, `VerificadorDeConexao` — conferido varrendo o projeto inteiro por `HttpClient`/`SendAsync`/`GetAsync`/`PostAsync`, nenhum outro escondido em ViewModel). `CepService` (busca de CEP no ViaCEP) fica de fora por estar fora do escopo "sincronizar com a nuvem SoftcomShop" — falhar só deixa um campo de endereço em branco. `VerificadorDeConexao` fica de fora **de propósito**: ele é o próprio detector de "tá online ou não", e colocar retry nele atrasaria exatamente a detecção que ele existe pra fazer rápido.
+
+**Por que não mexe na classificação por status:** 401/409/422/500 continuam decididos exatamente como antes (nenhum desses é uma exceção — são respostas HTTP válidas que o código já sabia interpretar). O Polly só age quando a chamada **nem chega** a ter uma resposta.
+
+**Por que isso não substitui a `PoliticaRetentativa`:** são duas políticas de retry com escopo diferente, não uma redundância.
+- **Polly aqui**: dentro de UMA chamada, resolve um blip passageiro de rede em menos de 2 segundos, sem estado — se falhar todas as 3, a exceção sobe (ou vira uma mensagem de falha no chamador, que já tinha esse catch).
+- **`PoliticaRetentativa`** (ver #outbox em `fila-outbox`): entre CICLOS do outbox (30s a 10min de espera, até 8 tentativas), com estado persistido em `TentativasEnvio`/`ProximaTentativaEm` no banco — sobrevive a fechar e abrir o app de novo. Decide se vale a pena tentar de novo depois que a conexão já claramente não voltou nos próximos segundos.
+
+Sem o Polly, uma instabilidade de meio segundo (comum em rede 4G/Wi-Fi de loja) já contava como uma tentativa inteira do outbox (ou abortava o ciclo inteiro, se acontecesse na troca de token) e esperava o próximo ciclo — 30 segundos de espera por algo que se resolveria sozinho quase na hora.
+
+**Testes:** 8 novos (5 no `SoftcomApiClient`, 3 no `SoftcomAuthService` — retry com sucesso, esgotar tentativas devolve falha em vez de lançar, confirmação de que status HTTP não aciona retry) — 1092 verdes no total.
+
+## 97. `BuscarTudoAsync` agora confere o `total` da API contra o que realmente veio
+
+**O que mudou:** depois que o loop de paginação termina (`next_page_url` veio `null`), `BuscarTudoAsync` compara `itens.Count` com o `total` da última página lida. Se vier menor, devolve falha em vez de aceitar um catálogo incompleto em silêncio: `"A API parou de paginar {caminho} antes do fim: vieram X de Y itens declarados (next_page_url ficou nulo cedo demais)."`
+
+**Por que:** o campo `total` do envelope de paginação (`PaginaApiDto.Total`) sempre existiu mas nunca era conferido — se a API um dia devolvesse `next_page_url: null` cedo demais (bug do lado deles, ou uma resposta truncada), o app aceitava um catálogo parcial sem nenhum aviso. A única forma de descobrir seria contar registro por registro no banco depois (como em #65) — o que só funciona se alguém lembrar de desconfiar e for lá conferir.
+
+**Por que não dá falso positivo com duplicata:** api-real.md já documenta que "a mesma linha pode repetir em páginas diferentes" (dedupe por `id` faz parte do upsert). Duplicata só pode fazer `itens.Count` **subir**, nunca descer — então o `<` nunca dispara por causa disso, só quando genuinamente vieram menos itens que o declarado.
+
+**Testes:** 1 novo (`next_page_url` nulo na 1ª página com só 2 de 5 declarados → falha com a mensagem certa) — 1093 verdes no total.
+
+## 98. Causa raiz encontrada e corrigida: `next_page_url` da API não carrega `per_page`
+
+**A verificação do #97 pegou o caso real:** testado com a conta de verdade (empresa MATRIZ) em 2026-09-22, produtos parou em "vieram 200 de 422 itens declarados" — reproduzível, sempre no mesmo ponto, nas 3 tentativas do app naquele dia. Um teste manual da mesma rota fora do app (script avulso, com `per_page=200` explícito em toda página) sempre trazia os 422 certinho — o que isolou o problema pra uma diferença entre "seguir o link que a API manda" (o app) e "montar a URL da própria página sempre com per_page" (o script).
+
+**Causa raiz:** adicionado temporariamente o corpo bruto da última página na mensagem de falha (só pra diagnóstico, removido depois) e apareceu isto:
+```
+"current_page":2,"data":[],"last_page":1,"per_page":500,"total":422
+```
+O `next_page_url` que a API devolve na página 1 é só `?page=2` — **sem `per_page`**. Sem esse parâmetro, o servidor usa o per_page PADRÃO dele (500, não 200); como 422 cabe inteiro numa página de 500, ele calcula `last_page=1` e a "página 2" que pedimos (seguindo o link) vem vazia, como se a paginação tivesse acabado — sempre no mesmo lugar (depois da 1ª leva de 200), sempre com o mesmo total (422), porque não tem nada de aleatório aqui: é determinístico, só que invisível até alguém pedir a página 2 sem repetir o `per_page`.
+
+**A correção:** `GarantirPerPage` (`SoftcomApiClient.cs`) reforça `per_page=200` em toda `next_page_url` que não trouxer esse parâmetro, antes de seguir o link. `BuscarPaginasAsync` (cartões) não precisa disso — monta a URL de cada página do zero, nunca segue link da API.
+
+**Pegadinha no teste ao reproduzir isso:** `"per_page=200"` contém a substring solta `"page=2"` — um `Contains("page=2")` sem âncora (`?`/`&` na frente) confunde a 1ª chamada (que só tem `per_page=200`, sem `page=`) com uma chamada de página 2. Um teste pré-existente (`GruposSyncTests.SegueAsPaginasPeloNextPageUrl`) even usava um match **exato** (`Query == "?page=2"`) que dependia de a 2ª página nunca ter `per_page` — quebrou com a correção (esperado: a 2ª página agora tem `per_page=200` de propósito) e foi ajustado pra `Contains("?page=2") || Contains("&page=2")`.
+
+**Testes:** 1 novo (`next_page_url` sem `per_page` → servidor cairia no padrão dele e devolveria uma página fantasma vazia; com `GarantirPerPage`, vem certo) + 1 teste pré-existente ajustado — 1094 verdes no total.
+
+**Confirmado com a conta real (2026-09-22):** depois da correção, o app sincronizou com `Online` (não mais `OnlineComFalhas`) e `Produtos 422` — batendo exato com o total da API. Conferidos 18 produtos que antes ficavam de fora (inclusive os de teste como "FLAVIO E GAY", "TESTE AECIO"): todos presentes. Um cuidado descoberto nessa conferência: o campo `Sku` local quase sempre vem `"UNICO"` da API (não é um código por produto) — comparar produto por identidade deve usar `CodigoBarras` ou `IdExterno`, nunca `Sku`; e o "Código" mostrado na tela de produtos do SoftcomShop web **não é** o `id`/`IdExterno` usado na paginação (são numerações independentes).

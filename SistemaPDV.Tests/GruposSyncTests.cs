@@ -71,7 +71,11 @@ public class GruposSyncTests
     {
         using var fixture = new SqliteInMemoryFixture();
         await SemearConfiguracaoAsync(fixture);
-        var httpClient = FakeHttpMessageHandler.CriarHttpClient(requisicao => Json(HttpStatusCode.OK, requisicao.RequestUri!.Query == "?page=2"   // (per_page=200 também contém "page=2")
+        // A API real não devolve per_page no next_page_url — o cliente reforça esse parâmetro (ver
+        // GarantirPerPage), então a 2ª página também vem com "...page=2&per_page=200"; "?page=2"/"&page=2"
+        // ancorado evita o falso positivo de "per_page=200" conter a substring "page=2".
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(requisicao => Json(HttpStatusCode.OK,
+            requisicao.RequestUri!.Query.Contains("?page=2") || requisicao.RequestUri!.Query.Contains("&page=2")
             ? Pagina(2, null, Item(2, "Segunda"))
             : Pagina(1, "https://exemplo.softcomshop.com.br/softauth/api/v2/produtos/grupos?page=2", Item(1, "Primeira"))));
         var service = new CatalogSyncService(fixture.CriarContexto, new SoftcomApiClient(httpClient), new SegredoProtector(), new SoftcomAuthService(httpClient, new SegredoProtector()));

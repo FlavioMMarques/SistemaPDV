@@ -169,6 +169,150 @@ public class SoftcomApiClientTests
     }
 
     [Fact]
+    public async Task NextPageUrlSemPerPageReforcaOParametroEmVezDeCairNoPadraoDoServidor()
+    {
+        // Reproduz o bug real observado: next_page_url não carrega "per_page" — sem reforçar,
+        // a próxima chamada usaria o per_page PADRÃO do servidor (aqui simulado: cabe tudo numa
+        // página só, e a "página 2" pedida volta vazia, com last_page=1, como se tivesse acabado).
+        var pagina1 = """
+            { "current_page": 1, "data": [{"id":1,"nome":"A"},{"id":2,"nome":"B"}],
+              "next_page_url": "https://exemplo.softcomshop.com.br/recurso?page=2", "total": 3 }
+            """;
+        var pagina2ComPerPage = """{ "current_page": 2, "data": [{"id":3,"nome":"C"}], "next_page_url": null, "total": 3 }""";
+        var pagina2SemPerPageFantasma = """{ "current_page": 2, "data": [], "last_page": 1, "next_page_url": null, "total": 3 }""";
+
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            var query = req.RequestUri!.Query;
+            // "?page=2"/"&page=2" ancorado — "per_page=200" também contém a substring solta "page=2".
+            if (!query.Contains("?page=2") && !query.Contains("&page=2"))
+                return RespostaJson(pagina1);
+
+            return RespostaJson(query.Contains("per_page=") ? pagina2ComPerPage : pagina2SemPerPageFantasma);
+        });
+
+        var resultado = await new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>(
+            "https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        Assert.Equal(3, resultado.Itens.Count);
+        Assert.Contains(resultado.Itens, i => i.Id == 3);
+    }
+
+    [Fact]
+    public async Task NextPageUrlNuloAntesDoTotalDeclaradoDevolveFalha()
+    {
+        // A API diz que tem 5 no total, mas devolve next_page_url nulo já na 1ª página com só 2 itens.
+        var json = """
+            { "current_page": 1, "data": [{"id":1,"nome":"A"},{"id":2,"nome":"B"}], "next_page_url": null, "total": 5 }
+            """;
+
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => RespostaJson(json));
+        var cliente = new SoftcomApiClient(httpClient);
+
+        var resultado = await cliente.BuscarTudoAsync<ItemTeste>("https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("parou de paginar", resultado.Mensagem);
+        Assert.Contains("2 de 5", resultado.Mensagem);
+    }
+
+    [Fact]
+    public async Task BuscarTudoTentaDeNovoAposFalhaDeRedeTransitoriaEDevolveSucesso()
+    {
+        var chamadas = 0;
+        var json = """{ "current_page": 1, "data": [{"id":1,"nome":"A"}], "next_page_url": null, "total": 1 }""";
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            if (chamadas <= 2)
+                throw new HttpRequestException("Conexão recusada (simulada)");
+            return RespostaJson(json);
+        });
+
+        var resultado = await new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>(
+            "https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        Assert.Equal(3, chamadas);
+        Assert.Single(resultado.Itens);
+    }
+
+    [Fact]
+    public async Task BuscarTudoEsgotaTentativasEPropagaFalhaDeRede()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            throw new HttpRequestException("Conexão recusada (simulada, sempre)");
+        });
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>(
+                "https://exemplo.softcomshop.com.br", "recurso", null, "token-fake"));
+
+        Assert.Equal(4, chamadas); // 1 tentativa original + 3 retries
+    }
+
+    [Fact]
+    public async Task EnviarTentaDeNovoAposFalhaDeRedeTransitoriaEDevolveSucesso()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            if (chamadas == 1)
+                throw new HttpRequestException("Conexão recusada (simulada)");
+            return RespostaJson("{}");
+        });
+
+        var resultado = await new SoftcomApiClient(httpClient).EnviarAsync(
+            HttpMethod.Post, "https://exemplo.softcomshop.com.br/api/v2/vendas", new { a = 1 }, "token-fake");
+
+        Assert.Equal(ResultadoEnvioTipo.Sucesso, resultado.Tipo);
+        Assert.Equal(2, chamadas);
+    }
+
+    [Fact]
+    public async Task EnviarEsgotaTentativasEDevolveFalhaDeConexaoEmVezDeLancar()
+    {
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            throw new HttpRequestException("Conexão recusada (simulada, sempre)");
+        });
+
+        var resultado = await new SoftcomApiClient(httpClient).EnviarAsync(
+            HttpMethod.Post, "https://exemplo.softcomshop.com.br/api/v2/vendas", new { a = 1 }, "token-fake");
+
+        Assert.Equal(ResultadoEnvioTipo.Falha, resultado.Tipo);
+        Assert.Contains("Falha de conexão", resultado.Conteudo);
+        Assert.Equal(4, chamadas);
+    }
+
+    [Fact]
+    public async Task RespostaComStatusDeErroNaoAcionaRetry()
+    {
+        // 401/409/422 são classificação de negócio, não falha de rede — não deve haver retry.
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
+        {
+            chamadas++;
+            return new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent("""{"message":"Access token expired."}""", Encoding.UTF8, "application/json"),
+            };
+        });
+
+        await new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>(
+            "https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+        Assert.Equal(1, chamadas);
+    }
+
+    [Fact]
     public async Task RequisicaoEnviaHeadersCorretos()
     {
         HttpRequestMessage? requisicaoCapturada = null;

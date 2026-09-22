@@ -32,7 +32,8 @@ public class SoftcomAuthService
         try
         {
             var url = $"{link}&device_id={Uri.EscapeDataString(nomeDispositivo)}";
-            using var resposta = await httpClient.GetAsync(url, ct);
+            using var resposta = await RetryHttpTransitorio.Politica.ExecuteAsync(
+                cancelToken => httpClient.GetAsync(url, cancelToken), ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
 
             if (!resposta.IsSuccessStatusCode)
@@ -77,7 +78,8 @@ public class SoftcomAuthService
                 ["client_secret"] = clienteSecret ?? string.Empty,
             });
 
-            using var resposta = await httpClient.PostAsync(MontarUrlToken(configuracao.UrlApi), corpo, ct);
+            using var resposta = await RetryHttpTransitorio.Politica.ExecuteAsync(
+                cancelToken => httpClient.PostAsync(MontarUrlToken(configuracao.UrlApi), corpo, cancelToken), ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
 
             if (!resposta.IsSuccessStatusCode)
