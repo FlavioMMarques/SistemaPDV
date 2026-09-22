@@ -34,4 +34,9 @@ public static class SoftcomRotas
     public static string Vendas(string dominio) => $"{dominio}/{Prefixo}/vendas";
     public static string ClientesCriar(string dominio) => $"{dominio}/{Prefixo}/clientes/clientes";
     public static string ProdutosCriar(string dominio) => $"{dominio}/{Prefixo}/produtos/produtos";
+
+    // EXPERIMENTAL (2026-09-22): trocando o cadastro de produto pelo endpoint de importação v1 — sem "/v2/", como os
+    // cartões —, na hipótese de que ele grava o preço no registro da EMPRESA (produto_empresa_grade), o que o lote v2 não
+    // faz (chega com preco_venda 0 lá; ver APRENDIZADOS #86/#94). Ainda não confirmado com produto real.
+    public static string ProdutosImportar(string dominio) => $"{dominio}/softauth/api/produtos/importacao/produto";
 }

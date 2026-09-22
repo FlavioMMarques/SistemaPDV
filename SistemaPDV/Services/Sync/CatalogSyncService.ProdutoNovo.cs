@@ -18,6 +18,11 @@ namespace SistemaPDV.Services.Sync;
 // o do produto-base (`id` → Produto.ProdutoIdApi, o "produto_id" da venda) e o da grade da empresa
 // (`produto_empresas[].produto_empresa_grade.id` → Produto.IdExterno, o "produto_empresa_grade_id" da venda). Enquanto o
 // produto não sincroniza, a venda que o contém espera (MontadorDeRequisicaoDeVenda: "produto ainda não sincronizado").
+//
+// EXPERIMENTAL (2026-09-22): envia pelo endpoint de importação (ProdutosImportar), não mais pelo cadastro em lote — na
+// aposta de que ele grava o preço no registro da empresa (produto_grade[].preco_venda), que o lote sempre devolvia
+// zerado (#86/#94). A forma da resposta é uma hipótese (ProdutoImportacaoRespostaDto); se vier diferente do esperado, o
+// produto cai em falha com a resposta crua à mostra — nunca se confia cegamente: sem os dois ids ele não serve pra vender.
 public partial class CatalogSyncService
 {
     public async Task<ResultadoSincronizacaoRecurso> SincronizarProdutoNovoAsync(int produtoId, string accessToken, CancellationToken ct = default)
@@ -43,24 +48,19 @@ public partial class CatalogSyncService
         if (produto.GrupoId is not { } grupoId || grupoId <= 0)
             return await MarcarFalhaProdutoAsync(context, produto, "Escolha a categoria do produto para enviá-lo.", ct);
 
-        var corpo = new ProdutoNovoLoteRequestDto
+        var corpo = new ProdutoImportacaoRequestDto
         {
-            Produtos =
-            {
-                new ProdutoNovoRequestDto
-                {
-                    Nome = produto.Nome.Trim(),
-                    GrupoId = grupoId,
-                    PrecoVenda = produto.PrecoVenda,
-                    PrecoCompra = produto.PrecoCompra is > 0 ? produto.PrecoCompra : null,
-                    CodigoBarras = string.IsNullOrWhiteSpace(produto.CodigoBarras) ? null : produto.CodigoBarras.Trim(),
-                    Referencia = string.IsNullOrWhiteSpace(produto.Referencia) ? null : produto.Referencia.Trim(),
-                },
-            },
+            Nome = produto.Nome.Trim(),
+            GrupoId = grupoId,
+            PrecoVenda = produto.PrecoVenda,
+            PrecoCompra = produto.PrecoCompra is > 0 ? produto.PrecoCompra : null,
+            CodigoBarras = string.IsNullOrWhiteSpace(produto.CodigoBarras) ? null : produto.CodigoBarras.Trim(),
+            Referencia = string.IsNullOrWhiteSpace(produto.Referencia) ? null : produto.Referencia.Trim(),
+            ProdutoGrade = { new ProdutoImportacaoGradeItemDto { PrecoVenda = produto.PrecoVenda } },
         };
 
         var resultado = await apiClient.EnviarAsync(
-            HttpMethod.Post, SoftcomRotas.ProdutosCriar(dominio), corpo, accessToken, ct);
+            HttpMethod.Post, SoftcomRotas.ProdutosImportar(dominio), corpo, accessToken, ct);
 
         if (resultado.Tipo == ResultadoEnvioTipo.ConexaoInsegura)
             return ResultadoSincronizacaoRecurso.ComFalha(resultado.Conteudo);
@@ -69,8 +69,8 @@ public partial class CatalogSyncService
             return await MarcarFalhaProdutoAsync(context, produto, ErroApiExtractor.Extrair(resultado.Conteudo), ct);
 
         // Nunca confiar cegamente na resposta: sem os dois ids o produto não serve para vender.
-        var resposta = SoftcomJson.TentarDesserializar<ProdutoNovoRespostaDto>(resultado.Conteudo);
-        var criado = resposta?.Data?.Created.FirstOrDefault();
+        var resposta = SoftcomJson.TentarDesserializar<ProdutoImportacaoRespostaDto>(resultado.Conteudo);
+        var criado = resposta?.Data;
         var gradeId = criado is null ? 0 : EscolherGradeDaEmpresa(context, criado.ProdutoEmpresas);
         if (criado is not { Id: > 0 } || gradeId <= 0)
             return await MarcarFalhaProdutoAsync(context, produto,
@@ -87,7 +87,7 @@ public partial class CatalogSyncService
 
     // A resposta lista o produto por empresa; interessa a grade da empresa DESTE aparelho (a que a venda usa). Sem empresa
     // conhecida, ou sem casar, cai na primeira que tenha grade.
-    private static int EscolherGradeDaEmpresa(AppDbContext context, List<ProdutoNovoEmpresaDto> empresas)
+    private static int EscolherGradeDaEmpresa(AppDbContext context, List<ProdutoImportacaoEmpresaDto> empresas)
     {
         var empresaDoAparelho = context.Empresas.Select(e => e.IdExterno).FirstOrDefault();
         var escolhida = empresas.FirstOrDefault(e => empresaDoAparelho is { } id && e.EmpresaId == id && e.ProdutoEmpresaGrade is { Id: > 0 })

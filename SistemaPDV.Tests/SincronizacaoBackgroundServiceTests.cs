@@ -303,15 +303,15 @@ public class SincronizacaoBackgroundServiceTests
         }
         var api = new ApiFake
         {
-            Sobrescrever = req => req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/produtos/produtos")
-                ? Json(HttpStatusCode.OK, """{ "data": { "created": [ { "id": 1049, "produto_empresas": [ { "empresa_id": "1", "produto_empresa_grade": { "id": 122848 } } ] } ] } }""")
+            Sobrescrever = req => req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/produtos/importacao/produto")
+                ? Json(HttpStatusCode.OK, """{ "data": { "id": 1049, "produto_empresas": [ { "empresa_id": "1", "produto_empresa_grade": { "id": 122848 } } ] } }""")
                 : null,
         };
         var service = CriarService(fixture, api.CriarHttpClient());
 
         await service.ExecutarCicloOutboxAsync();
 
-        Assert.Equal(1, api.Contar("POST /softauth/api/v2/produtos/produtos"));
+        Assert.Equal(1, api.Contar("POST /softauth/api/produtos/importacao/produto"));
         using var leitura = fixture.CriarContexto();
         var produto = leitura.Produtos.Single();
         Assert.Equal(122848, produto.IdExterno);
