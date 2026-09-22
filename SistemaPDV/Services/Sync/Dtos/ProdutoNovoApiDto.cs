@@ -23,6 +23,11 @@ public class ProdutoNovoRequestDto
 
     [JsonPropertyName("preco_venda")] public decimal PrecoVenda { get; set; }
 
+    // Só vai quando o operador informou o custo: zerado (ou sem margem) a API pode recalcular o preço de venda e anulá-lo.
+    [JsonPropertyName("preco_compra")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? PrecoCompra { get; set; }
+
     // Únicos entre os produtos ativos quando informados (a API recusa duplicado).
     [JsonPropertyName("codigo_barras")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

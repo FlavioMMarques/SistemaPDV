@@ -33,12 +33,12 @@ public class CatalogSyncServiceProdutoNovoTests
 
     private static async Task<int> SemearProdutoAsync(
         SqliteInMemoryFixture fixture, string nome = "Café Torrado 500g", int? grupoId = 7, decimal preco = 12.5m,
-        string? codigoBarras = "7891234567890", string? referencia = null, SyncStatus status = SyncStatus.PendenteSync)
+        string? codigoBarras = "7891234567890", string? referencia = null, SyncStatus status = SyncStatus.PendenteSync, decimal? precoCompra = null)
     {
         await using var context = fixture.CriarContexto();
         var produto = new Produto
         {
-            Nome = nome, GrupoId = grupoId, PrecoVenda = preco, CodigoBarras = codigoBarras, Referencia = referencia, SyncStatus = status,
+            Nome = nome, GrupoId = grupoId, PrecoVenda = preco, CodigoBarras = codigoBarras, Referencia = referencia, SyncStatus = status, PrecoCompra = precoCompra,
         };
         context.Produtos.Add(produto);
         await context.SaveChangesAsync();
@@ -98,8 +98,8 @@ public class CatalogSyncServiceProdutoNovoTests
         Assert.Equal(12.5m, p.GetProperty("preco_venda").GetDecimal());
         Assert.Equal("7891234567890", p.GetProperty("codigo_barras").GetString());
         Assert.False(p.TryGetProperty("referencia", out _));   // nulo não vai
-        // Custo, margem e comissão NÃO vão (nem zerados): com eles a API pode recalcular o preço de venda a partir do custo e da
-        // margem e anular o preço informado (o produto de teste chegou com preco_venda 0,00 na empresa, 2026-09-21).
+        // Sem custo informado, custo/margem/comissão NÃO vão (nem zerados): com eles a API pode recalcular o preço de venda e
+        // anular o preço informado (o produto de teste chegou com preco_venda 0,00 na empresa, 2026-09-21).
         Assert.False(p.TryGetProperty("preco_compra", out _));
         Assert.False(p.TryGetProperty("margem_lucro", out _));
         Assert.False(p.TryGetProperty("percentual_comissao_produto", out _));
@@ -112,6 +112,29 @@ public class CatalogSyncServiceProdutoNovoTests
         Assert.DoesNotContain("SyncStatus", corpo);
         Assert.DoesNotContain("UltimoErro", corpo);
         Assert.DoesNotContain("token-fake", corpo);
+    }
+
+    [Fact]
+    public async Task CustoInformadoVaiComoPrecoCompraSemMargemNemComissao()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var id = await SemearProdutoAsync(fixture, precoCompra: 8.25m);
+        string? corpo = null;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Resposta(HttpStatusCode.OK, RespostaOk);
+        });
+
+        await CriarService(fixture, httpClient).SincronizarProdutoNovoAsync(id, "token-fake");
+
+        using var json = JsonDocument.Parse(corpo!);
+        var p = json.RootElement.GetProperty("produtos")[0];
+        Assert.Equal(8.25m, p.GetProperty("preco_compra").GetDecimal());
+        Assert.Equal(12.5m, p.GetProperty("preco_venda").GetDecimal());
+        Assert.False(p.TryGetProperty("margem_lucro", out _));
+        Assert.False(p.TryGetProperty("percentual_comissao_produto", out _));
     }
 
     [Fact]

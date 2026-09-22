@@ -7,7 +7,7 @@ using SistemaPDV.Services;
 
 namespace SistemaPDV.ViewModels;
 
-// O modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros): nome, código, categoria, preço e estoque
+// O modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros): nome, código, categoria, preço de venda e de custo e estoque
 // inicial. Só grava local (PendenteSync) — o envio à API é do outbox (CatalogSyncService.SincronizarProdutoNovoAsync), então
 // funciona offline. Filho do CadastrosViewModel (que já é grande): quem abre é o pai; ao salvar, o pai é avisado por
 // `aoSalvar` para recarregar a lista.
@@ -20,6 +20,7 @@ public class ProdutoFormViewModel : ViewModelBase
     private string nome = string.Empty;
     private string codigo = string.Empty;
     private string preco = string.Empty;
+    private string precoCusto = string.Empty;
     private string estoque = string.Empty;
     private IReadOnlyList<CategoriaResumo> categorias = Array.Empty<CategoriaResumo>();
     private CategoriaResumo? categoriaSelecionada;
@@ -61,6 +62,13 @@ public class ProdutoFormViewModel : ViewModelBase
     {
         get => preco;
         set => this.RaiseAndSetIfChanged(ref preco, value);
+    }
+
+    // Opcional: o custo fica no cadastro e vai à API junto com o produto quando informado.
+    public string PrecoCusto
+    {
+        get => precoCusto;
+        set => this.RaiseAndSetIfChanged(ref precoCusto, value);
     }
 
     public string Estoque
@@ -117,6 +125,7 @@ public class ProdutoFormViewModel : ViewModelBase
         Nome = string.Empty;
         Codigo = string.Empty;
         Preco = string.Empty;
+        PrecoCusto = string.Empty;
         Estoque = string.Empty;
         CategoriaSelecionada = null;
         Mensagem = null;
@@ -125,7 +134,7 @@ public class ProdutoFormViewModel : ViewModelBase
     private async Task SalvarAsync()
     {
         var resultado = await cadastroLocalService.CriarProdutoAsync(
-            new NovoProdutoDados(Nome, Codigo, CategoriaSelecionada?.GrupoId, Preco, Estoque));
+            new NovoProdutoDados(Nome, Codigo, CategoriaSelecionada?.GrupoId, Preco, Estoque, PrecoCusto));
 
         if (!resultado.Sucesso)
         {

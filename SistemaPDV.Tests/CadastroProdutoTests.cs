@@ -17,8 +17,8 @@ public class CadastroProdutoTests
         return idExterno;
     }
 
-    private static NovoProdutoDados Dados(int? grupo = 7, string? nome = "Café Torrado 500g", string? codigo = "7890001", string? preco = "12,50", string? estoque = "50") =>
-        new(nome, codigo, grupo, preco, estoque);
+    private static NovoProdutoDados Dados(int? grupo = 7, string? nome = "Café Torrado 500g", string? codigo = "7890001", string? preco = "12,50", string? estoque = "50", string? custo = null) =>
+        new(nome, codigo, grupo, preco, estoque, custo);
 
     // ---- o serviço ----
 
@@ -92,6 +92,57 @@ public class CadastroProdutoTests
 
         using var leitura = fixture.CriarContexto();
         Assert.Equal((decimal)esperado, leitura.Produtos.Single().PrecoVenda);
+    }
+
+    [Theory]
+    [InlineData("8,00", 8.00)]
+    [InlineData("8.5", 8.5)]
+    public async Task PrecoDeCustoInformadoFicaNoProduto(string digitado, double esperado)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+
+        var resultado = await new CadastroLocalService(fixture.CriarContexto).CriarProdutoAsync(Dados(custo: digitado));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal((decimal)esperado, leitura.Produtos.Single().PrecoCompra);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task PrecoDeCustoEhOpcionalEFicaNuloQuandoNaoInformado(string? digitado)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+
+        var resultado = await new CadastroLocalService(fixture.CriarContexto).CriarProdutoAsync(Dados(custo: digitado));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Null(leitura.Produtos.Single().PrecoCompra);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("0,00")]
+    [InlineData("-5")]
+    [InlineData("abc")]
+    [InlineData("1.234")]
+    [InlineData("1000000,01")]
+    public async Task PrecoDeCustoInvalidoNaoGravaNada(string digitado)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+
+        var resultado = await new CadastroLocalService(fixture.CriarContexto).CriarProdutoAsync(Dados(custo: digitado));
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("custo", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Produtos);
     }
 
     [Theory]
@@ -347,6 +398,41 @@ public class CadastroProdutoTests
         Assert.True(PodeSalvar(viewModel));
         form.Nome = "   ";
         Assert.False(PodeSalvar(viewModel));
+    }
+
+    [Fact]
+    public async Task OCustoNaoEObrigatorioParaSalvarEVaiJuntoQuandoInformado()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.NovoProdutoCommand.Execute();
+        var form = viewModel.FormProduto;
+        form.Nome = "Café";
+        form.CategoriaSelecionada = form.Categorias[0];
+        form.Preco = "12,50";
+        Assert.True(PodeSalvar(viewModel));                          // sem custo, salva do mesmo jeito
+
+        form.PrecoCusto = "8,00";
+        await form.SalvarCommand.Execute();
+
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal(8.00m, leitura.Produtos.Single().PrecoCompra);
+    }
+
+    [Fact]
+    public async Task ReabrirOModalLimpaOCusto()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.NovoProdutoCommand.Execute();
+        viewModel.FormProduto.PrecoCusto = "8,00";
+
+        viewModel.FormProduto.CancelarCommand.Execute().Subscribe();
+        await viewModel.NovoProdutoCommand.Execute();
+
+        Assert.Equal(string.Empty, viewModel.FormProduto.PrecoCusto);
     }
 
     [Fact]

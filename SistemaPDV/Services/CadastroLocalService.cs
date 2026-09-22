@@ -276,6 +276,17 @@ public class CadastroLocalService
         if (preco > 1_000_000m)
             return ResultadoCriacaoProduto.ComFalha("O preço de venda passa do limite de R$ 1.000.000,00.");
 
+        // Preço de custo é opcional (vazio = não informado, nada vai à API); quando informado tem de ser maior que zero.
+        decimal? precoCusto = null;
+        if (!string.IsNullOrWhiteSpace(dados.PrecoCusto))
+        {
+            if (!ValorMonetario.TentarLer(dados.PrecoCusto, out var custo) || custo <= 0)
+                return ResultadoCriacaoProduto.ComFalha("Informe o preço de custo maior que zero (ex: 8,00) ou deixe em branco.");
+            if (custo > 1_000_000m)
+                return ResultadoCriacaoProduto.ComFalha("O preço de custo passa do limite de R$ 1.000.000,00.");
+            precoCusto = custo;
+        }
+
         var estoque = 0;
         if (!string.IsNullOrWhiteSpace(dados.Estoque)
             && !(int.TryParse(dados.Estoque.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out estoque)
@@ -317,6 +328,7 @@ public class CadastroLocalService
             Referencia = referencia,
             GrupoId = grupoId,
             PrecoVenda = preco,
+            PrecoCompra = precoCusto,
             EstoqueAtual = estoque,
             SyncStatus = SyncStatus.PendenteSync,
         };

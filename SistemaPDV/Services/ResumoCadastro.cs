@@ -80,7 +80,7 @@ public record NovoClienteDados(
 
 // O que o modal "Cadastrar Produto" preenche. Preço e estoque chegam como texto digitado ("12,50" / "50"); a categoria é o
 // IdExterno do Grupo sincronizado (a API exige um grupo que já exista lá).
-public record NovoProdutoDados(string? Nome, string? Codigo, int? GrupoId, string? Preco, string? Estoque = null);
+public record NovoProdutoDados(string? Nome, string? Codigo, int? GrupoId, string? Preco, string? Estoque = null, string? PrecoCusto = null);
 
 // Uma categoria do combo do modal: só grupos que já têm par na API (IdExterno) — sem isso o produto não seria aceito lá.
 public record CategoriaResumo(int GrupoId, string Nome);

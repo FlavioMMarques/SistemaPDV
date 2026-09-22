@@ -838,3 +838,11 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 **Conferido pelo usuário em teste real (2026-09-21):** a venda com desconto foi aceita e subiu certa — a API recebe `desconto_valor_item` diferente de zero e fecha a conta com o total **líquido** (itens − descontos). Até então toda venda subia com desconto 0.
 
 **Testes:** 1055 verdes — `RateioDeDescontoTests`, `PdvDescontoTests` (R$/%, recusas, item entra/sai, gravação e detalhe).
+
+## 93. Cadastro de produto com preço de custo (e o PUT que ainda não usamos)
+
+**O que mudou:** o modal "Cadastrar Produto" ganhou **Preço de Custo (R$)**, opcional (vazio = não informado; informado, tem de ser maior que zero e até R$ 1.000.000,00). Grava em `Produto.PrecoCompra` e vai à API como `preco_compra` **só quando informado** — nunca zerado, e sem `margem_lucro`/comissão (a hipótese anterior é que custo zerado ou com margem podia recalcular e anular o preço de venda). A próxima sincronização do catálogo sobrescreve o custo local com o da API, como faz com o resto.
+
+**Swagger do `PUT /api/v2/produtos/produtos/{produtoId}` (recebido, ainda não implementado):** o corpo tem `preco_compra`, `preco_venda` e `margem_lucro` no nível do **produto**; o objeto `produto_empresa` aceita só `status_fiscal` e `codigo_imendes`. Ou seja, o PUT atualiza o preço do produto-base, não o registro da empresa — só um teste real diz se isso resolve o "preço 0 na empresa". Se o teste do POST com custo ainda chegar com preço 0, o próximo passo é um PUT com o `ProdutoIdApi` devolvido pelo POST (e um teste de um produto de verdade antes de ligar no outbox). Estoque fica de fora, por decisão do usuário.
+
+**Testes:** 1092 verdes (custo no serviço, no formulário e no corpo do POST, com e sem custo).
