@@ -33,12 +33,14 @@ public class CatalogSyncServiceProdutoNovoTests
 
     private static async Task<int> SemearProdutoAsync(
         SqliteInMemoryFixture fixture, string nome = "Café Torrado 500g", int? grupoId = 7, decimal preco = 12.5m,
-        string? codigoBarras = "7891234567890", string? referencia = null, SyncStatus status = SyncStatus.PendenteSync, decimal? precoCompra = null)
+        string? codigoBarras = "7891234567890", string? referencia = null, SyncStatus status = SyncStatus.PendenteSync,
+        decimal? precoCompra = null, string? unidadeMedida = null)
     {
         await using var context = fixture.CriarContexto();
         var produto = new Produto
         {
-            Nome = nome, GrupoId = grupoId, PrecoVenda = preco, CodigoBarras = codigoBarras, Referencia = referencia, SyncStatus = status, PrecoCompra = precoCompra,
+            Nome = nome, GrupoId = grupoId, PrecoVenda = preco, CodigoBarras = codigoBarras, Referencia = referencia,
+            SyncStatus = status, PrecoCompra = precoCompra, UnidadeMedida = unidadeMedida,
         };
         context.Produtos.Add(produto);
         await context.SaveChangesAsync();
@@ -156,6 +158,35 @@ public class CatalogSyncServiceProdutoNovoTests
         var p = json.RootElement.GetProperty("produtos")[0];
         Assert.Equal("CAFE-500", p.GetProperty("referencia").GetString());
         Assert.False(p.TryGetProperty("codigo_barras", out _));
+    }
+
+    [Fact]
+    public async Task UnidadeDeMedidaInformadaVaiNoCorpoQuandoAusenteNaoVaiNada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearConfiguracaoAsync(fixture);
+        var comUnidade = await SemearProdutoAsync(fixture, nome: "Com unidade", unidadeMedida: "KG");
+        var semUnidade = await SemearProdutoAsync(fixture, nome: "Sem unidade");
+        var corpos = new List<string>();
+        var chamadas = 0;
+        var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+        {
+            corpos.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            chamadas++;
+            // Cada produto precisa de um IdExterno diferente — a mesma resposta duas vezes violaria o índice único.
+            var json = RespostaOk.Replace("122848", (122848 + chamadas).ToString());
+            return Resposta(HttpStatusCode.OK, json);
+        });
+        var service = CriarService(fixture, httpClient);
+
+        await service.SincronizarProdutoNovoAsync(comUnidade, "token-fake");
+        await service.SincronizarProdutoNovoAsync(semUnidade, "token-fake");
+
+        using var comJson = JsonDocument.Parse(corpos[0]);
+        Assert.Equal("KG", comJson.RootElement.GetProperty("produtos")[0].GetProperty("unidade_medida").GetString());
+
+        using var semJson = JsonDocument.Parse(corpos[1]);
+        Assert.False(semJson.RootElement.GetProperty("produtos")[0].TryGetProperty("unidade_medida", out _));
     }
 
     [Fact]

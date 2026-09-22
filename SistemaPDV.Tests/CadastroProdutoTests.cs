@@ -17,8 +17,10 @@ public class CadastroProdutoTests
         return idExterno;
     }
 
-    private static NovoProdutoDados Dados(int? grupo = 7, string? nome = "Café Torrado 500g", string? codigo = "7890001", string? preco = "12,50", string? custo = null) =>
-        new(nome, codigo, grupo, preco, custo);
+    private static NovoProdutoDados Dados(
+        int? grupo = 7, string? nome = "Café Torrado 500g", string? codigoBarras = null, string? referencia = null,
+        string? preco = "12,50", string? custo = null, string? unidade = null) =>
+        new(nome, codigoBarras, referencia, grupo, preco, custo, unidade);
 
     // ---- o serviço ----
 
@@ -45,37 +47,87 @@ public class CadastroProdutoTests
     }
 
     [Theory]
-    [InlineData("7891234567890", "7891234567890", null)]    // 13 dígitos: código de barras
-    [InlineData("78912345", "78912345", null)]              // 8 dígitos (EAN-8): código de barras
-    [InlineData("7890001", null, "7890001")]                // 7 dígitos: curto demais para EAN, vira referência (o do protótipo)
-    [InlineData("CAFE-500", null, "CAFE-500")]              // com letras: referência
-    [InlineData("  ", null, null)]                          // vazio: sem código
-    public async Task CodigoViraCodigoDeBarrasOuReferencia(string digitado, string? barras, string? referencia)
+    [InlineData("7891234567890")]    // 13 dígitos
+    [InlineData("78912345")]         // 8 dígitos (EAN-8)
+    [InlineData("12345678901234")]   // 14 dígitos (GTIN-14)
+    public async Task CodigoDeBarrasValidoFicaNoProduto(string codigoBarras)
     {
         using var fixture = new SqliteInMemoryFixture();
         await SemearGrupoAsync(fixture);
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarProdutoAsync(Dados(codigo: digitado));
+        var resultado = await service.CriarProdutoAsync(Dados(codigoBarras: codigoBarras));
 
         Assert.True(resultado.Sucesso, resultado.Mensagem);
         using var leitura = fixture.CriarContexto();
         var produto = leitura.Produtos.Single();
-        Assert.Equal(barras, produto.CodigoBarras);
-        Assert.Equal(referencia, produto.Referencia);
+        Assert.Equal(codigoBarras, produto.CodigoBarras);
+        Assert.Null(produto.Referencia);
     }
 
-    [Fact]
-    public async Task CodigoSemBarrasMostraNaTelaOQueFoiDigitado()
+    [Theory]
+    [InlineData("7890001")]     // 7 dígitos: curto demais pro menor EAN
+    [InlineData("CAFE-500")]    // letras: nunca é código de barras
+    [InlineData("123456789012345")]  // 15 dígitos: longo demais pro maior GTIN
+    public async Task CodigoDeBarrasForaDoFormatoNaoGrava(string digitado)
     {
         using var fixture = new SqliteInMemoryFixture();
         await SemearGrupoAsync(fixture);
         var service = new CadastroLocalService(fixture.CriarContexto);
-        await service.CriarProdutoAsync(Dados(codigo: "7890001"));
+
+        var resultado = await service.CriarProdutoAsync(Dados(codigoBarras: digitado));
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("código de barras", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Produtos);
+    }
+
+    [Theory]
+    [InlineData("CAFE-500")]
+    [InlineData("7890001")]     // referência pode ser só dígitos também — não tem formato próprio, ao contrário do código de barras
+    public async Task ReferenciaLivreFicaNoProduto(string referencia)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarProdutoAsync(Dados(referencia: referencia));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        var produto = leitura.Produtos.Single();
+        Assert.Equal(referencia, produto.Referencia);
+        Assert.Null(produto.CodigoBarras);
+    }
+
+    [Fact]
+    public async Task CodigoEReferenciaVaziosNaoGravamNada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarProdutoAsync(Dados(codigoBarras: "  ", referencia: "  "));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        var produto = leitura.Produtos.Single();
+        Assert.Null(produto.CodigoBarras);
+        Assert.Null(produto.Referencia);
+    }
+
+    [Fact]
+    public async Task ReferenciaMostraNaTelaOQueFoiDigitado()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var service = new CadastroLocalService(fixture.CriarContexto);
+        await service.CriarProdutoAsync(Dados(referencia: "CAFE-500"));
 
         var linha = Assert.Single(await service.ListarProdutosAsync(""));
 
-        Assert.Equal("7890001", linha.Codigo);       // a tabela e o card não podem mostrar "—" para um código digitado
+        Assert.Equal("CAFE-500", linha.Codigo);       // a tabela e o card não podem mostrar "—" para uma referência digitada
     }
 
     [Theory]
@@ -182,16 +234,16 @@ public class CadastroProdutoTests
     }
 
     [Fact]
-    public async Task CodigoLongoDemaisNaoGrava()
+    public async Task ReferenciaLongaDemaisNaoGrava()
     {
         using var fixture = new SqliteInMemoryFixture();
         await SemearGrupoAsync(fixture);
         var service = new CadastroLocalService(fixture.CriarContexto);
 
-        var resultado = await service.CriarProdutoAsync(Dados(codigo: "ABCDEFGHIJKLMNOPQRSTU"));   // 21 caracteres
+        var resultado = await service.CriarProdutoAsync(Dados(referencia: "ABCDEFGHIJKLMNOPQRSTU"));   // 21 caracteres
 
         Assert.False(resultado.Sucesso);
-        Assert.Contains("código", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("referência", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -217,11 +269,11 @@ public class CadastroProdutoTests
         using var fixture = new SqliteInMemoryFixture();
         await SemearGrupoAsync(fixture);
         var service = new CadastroLocalService(fixture.CriarContexto);
-        await service.CriarProdutoAsync(Dados(nome: "Café", codigo: "7891234567890"));
+        await service.CriarProdutoAsync(Dados(nome: "Café", codigoBarras: "7891234567890"));
 
-        var mesmoNome = await service.CriarProdutoAsync(Dados(nome: "CAFÉ".ToLowerInvariant(), codigo: "7899999999999"));
-        var mesmoNomeMaiusculo = await service.CriarProdutoAsync(Dados(nome: "café", codigo: "7899999999998"));
-        var mesmoBarras = await service.CriarProdutoAsync(Dados(nome: "Outro", codigo: "7891234567890"));
+        var mesmoNome = await service.CriarProdutoAsync(Dados(nome: "CAFÉ".ToLowerInvariant(), codigoBarras: "7899999999999"));
+        var mesmoNomeMaiusculo = await service.CriarProdutoAsync(Dados(nome: "café", codigoBarras: "7899999999998"));
+        var mesmoBarras = await service.CriarProdutoAsync(Dados(nome: "Outro", codigoBarras: "7891234567890"));
 
         Assert.False(mesmoNome.Sucesso);
         Assert.False(mesmoNomeMaiusculo.Sucesso);
@@ -238,11 +290,75 @@ public class CadastroProdutoTests
         using var fixture = new SqliteInMemoryFixture();
         await SemearGrupoAsync(fixture);
         var service = new CadastroLocalService(fixture.CriarContexto);
-        await service.CriarProdutoAsync(Dados(nome: "Café", codigo: "REF-1"));
+        await service.CriarProdutoAsync(Dados(nome: "Café", referencia: "REF-1"));
 
-        var resultado = await service.CriarProdutoAsync(Dados(nome: "Outro", codigo: "REF-1"));
+        var resultado = await service.CriarProdutoAsync(Dados(nome: "Outro", referencia: "REF-1"));
 
         Assert.False(resultado.Sucesso);
+    }
+
+    [Theory]
+    [InlineData("KG")]
+    [InlineData("kg")]     // até 10 caracteres, sem exigir maiúsculas
+    public async Task UnidadeDeMedidaInformadaFicaNoProduto(string unidade)
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarProdutoAsync(Dados(unidade: unidade));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal(unidade, leitura.Produtos.Single().UnidadeMedida);
+    }
+
+    [Fact]
+    public async Task UnidadeDeMedidaEhOpcionalEFicaNulaQuandoNaoInformada()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarProdutoAsync(Dados(unidade: null));
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        using var leitura = fixture.CriarContexto();
+        Assert.Null(leitura.Produtos.Single().UnidadeMedida);
+    }
+
+    [Fact]
+    public async Task UnidadeDeMedidaLongaDemaisNaoGrava()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var resultado = await service.CriarProdutoAsync(Dados(unidade: "12345678901"));   // 11 caracteres
+
+        Assert.False(resultado.Sucesso);
+        Assert.Contains("unidade", resultado.Mensagem, StringComparison.OrdinalIgnoreCase);
+        using var leitura = fixture.CriarContexto();
+        Assert.Empty(leitura.Produtos);
+    }
+
+    [Fact]
+    public async Task ListarUnidadesDeMedidaDevolveAsDistintasJaUsadasEmOrdemAlfabetica()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Produtos.Add(new Produto { Nome = "A", UnidadeMedida = "UN" });
+            context.Produtos.Add(new Produto { Nome = "B", UnidadeMedida = "KG" });
+            context.Produtos.Add(new Produto { Nome = "C", UnidadeMedida = "UN" });     // repetida
+            context.Produtos.Add(new Produto { Nome = "D", UnidadeMedida = null });     // sem unidade
+            await context.SaveChangesAsync();
+        }
+        var service = new CadastroLocalService(fixture.CriarContexto);
+
+        var unidades = await service.ListarUnidadesDeMedidaAsync();
+
+        Assert.Equal(new[] { "KG", "UN" }, unidades);
     }
 
     [Fact]
@@ -330,6 +446,42 @@ public class CadastroProdutoTests
     }
 
     [Fact]
+    public async Task ModalTrazAsUnidadesDeMedidaJaUsadasParaOCombo()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        await using (var context = fixture.CriarContexto())
+        {
+            context.Produtos.Add(new Produto { Nome = "Já existente", UnidadeMedida = "KG" });
+            await context.SaveChangesAsync();
+        }
+        var viewModel = CriarViewModel(fixture);
+
+        await viewModel.NovoProdutoCommand.Execute();
+
+        Assert.Equal(new[] { "KG" }, viewModel.FormProduto.UnidadesDeMedida);
+    }
+
+    [Fact]
+    public async Task SalvarComUnidadeDeMedidaEscolhidaGravaNoProduto()
+    {
+        using var fixture = new SqliteInMemoryFixture();
+        await SemearGrupoAsync(fixture);
+        var viewModel = CriarViewModel(fixture);
+        await viewModel.NovoProdutoCommand.Execute();
+        var form = viewModel.FormProduto;
+        form.Nome = "Café Torrado 500g";
+        form.CategoriaSelecionada = form.Categorias[0];
+        form.Preco = "12,50";
+        form.UnidadeMedida = "KG";
+
+        await form.SalvarCommand.Execute();
+
+        using var leitura = fixture.CriarContexto();
+        Assert.Equal("KG", leitura.Produtos.Single().UnidadeMedida);
+    }
+
+    [Fact]
     public async Task SemGruposSincronizadosOModalAvisaEOBotaoFicaDesabilitado()
     {
         using var fixture = new SqliteInMemoryFixture();
@@ -409,7 +561,7 @@ public class CadastroProdutoTests
         await viewModel.NovoProdutoCommand.Execute();
         var form = viewModel.FormProduto;
         form.Nome = "Café Torrado 500g";
-        form.Codigo = "7890001";
+        form.CodigoBarras = "7891234567890";
         form.CategoriaSelecionada = form.Categorias[0];
         form.Preco = "12,50";
 

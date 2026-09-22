@@ -304,7 +304,6 @@ public class ShellViewModel : ViewModelBase
 
     public string TextoSync => PendentesSync switch
     {
-        0 => "tudo enviado",
         1 => "1 pendente",
         var n => $"{n} pendentes",
     };

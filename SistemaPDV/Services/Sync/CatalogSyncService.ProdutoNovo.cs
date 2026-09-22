@@ -55,6 +55,7 @@ public partial class CatalogSyncService
                     PrecoCompra = produto.PrecoCompra is > 0 ? produto.PrecoCompra : null,
                     CodigoBarras = string.IsNullOrWhiteSpace(produto.CodigoBarras) ? null : produto.CodigoBarras.Trim(),
                     Referencia = string.IsNullOrWhiteSpace(produto.Referencia) ? null : produto.Referencia.Trim(),
+                    UnidadeMedida = string.IsNullOrWhiteSpace(produto.UnidadeMedida) ? null : produto.UnidadeMedida.Trim(),
                 },
             },
         };

@@ -251,14 +251,26 @@ public class CadastroLocalService
             .ToList();
     }
 
+    // As unidades de medida já usadas em algum produto sincronizado ou cadastrado (UN, KG, PC…), pro combo do modal
+    // "Cadastrar Produto" sugerir em vez do operador ter que lembrar/adivinhar o código certo.
+    public async Task<IReadOnlyList<string>> ListarUnidadesDeMedidaAsync(CancellationToken ct = default)
+    {
+        await using var context = contextFactory();
+        var unidades = await context.Produtos
+            .Where(p => p.UnidadeMedida != null && p.UnidadeMedida != "")
+            .Select(p => p.UnidadeMedida!)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return unidades.OrderBy(u => u, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
     private const int TamanhoMaximoReferencia = 20;   // limite da API (referencia)
+    private const int TamanhoMaximoUnidadeMedida = 10;   // não documentado pela API; unidades vistas (UN, KG, PC…) são curtas
 
     // Cria o produto SÓ no banco local (PendenteSync, sem IdExterno) — quem envia é o outbox
     // (CatalogSyncService.SincronizarProdutoNovoAsync). Valida antes de gravar o que a API recusaria de qualquer jeito:
     // nome, categoria existente, preço maior que zero, nome e código únicos.
-    //
-    // O "SKU / Código" do modal vira código de barras quando são só dígitos (8 a 14: EAN-8 a GTIN-14) e referência (até 20
-    // caracteres) em qualquer outro caso — a API do cadastro tem esses dois campos, nenhum "SKU".
     public async Task<ResultadoCriacaoProduto> CriarProdutoAsync(NovoProdutoDados dados, CancellationToken ct = default)
     {
         var nomeLimpo = dados.Nome?.Trim() ?? string.Empty;
@@ -286,17 +298,25 @@ public class CadastroLocalService
             precoCusto = custo;
         }
 
-        var codigo = dados.Codigo?.Trim();
-        string? codigoBarras = null, referencia = null;
-        if (!string.IsNullOrEmpty(codigo))
-        {
-            if (codigo.Length is >= 8 and <= 14 && codigo.All(char.IsAsciiDigit))
-                codigoBarras = codigo;
-            else if (codigo.Length <= TamanhoMaximoReferencia)
-                referencia = codigo;
-            else
-                return ResultadoCriacaoProduto.ComFalha($"O código pode ter no máximo {TamanhoMaximoReferencia} caracteres (ou de 8 a 14 dígitos, se for código de barras).");
-        }
+        // Código de barras e referência são campos distintos da API (ver ProdutoNovoRequestDto) — cada um validado no seu formato,
+        // sem tentar adivinhar um a partir do outro.
+        var codigoBarras = dados.CodigoBarras?.Trim();
+        if (string.IsNullOrEmpty(codigoBarras))
+            codigoBarras = null;
+        else if (codigoBarras.Length is < 8 or > 14 || !codigoBarras.All(char.IsAsciiDigit))
+            return ResultadoCriacaoProduto.ComFalha("O código de barras deve ter de 8 a 14 dígitos (ou deixe em branco).");
+
+        var referencia = dados.Referencia?.Trim();
+        if (string.IsNullOrEmpty(referencia))
+            referencia = null;
+        else if (referencia.Length > TamanhoMaximoReferencia)
+            return ResultadoCriacaoProduto.ComFalha($"A referência pode ter no máximo {TamanhoMaximoReferencia} caracteres.");
+
+        var unidadeMedida = dados.UnidadeMedida?.Trim();
+        if (string.IsNullOrEmpty(unidadeMedida))
+            unidadeMedida = null;
+        else if (unidadeMedida.Length > TamanhoMaximoUnidadeMedida)
+            return ResultadoCriacaoProduto.ComFalha($"A unidade de medida pode ter no máximo {TamanhoMaximoUnidadeMedida} caracteres.");
 
         await using var context = contextFactory();
 
@@ -319,6 +339,7 @@ public class CadastroLocalService
             Nome = nomeLimpo,
             CodigoBarras = codigoBarras,
             Referencia = referencia,
+            UnidadeMedida = unidadeMedida,
             GrupoId = grupoId,
             PrecoVenda = preco,
             PrecoCompra = precoCusto,

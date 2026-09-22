@@ -143,7 +143,7 @@ public class ShellBarraTopoTests
     // ---- Sync: N pendentes ----
 
     [Theory]
-    [InlineData(0, "tudo enviado")]
+    [InlineData(0, "0 pendentes")]
     [InlineData(1, "1 pendente")]
     [InlineData(7, "7 pendentes")]
     public async Task TextoDaPilulaSyncConcordaComANumeracao(int pendentes, string esperado)

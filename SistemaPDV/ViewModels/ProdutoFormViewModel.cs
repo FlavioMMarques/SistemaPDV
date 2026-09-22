@@ -7,8 +7,9 @@ using SistemaPDV.Services;
 
 namespace SistemaPDV.ViewModels;
 
-// O modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros): nome, código, categoria, preço de venda e de
-// custo. Sem campo de estoque — a API não grava estoque no cadastro (o produto chega com estoque 0 na empresa; ver
+// O modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros): nome, código de barras, referência,
+// categoria, unidade de medida, preço de venda e de custo. Sem campo de estoque — a API não grava estoque no cadastro (o
+// produto chega com estoque 0 na empresa; ver
 // CatalogSyncService.SincronizarProdutoNovoAsync e APRENDIZADOS). Só grava local (PendenteSync) — o envio à API é do outbox, então
 // funciona offline. Filho do CadastrosViewModel (que já é grande): quem abre é o pai; ao salvar, o pai é avisado por
 // `aoSalvar` para recarregar a lista.
@@ -19,11 +20,14 @@ public class ProdutoFormViewModel : ViewModelBase
 
     private bool aberto;
     private string nome = string.Empty;
-    private string codigo = string.Empty;
+    private string codigoBarras = string.Empty;
+    private string referencia = string.Empty;
     private string preco = string.Empty;
     private string precoCusto = string.Empty;
+    private string unidadeMedida = string.Empty;
     private IReadOnlyList<CategoriaResumo> categorias = Array.Empty<CategoriaResumo>();
     private CategoriaResumo? categoriaSelecionada;
+    private IReadOnlyList<string> unidadesDeMedida = Array.Empty<string>();
     private string? mensagem;
 
     public ProdutoFormViewModel(CadastroLocalService cadastroLocalService, Func<Task> aoSalvar)
@@ -51,11 +55,18 @@ public class ProdutoFormViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref nome, value);
     }
 
-    // "SKU / Código": vira código de barras (8 a 14 dígitos) ou referência (até 20 caracteres) — ver CadastroLocalService.CriarProdutoAsync.
-    public string Codigo
+    // Opcional: 8 a 14 dígitos (EAN-8 a GTIN-14) — ver CadastroLocalService.CriarProdutoAsync.
+    public string CodigoBarras
     {
-        get => codigo;
-        set => this.RaiseAndSetIfChanged(ref codigo, value);
+        get => codigoBarras;
+        set => this.RaiseAndSetIfChanged(ref codigoBarras, value);
+    }
+
+    // Opcional: até 20 caracteres, livre (letras e números).
+    public string Referencia
+    {
+        get => referencia;
+        set => this.RaiseAndSetIfChanged(ref referencia, value);
     }
 
     public string Preco
@@ -69,6 +80,20 @@ public class ProdutoFormViewModel : ViewModelBase
     {
         get => precoCusto;
         set => this.RaiseAndSetIfChanged(ref precoCusto, value);
+    }
+
+    // Opcional; combo editável — sugere as já usadas (UnidadesDeMedida) mas aceita digitar uma nova.
+    public string UnidadeMedida
+    {
+        get => unidadeMedida;
+        set => this.RaiseAndSetIfChanged(ref unidadeMedida, value);
+    }
+
+    // Unidades já usadas em algum produto (UN, KG, PC…), carregadas ao abrir o modal — poupa o operador de lembrar o código certo.
+    public IReadOnlyList<string> UnidadesDeMedida
+    {
+        get => unidadesDeMedida;
+        private set => this.RaiseAndSetIfChanged(ref unidadesDeMedida, value);
     }
 
     public IReadOnlyList<CategoriaResumo> Categorias
@@ -105,6 +130,7 @@ public class ProdutoFormViewModel : ViewModelBase
     {
         Limpar();
         Categorias = await cadastroLocalService.ListarCategoriasAsync();
+        UnidadesDeMedida = await cadastroLocalService.ListarUnidadesDeMedidaAsync();
         Aberto = true;
     }
 
@@ -117,9 +143,11 @@ public class ProdutoFormViewModel : ViewModelBase
     private void Limpar()
     {
         Nome = string.Empty;
-        Codigo = string.Empty;
+        CodigoBarras = string.Empty;
+        Referencia = string.Empty;
         Preco = string.Empty;
         PrecoCusto = string.Empty;
+        UnidadeMedida = string.Empty;
         CategoriaSelecionada = null;
         Mensagem = null;
     }
@@ -127,7 +155,7 @@ public class ProdutoFormViewModel : ViewModelBase
     private async Task SalvarAsync()
     {
         var resultado = await cadastroLocalService.CriarProdutoAsync(
-            new NovoProdutoDados(Nome, Codigo, CategoriaSelecionada?.GrupoId, Preco, PrecoCusto));
+            new NovoProdutoDados(Nome, CodigoBarras, Referencia, CategoriaSelecionada?.GrupoId, Preco, PrecoCusto, UnidadeMedida));
 
         if (!resultado.Sucesso)
         {

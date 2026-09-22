@@ -37,7 +37,7 @@
           </Grid>
         </Border>
 
-        <Grid Margin="24,20,24,12" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="14">
+        <Grid Margin="24,20,24,12" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="14">
 
           <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Spacing="6">
             <TextBlock Classes="rotuloForm" Text="Nome do Produto" />
@@ -51,10 +51,10 @@
           </StackPanel>
 
           <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
-            <TextBlock Classes="rotuloForm" Text="SKU / Código" />
-            <TextBox Classes="campo" Text="{Binding FormProduto.Codigo, Mode=TwoWay}"
-                     PlaceholderText="7890001" MaxLength="20"
-                     AutomationProperties.Name="SKU ou código do produto" TabIndex="2">
+            <TextBlock Classes="rotuloForm" Text="Código de Barras" />
+            <TextBox Classes="campo" Text="{Binding FormProduto.CodigoBarras, Mode=TwoWay}"
+                     PlaceholderText="7891234567890" MaxLength="14"
+                     AutomationProperties.Name="Código de barras do produto, opcional, de 8 a 14 dígitos" TabIndex="2">
               <TextBox.KeyBindings>
                 <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
               </TextBox.KeyBindings>
@@ -62,11 +62,22 @@
           </StackPanel>
 
           <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Referência" />
+            <TextBox Classes="campo" Text="{Binding FormProduto.Referencia, Mode=TwoWay}"
+                     PlaceholderText="Ex: CAFE-500" MaxLength="20"
+                     AutomationProperties.Name="Referência do produto, opcional" TabIndex="3">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+          </StackPanel>
+
+          <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
             <TextBlock Classes="rotuloForm" Text="Categoria" />
             <ComboBox Classes="campo" ItemsSource="{Binding FormProduto.Categorias}"
                       SelectedItem="{Binding FormProduto.CategoriaSelecionada, Mode=TwoWay}"
                       PlaceholderText="Selecione a categoria"
-                      AutomationProperties.Name="Categoria do produto, obrigatória" TabIndex="3">
+                      AutomationProperties.Name="Categoria do produto, obrigatória" TabIndex="4">
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="svc:CategoriaResumo">
                   <TextBlock Text="{Binding Nome}" />
@@ -75,22 +86,31 @@
             </ComboBox>
           </StackPanel>
 
-          <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
+          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+            <TextBlock Classes="rotuloForm" Text="Unidade de Medida" />
+            <!-- Editável: sugere as já usadas em algum produto (FormProduto.UnidadesDeMedida), mas aceita digitar uma nova. -->
+            <ComboBox Classes="campo" ItemsSource="{Binding FormProduto.UnidadesDeMedida}"
+                      Text="{Binding FormProduto.UnidadeMedida, Mode=TwoWay}"
+                      IsEditable="True" PlaceholderText="Ex: UN, KG, CX"
+                      AutomationProperties.Name="Unidade de medida do produto, opcional" TabIndex="5" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="3" Grid.Column="0" Spacing="6">
             <TextBlock Classes="rotuloForm" Text="Preço (R$)" />
             <TextBox Classes="campo" Text="{Binding FormProduto.Preco, Mode=TwoWay}"
                      PlaceholderText="12.50" MaxLength="12"
-                     AutomationProperties.Name="Preço de venda do produto, em reais, obrigatório" TabIndex="4">
+                     AutomationProperties.Name="Preço de venda do produto, em reais, obrigatório" TabIndex="6">
               <TextBox.KeyBindings>
                 <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
               </TextBox.KeyBindings>
             </TextBox>
           </StackPanel>
 
-          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+          <StackPanel Grid.Row="3" Grid.Column="1" Spacing="6">
             <TextBlock Classes="rotuloForm" Text="Preço de Custo (R$)" />
             <TextBox Classes="campo" Text="{Binding FormProduto.PrecoCusto, Mode=TwoWay}"
                      PlaceholderText="8.00" MaxLength="12"
-                     AutomationProperties.Name="Preço de custo do produto, em reais, opcional" TabIndex="5">
+                     AutomationProperties.Name="Preço de custo do produto, em reais, opcional" TabIndex="7">
               <TextBox.KeyBindings>
                 <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
               </TextBox.KeyBindings>
@@ -110,10 +130,10 @@
         <Border BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="24,14">
           <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
             <Button Classes="secundario" Content="Cancelar" Padding="18,9"
-                    Command="{Binding FormProduto.CancelarCommand}" TabIndex="6"
+                    Command="{Binding FormProduto.CancelarCommand}" TabIndex="8"
                     AutomationProperties.Name="Cancelar e fechar sem salvar" />
             <Button Classes="primario" Content="Salvar Produto" Padding="20,9"
-                    Command="{Binding FormProduto.SalvarCommand}" TabIndex="7"
+                    Command="{Binding FormProduto.SalvarCommand}" TabIndex="9"
                     AutomationProperties.Name="Salvar o produto" />
           </StackPanel>
         </Border>

@@ -38,6 +38,13 @@ public class ProdutoNovoRequestDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Referencia { get; set; }
 
+    // Ainda não confirmado se o cadastro aceita este campo (não documentado no contrato confirmado em api-real.md — só visto
+    // na leitura do catálogo). Só vai quando informado; se a API ignorar, o próximo catalog-sync sobrescreve com o que ela
+    // devolver de qualquer forma.
+    [JsonPropertyName("unidade_medida")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UnidadeMedida { get; set; }
+
     [JsonPropertyName("vender")] public bool Vender { get; set; } = true;
     [JsonPropertyName("controlar_estoque")] public bool ControlarEstoque { get; set; } = true;
     [JsonPropertyName("desativado")] public bool Desativado { get; set; }

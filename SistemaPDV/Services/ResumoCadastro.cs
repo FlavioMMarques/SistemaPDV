@@ -81,7 +81,12 @@ public record NovoClienteDados(
 // O que o modal "Cadastrar Produto" preenche. Preço e custo chegam como texto digitado ("12,50"); a categoria é o IdExterno do
 // Grupo sincronizado (a API exige um grupo que já exista lá). Sem estoque: a API não grava estoque no cadastro (só por
 // lançamento de movimentação, uma tela diferente), então o campo nunca chegava à nuvem — melhor nem oferecer.
-public record NovoProdutoDados(string? Nome, string? Codigo, int? GrupoId, string? Preco, string? PrecoCusto = null);
+// CodigoBarras e Referencia são campos distintos (a API tem os dois, ver ProdutoNovoRequestDto) — nada de adivinhar um a
+// partir do outro. UnidadeMedida é opcional; ainda não confirmado se o POST de cadastro aceita ("unidade_medida" não
+// documentado no contrato confirmado — ver APRENDIZADOS).
+public record NovoProdutoDados(
+    string? Nome, string? CodigoBarras, string? Referencia, int? GrupoId, string? Preco,
+    string? PrecoCusto = null, string? UnidadeMedida = null);
 
 // Uma categoria do combo do modal: só grupos que já têm par na API (IdExterno) — sem isso o produto não seria aceito lá.
 public record CategoriaResumo(int GrupoId, string Nome);
