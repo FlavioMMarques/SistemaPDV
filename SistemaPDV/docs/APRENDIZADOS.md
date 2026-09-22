@@ -856,3 +856,9 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 **Ainda em aberto (preço zerado na empresa):** a especificação completa não trouxe um endpoint que grave `preco_venda` no `produto_empresa_grade` — só `movimentacao`/`balanco`, que são de estoque. Segue em stand-by; falta achar (ou perguntar à Softcom) o endpoint certo.
 
 **Testes:** 1084 verdes (8 a menos que antes — eram só do campo de estoque).
+
+## 95. Preço zerado na empresa: mais uma tentativa descartada (endpoint de importação v1)
+
+Depois do PUT (#93) e de movimentação/balanço (#94), testamos `POST softauth/api/produtos/importacao/produto` (rota v1, sem "/v2/", com um bloco `produto_grade[].preco_venda` que parecia existir pra isso — implementado, testado pelo usuário com produto real em 2026-09-22). **Não funcionou.** Revertido (o cadastro voltou a usar o `POST v2/produtos/produtos` em lote, sem preço na empresa) — sem saber ainda se o problema foi a rota, o campo, ou o formato do corpo; a resposta real também nunca chegou a ser vista.
+
+**Continua em stand-by**, sem retomar até o usuário trazer o endpoint certo (ou um print da tela de preço/estoque por empresa no SoftcomShop) ou pedir pra investigar de novo.
