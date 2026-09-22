@@ -8,19 +8,15 @@ using SistemaPDV.Services.Sync;
 
 namespace SistemaPDV.Tests;
 
-// Push de produto criado localmente (modal "Cadastrar Produto") para POST .../produtos/importacao/produto — EXPERIMENTAL
-// (2026-09-22): trocado do cadastro em lote (v2) para este endpoint de importação (v1, sem "/v2/"), na aposta de que
-// "produto_grade[].preco_venda" grava o preço no registro da EMPRESA, coisa que o lote nunca fazia (#86/#94). A forma da
-// resposta é uma hipótese (ver ProdutoImportacaoApiDto.cs); estes testes fixam o formato que o código espera — se a API
-// real responder diferente, é aqui que se ajusta depois do teste com produto de verdade.
+// Push de produto criado localmente (modal "Cadastrar Produto") para POST .../produtos/produtos (cadastro múltiplo).
+// O que importa aqui: o corpo certo, os DOIS ids que a venda usa saindo da resposta, e as falhas que não podem se perder.
 [SupportedOSPlatform("windows")]
 public class CatalogSyncServiceProdutoNovoTests
 {
-    // Resposta hipotética: mesmo formato do item criado pelo lote antigo, só que direto em "data" (um produto só, sem
-    // "created[]"). Produto-base 1049, grade da empresa 44 = 122848.
+    // Resposta 200 no formato do Swagger (recortada): produto-base 1049, grade da empresa 44 = 122848.
     private const string RespostaOk = """
-        { "data": { "id": 1049, "nome": "Café Torrado 500g", "produto_empresas": [
-            { "id": 53231, "empresa_id": "44", "produto_empresa_grade": { "id": 122848, "sku": "UNICO", "preco_venda": "12.50" } } ] } }
+        { "data": { "total": 1, "created": [ { "id": 1049, "nome": "Café Torrado 500g", "produto_empresas": [
+            { "id": 53231, "produto_id": "1049", "empresa_id": "44", "produto_empresa_grade": { "id": 122848, "sku": "UNICO" } } ] } ] } }
         """;
 
     private static HttpResponseMessage Resposta(HttpStatusCode status, string json) => new(status)
@@ -73,7 +69,7 @@ public class CatalogSyncServiceProdutoNovoTests
     }
 
     [Fact]
-    public async Task CorpoVaiParaOEndpointDeImportacaoComOsCamposDoCadastroEOPrecoNaGrade()
+    public async Task CorpoTemOLoteComUmProdutoEOsCamposDoCadastro()
     {
         using var fixture = new SqliteInMemoryFixture();
         await SemearConfiguracaoAsync(fixture);
@@ -90,30 +86,28 @@ public class CatalogSyncServiceProdutoNovoTests
         await CriarService(fixture, httpClient).SincronizarProdutoNovoAsync(id, "token-fake");
 
         Assert.Equal(HttpMethod.Post, requisicao!.Method);
-        // Rota v1, sem "/v2/" — como softauth/api/financeiros/cartoes (SoftcomRotas.ProdutosImportar).
-        Assert.Equal("https://exemplo.softcomshop.com.br/softauth/api/produtos/importacao/produto", requisicao.RequestUri!.ToString());
+        Assert.Equal("https://exemplo.softcomshop.com.br/softauth/api/v2/produtos/produtos", requisicao.RequestUri!.ToString());
         Assert.Equal("Bearer", requisicao.Headers.Authorization!.Scheme);
 
         using var json = JsonDocument.Parse(corpo!);
-        var p = json.RootElement;
+        var produtos = json.RootElement.GetProperty("produtos");
+        Assert.Equal(1, produtos.GetArrayLength());     // um por requisição: um produto ruim não derruba os outros
+        var p = produtos[0];
         Assert.Equal("Café Torrado 500g", p.GetProperty("nome").GetString());
         Assert.Equal(7, p.GetProperty("grupo_id").GetInt32());
         Assert.Equal(12.5m, p.GetProperty("preco_venda").GetDecimal());
         Assert.Equal("7891234567890", p.GetProperty("codigo_barras").GetString());
         Assert.False(p.TryGetProperty("referencia", out _));   // nulo não vai
-        // A peça nova: o preço vai também no registro da empresa (produto_grade), que é o que o lote v2 nunca grava.
-        var grade = p.GetProperty("produto_grade");
-        Assert.Equal(1, grade.GetArrayLength());
-        Assert.Equal(12.5m, grade[0].GetProperty("preco_venda").GetDecimal());
         // Sem custo informado, custo/margem/comissão NÃO vão (nem zerados): com eles a API pode recalcular o preço de venda e
         // anular o preço informado (o produto de teste chegou com preco_venda 0,00 na empresa, 2026-09-21).
         Assert.False(p.TryGetProperty("preco_compra", out _));
         Assert.False(p.TryGetProperty("margem_lucro", out _));
         Assert.False(p.TryGetProperty("percentual_comissao_produto", out _));
-        // Os padrões vão explícitos; neste endpoint o Swagger os documenta como inteiro (0/1), não booleano.
-        Assert.Equal(1, p.GetProperty("vender").GetInt32());
-        Assert.Equal(1, p.GetProperty("controlar_estoque").GetInt32());
-        Assert.Equal(0, p.GetProperty("desativado").GetInt32());
+        // Os padrões do Swagger vão explícitos (a API real grava todas as colunas).
+        Assert.True(p.GetProperty("vender").GetBoolean());
+        Assert.True(p.GetProperty("controlar_estoque").GetBoolean());
+        Assert.False(p.GetProperty("desativado").GetBoolean());
+        Assert.Equal("PRODUTO", p.GetProperty("tipo_produto").GetString());
         // Nada de campo interno local vazando.
         Assert.DoesNotContain("SyncStatus", corpo);
         Assert.DoesNotContain("UltimoErro", corpo);
@@ -136,7 +130,7 @@ public class CatalogSyncServiceProdutoNovoTests
         await CriarService(fixture, httpClient).SincronizarProdutoNovoAsync(id, "token-fake");
 
         using var json = JsonDocument.Parse(corpo!);
-        var p = json.RootElement;
+        var p = json.RootElement.GetProperty("produtos")[0];
         Assert.Equal(8.25m, p.GetProperty("preco_compra").GetDecimal());
         Assert.Equal(12.5m, p.GetProperty("preco_venda").GetDecimal());
         Assert.False(p.TryGetProperty("margem_lucro", out _));
@@ -159,7 +153,7 @@ public class CatalogSyncServiceProdutoNovoTests
         await CriarService(fixture, httpClient).SincronizarProdutoNovoAsync(id, "token-fake");
 
         using var json = JsonDocument.Parse(corpo!);
-        var p = json.RootElement;
+        var p = json.RootElement.GetProperty("produtos")[0];
         Assert.Equal("CAFE-500", p.GetProperty("referencia").GetString());
         Assert.False(p.TryGetProperty("codigo_barras", out _));
     }
@@ -176,9 +170,9 @@ public class CatalogSyncServiceProdutoNovoTests
         }
         var id = await SemearProdutoAsync(fixture);
         const string duasEmpresas = """
-            { "data": { "id": 1049, "produto_empresas": [
+            { "data": { "created": [ { "id": 1049, "produto_empresas": [
                 { "empresa_id": "12", "produto_empresa_grade": { "id": 111 } },
-                { "empresa_id": "44", "produto_empresa_grade": { "id": 444 } } ] } }
+                { "empresa_id": "44", "produto_empresa_grade": { "id": 444 } } ] } ] } }
             """;
         var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => Resposta(HttpStatusCode.OK, duasEmpresas));
 
@@ -189,10 +183,10 @@ public class CatalogSyncServiceProdutoNovoTests
     }
 
     [Theory]
-    [InlineData("""{ "data": { "id": 0, "produto_empresas": [] } }""")]          // id inválido
-    [InlineData("""{ "data": { "id": 5, "produto_empresas": [] } }""")]           // sem grade
-    [InlineData("""{ "data": { "id": 5, "produto_empresas": [ { "empresa_id": "1", "produto_empresa_grade": { "id": 0 } } ] } }""")]
-    [InlineData("""{ "data": null }""")]                                          // sem "data"
+    [InlineData("""{ "data": { "total": 0, "created": [] } }""")]                                  // nada criado
+    [InlineData("""{ "data": { "created": [ { "id": 0, "produto_empresas": [] } ] } }""")]          // id inválido
+    [InlineData("""{ "data": { "created": [ { "id": 5, "produto_empresas": [] } ] } }""")]           // sem grade
+    [InlineData("""{ "data": { "created": [ { "id": 5, "produto_empresas": [ { "empresa_id": "1", "produto_empresa_grade": { "id": 0 } } ] } ] } }""")]
     [InlineData("nao e json")]
     public async Task RespostaSemOsIdsNaoContaComoEnviado(string resposta)
     {
@@ -219,7 +213,7 @@ public class CatalogSyncServiceProdutoNovoTests
         await SemearConfiguracaoAsync(fixture);
         var id = await SemearProdutoAsync(fixture);
         var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => Resposta(
-            (HttpStatusCode)422, """{ "errors": { "nome": ["Nome deve ser único."] } }"""));
+            (HttpStatusCode)422, """{ "errors": { "produtos.0.nome": ["Nome deve ser único."] } }"""));
 
         var resultado = await CriarService(fixture, httpClient).SincronizarProdutoNovoAsync(id, "token-fake");
 
@@ -322,7 +316,7 @@ public class CatalogSyncServiceProdutoNovoTests
             chamadas++;
             var corpo = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             return corpo.Contains("Repetido")
-                ? Resposta((HttpStatusCode)422, """{ "errors": { "nome": ["Nome deve ser único."] } }""")
+                ? Resposta((HttpStatusCode)422, """{ "errors": { "produtos.0.nome": ["Nome deve ser único."] } }""")
                 : Resposta(HttpStatusCode.OK, RespostaOk);
         });
 
@@ -346,7 +340,7 @@ public class CatalogSyncServiceProdutoNovoTests
         var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ =>
         {
             chamadas++;
-            return Resposta((HttpStatusCode)422, """{ "errors": { "nome": ["Nome deve ser único."] } }""");
+            return Resposta((HttpStatusCode)422, """{ "errors": { "produtos.0.nome": ["Nome deve ser único."] } }""");
         });
         var service = CriarService(fixture, httpClient);
 

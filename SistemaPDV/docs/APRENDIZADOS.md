@@ -856,18 +856,3 @@ Como foi feito: **um único `const bool PoliticaSupervisor.ExigirChave = false`*
 **Ainda em aberto (preço zerado na empresa):** a especificação completa não trouxe um endpoint que grave `preco_venda` no `produto_empresa_grade` — só `movimentacao`/`balanco`, que são de estoque. Segue em stand-by; falta achar (ou perguntar à Softcom) o endpoint certo.
 
 **Testes:** 1084 verdes (8 a menos que antes — eram só do campo de estoque).
-
-## 95. EXPERIMENTAL: cadastro de produto trocado para o endpoint de importação (na aposta de gravar o preço na empresa)
-
-**Por quê:** o cadastro em lote (`POST v2/produtos/produtos`, #86) sempre devolvia `produto_empresa_grade.preco_venda` zerado — testamos `PUT produtos/produtos/{id}` (#93) e os endpoints de movimentação/balanço (#94), nenhum grava preço no registro da EMPRESA. Uma especificação Swagger mais antiga (v1, sem "/v2/") trouxe `POST /api/produtos/importacao/produto`, com um bloco que o lote não tem: `produto_grade[].preco_venda` — parece existir justamente para popular esse registro.
-
-**O que mudou:** `SincronizarProdutoNovoAsync` agora envia para `SoftcomRotas.ProdutosImportar` (rota v1, `softauth/api/produtos/importacao/produto`, sem "/v2/" — mesmo padrão dos cartões) em vez do lote v2. O corpo vai com os mesmos campos de antes (nome, grupo_id, preço, código, custo quando informado) mais `produto_grade: [{ "preco_venda": ... }]`. Novo arquivo `ProdutoImportacaoApiDto.cs` substitui o antigo `ProdutoNovoApiDto.cs` (removido).
-
-**O que é hipótese, não fato confirmado:**
-- Que esse endpoint aceita o produto sem erro (é rota v1 — pode estar descontinuada).
-- Que `produto_grade[].preco_venda` realmente grava o preço na empresa (não documentado, é a aposta).
-- **A forma da resposta**: não documentada. O código espera o mesmo formato do item criado pelo lote antigo, só que direto em `data` (`{"data": {"id", "produto_empresas": [...] } }`, sem o `created[]` do lote — um produto só por requisição). Se a resposta real vier diferente, o produto cai em **falha** com a resposta crua no `UltimoErroSync` (nunca se confia cegamente na resposta — mesma regra de sempre): não quebra nada, só não sincroniza até ajustarmos o DTO pela resposta real.
-
-**Próximo passo:** o usuário vai criar um produto de teste no PDV e conferir no SoftcomShop se o preço (e opcionalmente o custo) aparecem na empresa. Se a resposta vier num formato diferente do esperado, o produto fica em falha com o texto cru — é o que orienta o ajuste do DTO.
-
-**Testes:** 1084 verdes — os testes de `CatalogSyncServiceProdutoNovoTests` e o de outbox em `SincronizacaoBackgroundServiceTests` foram reescritos para o novo endpoint e formato hipotético de resposta.
