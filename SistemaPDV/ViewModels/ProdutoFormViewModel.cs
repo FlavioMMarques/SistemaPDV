@@ -7,8 +7,9 @@ using SistemaPDV.Services;
 
 namespace SistemaPDV.ViewModels;
 
-// O modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros): nome, código, categoria, preço e estoque
-// inicial. Só grava local (PendenteSync) — o envio à API é do outbox (CatalogSyncService.SincronizarProdutoNovoAsync), então
+// O modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros): nome, código, categoria, preço de venda e de
+// custo. Sem campo de estoque — a API não grava estoque no cadastro (o produto chega com estoque 0 na empresa; ver
+// CatalogSyncService.SincronizarProdutoNovoAsync e APRENDIZADOS). Só grava local (PendenteSync) — o envio à API é do outbox, então
 // funciona offline. Filho do CadastrosViewModel (que já é grande): quem abre é o pai; ao salvar, o pai é avisado por
 // `aoSalvar` para recarregar a lista.
 public class ProdutoFormViewModel : ViewModelBase
@@ -20,7 +21,7 @@ public class ProdutoFormViewModel : ViewModelBase
     private string nome = string.Empty;
     private string codigo = string.Empty;
     private string preco = string.Empty;
-    private string estoque = string.Empty;
+    private string precoCusto = string.Empty;
     private IReadOnlyList<CategoriaResumo> categorias = Array.Empty<CategoriaResumo>();
     private CategoriaResumo? categoriaSelecionada;
     private string? mensagem;
@@ -30,7 +31,7 @@ public class ProdutoFormViewModel : ViewModelBase
         this.cadastroLocalService = cadastroLocalService;
         this.aoSalvar = aoSalvar;
 
-        // Nome, categoria e preço são o mínimo que a API aceita; o resto (código e estoque) é opcional.
+        // Nome, categoria e preço são o mínimo que a API aceita; o resto (código e custo) é opcional.
         var podeSalvar = this.WhenAnyValue(vm => vm.Nome, vm => vm.CategoriaSelecionada, vm => vm.Preco,
             (n, categoria, p) => !string.IsNullOrWhiteSpace(n) && categoria is not null && !string.IsNullOrWhiteSpace(p));
         SalvarCommand = ReactiveCommand.CreateFromTask(SalvarAsync, podeSalvar);
@@ -63,10 +64,11 @@ public class ProdutoFormViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref preco, value);
     }
 
-    public string Estoque
+    // Opcional: o custo fica no cadastro e vai à API junto com o produto quando informado.
+    public string PrecoCusto
     {
-        get => estoque;
-        set => this.RaiseAndSetIfChanged(ref estoque, value);
+        get => precoCusto;
+        set => this.RaiseAndSetIfChanged(ref precoCusto, value);
     }
 
     public IReadOnlyList<CategoriaResumo> Categorias
@@ -117,7 +119,7 @@ public class ProdutoFormViewModel : ViewModelBase
         Nome = string.Empty;
         Codigo = string.Empty;
         Preco = string.Empty;
-        Estoque = string.Empty;
+        PrecoCusto = string.Empty;
         CategoriaSelecionada = null;
         Mensagem = null;
     }
@@ -125,7 +127,7 @@ public class ProdutoFormViewModel : ViewModelBase
     private async Task SalvarAsync()
     {
         var resultado = await cadastroLocalService.CriarProdutoAsync(
-            new NovoProdutoDados(Nome, Codigo, CategoriaSelecionada?.GrupoId, Preco, Estoque));
+            new NovoProdutoDados(Nome, Codigo, CategoriaSelecionada?.GrupoId, Preco, PrecoCusto));
 
         if (!resultado.Sucesso)
         {

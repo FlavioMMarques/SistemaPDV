@@ -78,9 +78,10 @@ public record NovoClienteDados(
     string? Cep = null, string? Logradouro = null, string? Numero = null, string? Complemento = null, string? Bairro = null,
     string? CodigoCidade = null);
 
-// O que o modal "Cadastrar Produto" preenche. Preço e estoque chegam como texto digitado ("12,50" / "50"); a categoria é o
-// IdExterno do Grupo sincronizado (a API exige um grupo que já exista lá).
-public record NovoProdutoDados(string? Nome, string? Codigo, int? GrupoId, string? Preco, string? Estoque = null);
+// O que o modal "Cadastrar Produto" preenche. Preço e custo chegam como texto digitado ("12,50"); a categoria é o IdExterno do
+// Grupo sincronizado (a API exige um grupo que já exista lá). Sem estoque: a API não grava estoque no cadastro (só por
+// lançamento de movimentação, uma tela diferente), então o campo nunca chegava à nuvem — melhor nem oferecer.
+public record NovoProdutoDados(string? Nome, string? Codigo, int? GrupoId, string? Preco, string? PrecoCusto = null);
 
 // Uma categoria do combo do modal: só grupos que já têm par na API (IdExterno) — sem isso o produto não seria aceito lá.
 public record CategoriaResumo(int GrupoId, string Nome);

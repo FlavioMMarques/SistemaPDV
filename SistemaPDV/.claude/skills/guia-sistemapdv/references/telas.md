@@ -53,7 +53,7 @@ O que cada tela deve mostrar e fazer, de onde vêm os dados e as regras que não
 
 ## 7. Cadastros
 - **Três abas:** Produtos, Clientes, Operadores de Caixa, cada uma com a contagem total; **uma busca só** (Enter ou 🔍).
-- **Produtos:** SKU/código, descrição, categoria (o **nome** do grupo, não o id), preço, estoque local, status da nuvem. **Novo Produto** (modal): nome, SKU/código, categoria (combo), preço, estoque inicial.
+- **Produtos:** SKU/código, descrição, categoria (o **nome** do grupo, não o id), preço, estoque local, status da nuvem. **Novo Produto** (modal): nome, SKU/código, categoria (combo), preço de venda e de custo (opcional) — sem campo de estoque, a API não grava estoque no cadastro.
 - **Clientes:** id, nome/razão, CPF/CNPJ, telefone, cidade/UF, status da nuvem (a **mensagem de erro** do envio fica visível na linha). **Novo Cliente** (modal): nome e CPF/CNPJ obrigatórios; telefone, e-mail e endereço opcionais, com **busca por CEP** que preenche o endereço e guarda o código da cidade.
 - **Operadores:** só leitura (perfil, caixa aberto, situação); nunca mostra CPF nem chave.
 - **"Reenviar falhas"** devolve à fila o que falhou ou desistiu.

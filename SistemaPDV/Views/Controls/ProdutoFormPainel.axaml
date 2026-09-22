@@ -9,8 +9,10 @@
              x:DataType="vm:CadastrosViewModel">
 
   <!-- Modal "Cadastrar Produto no Banco Local" (aberto por "＋ Novo Produto" em Cadastros). Nome, categoria e preço são o mínimo que a
-       API aceita; código e estoque inicial são opcionais. Só grava local — o envio à API é da fila. Enter salva, Esc cancela; o
-       fundo escurecido segura o clique e a tela de trás fica desabilitada. -->
+       API aceita; código e preço de custo são opcionais. Sem campo de estoque: a API não tem como gravar estoque no cadastro
+       (só via lançamento de movimentação, que é outra tela — ver APRENDIZADOS), e um campo que nunca chega à nuvem só confundiria o
+       operador. Só grava local — o envio à API é da fila. Enter salva, Esc cancela; o fundo escurecido segura o clique e a tela de
+       trás fica desabilitada. -->
   <Grid Background="{DynamicResource OverlayBrush}">
     <Grid.KeyBindings>
       <KeyBinding Gesture="Escape" Command="{Binding FormProduto.CancelarCommand}" />
@@ -85,20 +87,16 @@
           </StackPanel>
 
           <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
-            <TextBlock Classes="rotuloForm" Text="Estoque Inicial" />
-            <TextBox Classes="campo" Text="{Binding FormProduto.Estoque, Mode=TwoWay}"
-                     PlaceholderText="50" MaxLength="7"
-                     AutomationProperties.Name="Estoque inicial do produto, opcional" TabIndex="5">
+            <TextBlock Classes="rotuloForm" Text="Preço de Custo (R$)" />
+            <TextBox Classes="campo" Text="{Binding FormProduto.PrecoCusto, Mode=TwoWay}"
+                     PlaceholderText="8.00" MaxLength="12"
+                     AutomationProperties.Name="Preço de custo do produto, em reais, opcional" TabIndex="5">
               <TextBox.KeyBindings>
                 <KeyBinding Gesture="Enter" Command="{Binding FormProduto.SalvarCommand}" />
               </TextBox.KeyBindings>
             </TextBox>
           </StackPanel>
         </Grid>
-
-        <!-- A API não recebe estoque neste cadastro: sem o aviso o operador acharia que o número chegou à nuvem. -->
-        <TextBlock Margin="24,0,24,14" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}"
-                   Text="O estoque inicial fica só neste aparelho: a API não recebe estoque no cadastro, e a próxima sincronização traz o valor do SoftcomShop." />
 
         <!-- Nenhum grupo sincronizado: nunca um combo vazio sem explicação. -->
         <TextBlock Margin="24,0,24,14" TextWrapping="Wrap" Foreground="{DynamicResource AccentRedBrush}"
