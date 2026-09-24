@@ -32,6 +32,7 @@ public class SoftcomAuthService
         try
         {
             var url = $"{link}&device_id={Uri.EscapeDataString(nomeDispositivo)}";
+            Registro.Info("SoftcomAuthService", $"GET {url}");
             using var resposta = await RetryHttpTransitorio.Politica.ExecuteAsync(
                 cancelToken => httpClient.GetAsync(url, cancelToken), ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
@@ -78,8 +79,12 @@ public class SoftcomAuthService
                 ["client_secret"] = clienteSecret ?? string.Empty,
             });
 
+            var urlToken = MontarUrlToken(configuracao.UrlApi);
+            // client_secret nunca vai pro log, nem mascarado — só o formato do corpo (o Registro mascararia de
+            // qualquer jeito, mas aqui nem chega a existir a string com o valor real).
+            Registro.Info("SoftcomAuthService", $"POST {urlToken} | corpo: grant_type=client_credentials&client_id={configuracao.ApiClienteId}&client_secret=***");
             using var resposta = await RetryHttpTransitorio.Politica.ExecuteAsync(
-                cancelToken => httpClient.PostAsync(MontarUrlToken(configuracao.UrlApi), corpo, cancelToken), ct);
+                cancelToken => httpClient.PostAsync(urlToken, corpo, cancelToken), ct);
             var conteudo = await resposta.Content.ReadAsStringAsync(ct);
 
             if (!resposta.IsSuccessStatusCode)

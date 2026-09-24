@@ -33,6 +33,11 @@ public class SoftcomApiClient
             return httpClient.SendAsync(requisicao, cancelToken);
         }, ct);
 
+    // Uma linha por requisição de verdade enviada (cada tentativa do retry conta a sua). O Registro mascara token,
+    // client_secret e CPF/CNPJ sozinho (ver LogArquivo.Mascarar) — seguro logar o corpo cru aqui.
+    private static void RegistrarRequisicao(HttpMethod metodo, string url, object? corpo = null) =>
+        Registro.Info("SoftcomApiClient", corpo is null ? $"{metodo} {url}" : $"{metodo} {url} | corpo: {JsonSerializer.Serialize(corpo)}");
+
     // dominio: a parte {scheme}://{host}[:porta] da UrlApi configurada — não é fixo,
     // muda por dispositivo/cliente (ver ExtrairDominio no projeto de referência).
     public async Task<ResultadoBusca<T>> BuscarTudoAsync<T>(
@@ -63,6 +68,7 @@ public class SoftcomApiClient
 
             using var resposta = await EnviarComRetryAsync(() =>
             {
+                RegistrarRequisicao(HttpMethod.Get, url);
                 var requisicao = new HttpRequestMessage(HttpMethod.Get, url);
                 requisicao.Headers.Add("Api-Version", "v2");
                 requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -128,7 +134,9 @@ public class SoftcomApiClient
         {
             using var resposta = await EnviarComRetryAsync(() =>
             {
-                var requisicao = new HttpRequestMessage(HttpMethod.Get, $"{dominio}/{caminhoBase}/{pagina}");
+                var url = $"{dominio}/{caminhoBase}/{pagina}";
+                RegistrarRequisicao(HttpMethod.Get, url);
+                var requisicao = new HttpRequestMessage(HttpMethod.Get, url);
                 requisicao.Headers.Add("Api-Version", "v2");
                 requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 return requisicao;
@@ -196,6 +204,7 @@ public class SoftcomApiClient
         {
             using var resposta = await EnviarComRetryAsync(() =>
             {
+                RegistrarRequisicao(metodo, url, corpo);
                 var requisicao = new HttpRequestMessage(metodo, url);
                 requisicao.Headers.Add("Api-Version", "v2");
                 requisicao.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

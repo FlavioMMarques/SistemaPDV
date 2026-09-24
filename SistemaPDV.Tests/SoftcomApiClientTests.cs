@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using SistemaPDV.Services;
 using SistemaPDV.Services.Sync;
 
 namespace SistemaPDV.Tests;
@@ -332,5 +333,67 @@ public class SoftcomApiClientTests
         Assert.Equal("Bearer", requisicaoCapturada.Headers.Authorization?.Scheme);
         Assert.Equal("meu-token", requisicaoCapturada.Headers.Authorization?.Parameter);
         Assert.Contains("ultima_sincronizacao=1758000000", requisicaoCapturada.RequestUri!.Query);
+    }
+
+    // ---- log das requisições ----
+
+    private static string LerLog(string pasta) =>
+        string.Join(Environment.NewLine, Directory.GetFiles(pasta, "pdv-*.log").Select(File.ReadAllText));
+
+    [Fact]
+    public async Task EnviarAsyncRegistraMetodoUrlECorpoMascarandoCpfETokenNoCorpo()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), "SistemaPDV.Tests.Log", Guid.NewGuid().ToString("N"));
+        var anterior = Registro.Destino;
+        try
+        {
+            Registro.Destino = new LogArquivo(pasta);
+            var httpClient = FakeHttpMessageHandler.CriarHttpClient(_ => RespostaJson("{}"));
+            var cliente = new SoftcomApiClient(httpClient);
+
+            await cliente.EnviarAsync(HttpMethod.Post, "https://exemplo.softcomshop.com.br/api/v2/vendas",
+                new { nome = "Cliente Teste", cpfCnpj = "529.982.247-25", token = "abc123XYZ" }, "token-fake");
+
+            var texto = LerLog(pasta);
+            Assert.Contains("POST https://exemplo.softcomshop.com.br/api/v2/vendas", texto);
+            Assert.Contains("Cliente Teste", texto);            // dado não-sensível passa
+            Assert.DoesNotContain("529.982.247-25", texto);     // CPF mascarado (regex de CPF/CNPJ)
+            Assert.DoesNotContain("abc123XYZ", texto);          // chave "token" mascarada
+        }
+        finally
+        {
+            Registro.Destino = anterior;
+            try { Directory.Delete(pasta, recursive: true); } catch (Exception) { /* limpeza de teste */ }
+        }
+    }
+
+    [Fact]
+    public async Task BuscarTudoAsyncRegistraCadaPaginaComoUmaRequisicaoGet()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), "SistemaPDV.Tests.Log", Guid.NewGuid().ToString("N"));
+        var anterior = Registro.Destino;
+        try
+        {
+            Registro.Destino = new LogArquivo(pasta);
+            var pagina1 = """
+                { "current_page": 1, "data": [{"id":1,"nome":"A"}], "next_page_url": "https://exemplo.softcomshop.com.br/recurso?page=2", "total": 2 }
+                """;
+            var pagina2 = """{ "current_page": 2, "data": [{"id":2,"nome":"B"}], "next_page_url": null, "total": 2 }""";
+            // "?page=2" ancorado — "per_page=200" também contém a substring solta "page=2".
+            var httpClient = FakeHttpMessageHandler.CriarHttpClient(req =>
+                RespostaJson(req.RequestUri!.Query.Contains("?page=2") || req.RequestUri!.Query.Contains("&page=2") ? pagina2 : pagina1));
+
+            await new SoftcomApiClient(httpClient).BuscarTudoAsync<ItemTeste>(
+                "https://exemplo.softcomshop.com.br", "recurso", null, "token-fake");
+
+            var texto = LerLog(pasta);
+            Assert.Contains("GET https://exemplo.softcomshop.com.br/recurso?per_page=200", texto);
+            Assert.Contains("GET https://exemplo.softcomshop.com.br/recurso?page=2&per_page=200", texto);
+        }
+        finally
+        {
+            Registro.Destino = anterior;
+            try { Directory.Delete(pasta, recursive: true); } catch (Exception) { /* limpeza de teste */ }
+        }
     }
 }
